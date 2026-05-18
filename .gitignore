@@ -1,0 +1,10 @@
+src/
+tools/depot_tools/
+viewer/node_modules/
+viewer/dist/
+benchmarks/tmp/
+benchmarks/traces/
+benchmarks/screenshots/
+*.log
+*.tmp
+.DS_Store

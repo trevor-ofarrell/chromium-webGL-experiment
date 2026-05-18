@@ -1,0 +1,58 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/webview2",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "arm64/WebView2Loader.dll",
+      "size": 147016,
+      "hash": "CTcDDvxxjz2nfF4JePtQRuOB0Lt7Aayq0xpTWhtYijMC"
+    },
+    {
+      "name": "arm64/WebView2Loader.dll.lib",
+      "size": 2916,
+      "hash": "1wJx2qRFB4ZcoGls0cHt5eWOaU7sdMstBuF9u-IF6aIC"
+    },
+    {
+      "name": "arm64/WebView2LoaderStatic.lib",
+      "size": 10560418,
+      "hash": "WkTVv2PCJm3OGgMtO52DFHqAbbupU_EXD5JRzsjE1QsC"
+    },
+    {
+      "name": "include/WebView2.h",
+      "size": 2743394,
+      "hash": "Cv8oXpdCeGEOZWZJ4m1oz-i7ChU6W_Y26-86wS7AczMC"
+    },
+    {
+      "name": "x64/WebView2Loader.dll",
+      "size": 161864,
+      "hash": "61M17eqm8hIsBE6CqrI1HcjJtOD-XleMcZIvthvihecC"
+    },
+    {
+      "name": "x64/WebView2Loader.dll.lib",
+      "size": 2916,
+      "hash": "v8jMqqBWvpUkOltmqCflhJ0rs5Z2_KTcwgU3ltjhXG0C"
+    },
+    {
+      "name": "x64/WebView2LoaderStatic.lib",
+      "size": 10558792,
+      "hash": "Kjw54P2kQq_YxfJAowKKW-m6UG3PS6uW3YH1wNMl_RkC"
+    },
+    {
+      "name": "x86/WebView2Loader.dll",
+      "size": 121928,
+      "hash": "BIFLLFkxTGRS1huCGko6XF-OhXe1W5hfanpLWfiQfsUC"
+    },
+    {
+      "name": "x86/WebView2Loader.dll.lib",
+      "size": 2998,
+      "hash": "o-wO5TnVj-cjkfLonLgU-W-rchxtjTCVPRUuqV3_rUkC"
+    },
+    {
+      "name": "x86/WebView2LoaderStatic.lib",
+      "size": 10522614,
+      "hash": "Dwkve8EzD4udsyxHtQhgupPiZ9Yrcc-i3LcCim3OWJwC"
+    }
+  ]
+}

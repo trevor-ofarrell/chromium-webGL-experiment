@@ -1,0 +1,363 @@
+diff --git a/content/shell/app/shell_main_delegate.cc b/content/shell/app/shell_main_delegate.cc
+index 7d1fad8971..fd59dd71e1 100644
+--- a/content/shell/app/shell_main_delegate.cc
++++ b/content/shell/app/shell_main_delegate.cc
+@@ -41,8 +41,11 @@
+ #include "content/shell/gpu/shell_content_gpu_client.h"
+ #include "content/shell/renderer/shell_content_renderer_client.h"
+ #include "content/shell/utility/shell_content_utility_client.h"
++#include "gpu/config/gpu_switches.h"
+ #include "net/cookies/cookie_monster.h"
+ #include "ui/base/resource/resource_bundle.h"
++#include "ui/gl/gl_switches.h"
++#include "url/gurl.h"
+ 
+ #if !BUILDFLAG(IS_ANDROID)
+ #include "content/web_test/browser/web_test_browser_main_runner.h"  // nogncheck
+@@ -198,6 +201,70 @@ void InitLogging(const base::CommandLine& command_line) {
+                        true /* Timestamp */, false /* Tick count */);
+ }
+ 
++void AppendSwitchIfAbsent(base::CommandLine& command_line,
++                          const char switch_name[]) {
++  if (!command_line.HasSwitch(switch_name))
++    command_line.AppendSwitch(switch_name);
++}
++
++void AppendSwitchASCIIIfAbsent(base::CommandLine& command_line,
++                               const char switch_name[],
++                               const std::string& value) {
++  if (!command_line.HasSwitch(switch_name))
++    command_line.AppendSwitchASCII(switch_name, value);
++}
++
++bool ViewerAppUrlIsLocalFile(const base::CommandLine& command_line) {
++  if (!command_line.HasSwitch(switches::kViewerAppUrl))
++    return false;
++
++  const base::FilePath viewer_app_path =
++      command_line.GetSwitchValuePath(switches::kViewerAppUrl);
++  if (!viewer_app_path.empty() && viewer_app_path.IsAbsolute())
++    return true;
++
++  const std::string viewer_app_url =
++      command_line.GetSwitchValueASCII(switches::kViewerAppUrl);
++  GURL url(viewer_app_url);
++  return !url.is_valid() || !url.has_scheme() || url.SchemeIsFile();
++}
++
++void ConfigureViewerTrustedContentSwitches(base::CommandLine& command_line) {
++  if (!command_line.HasSwitch(switches::kViewerAppUrl) ||
++      !command_line.HasSwitch(switches::kViewerTrustedContent))
++    return;
++
++  if (ViewerAppUrlIsLocalFile(command_line))
++    AppendSwitchIfAbsent(command_line, switches::kAllowFileAccessFromFiles);
++
++  if (command_line.HasSwitch(switches::kViewerForceAngleBackend)) {
++    const std::string backend =
++        command_line.GetSwitchValueASCII(switches::kViewerForceAngleBackend);
++    if (!backend.empty() && backend != "default")
++      AppendSwitchASCIIIfAbsent(command_line, switches::kUseANGLE, backend);
++  }
++
++  if (command_line.HasSwitch(switches::kViewerRelaxedWebGLValidation)) {
++    AppendSwitchASCIIIfAbsent(command_line, switches::kUseCmdDecoder,
++                              switches::kCmdDecoderPassthroughName);
++  }
++
++  if (command_line.HasSwitch(switches::kViewerInProcessGpu))
++    AppendSwitchIfAbsent(command_line, switches::kInProcessGPU);
++
++  if (command_line.HasSwitch(switches::kViewerSingleProcess))
++    AppendSwitchIfAbsent(command_line, switches::kSingleProcess);
++
++  if (command_line.HasSwitch(switches::kViewerAggressiveGpu)) {
++    AppendSwitchIfAbsent(command_line, switches::kDisableSoftwareRasterizer);
++    AppendSwitchIfAbsent(command_line, switches::kEnableUnsafeWebGPU);
++    AppendSwitchIfAbsent(command_line, switches::kEnableWebGPUDeveloperFeatures);
++    AppendSwitchIfAbsent(command_line, switches::kForceHighPerformanceGPU);
++    AppendSwitchIfAbsent(command_line,
++                         switches::kNoDelayForDX12VulkanInfoCollection);
++  }
++}
++
+ }  // namespace
+ 
+ namespace content {
+@@ -237,6 +304,7 @@ std::optional<int> ShellMainDelegate::BasicStartupComplete() {
+ #endif  // BUILDFLAG(IS_MAC)
+ 
+   InitLogging(command_line);
++  ConfigureViewerTrustedContentSwitches(command_line);
+ 
+ #if !BUILDFLAG(IS_ANDROID)
+   if (switches::IsRunWebTestsSwitchPresent()) {
+diff --git a/content/shell/browser/shell.cc b/content/shell/browser/shell.cc
+index cee8b0094c..9c05df715f 100644
+--- a/content/shell/browser/shell.cc
++++ b/content/shell/browser/shell.cc
+@@ -4,6 +4,7 @@
+ #include "content/shell/browser/shell.h"
+ 
+ #include <stddef.h>
++#include <stdio.h>
+ 
+ #include <map>
+ #include <memory>
+@@ -164,8 +164,9 @@ void Shell::SetShellCreatedCallback(
+ 
+ // static
+ bool Shell::ShouldHideToolbar() {
+-  return base::CommandLine::ForCurrentProcess()->HasSwitch(
+-      switches::kContentShellHideToolbar);
++  base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
++  return command_line->HasSwitch(switches::kContentShellHideToolbar) ||
++         command_line->HasSwitch(switches::kViewerAppUrl);
+ }
+ 
+ // static
+@@ -427,6 +428,12 @@ WebContents* Shell::OpenURLFromTab(
+     const OpenURLParams& params,
+     base::OnceCallback<void(content::NavigationHandle&)>
+         navigation_handle_callback) {
++  if (base::CommandLine::ForCurrentProcess()->HasSwitch(
++          switches::kViewerBlockExternalNavigation) &&
++      params.disposition != WindowOpenDisposition::CURRENT_TAB) {
++    return nullptr;
++  }
++
+   WebContents* target = nullptr;
+   switch (params.disposition) {
+     case WindowOpenDisposition::CURRENT_TAB:
+@@ -665,7 +673,18 @@ bool Shell::DidAddMessageToConsole(WebContents* source,
+                                    const std::u16string& message,
+                                    int32_t line_no,
+                                    const std::u16string& source_id) {
+-  return switches::IsRunWebTestsSwitchPresent();
++  const bool handled_by_web_tests = switches::IsRunWebTestsSwitchPresent();
++  if (base::CommandLine::ForCurrentProcess()->HasSwitch(
++          switches::kViewerAppUrl)) {
++    const std::string message_utf8 = base::UTF16ToUTF8(message);
++    if (base::StartsWith(message_utf8, "THREE_VIEWER_RESULT",
++                         base::CompareCase::SENSITIVE)) {
++      fprintf(stdout, "%s\n", message_utf8.c_str());
++      fflush(stdout);
++      return true;
++    }
++  }
++  return handled_by_web_tests;
+ }
+ 
+ void Shell::RendererUnresponsive(
+diff --git a/content/shell/browser/shell_browser_main_parts.cc b/content/shell/browser/shell_browser_main_parts.cc
+index 76ba15e7f8..a170f9255b 100644
+--- a/content/shell/browser/shell_browser_main_parts.cc
++++ b/content/shell/browser/shell_browser_main_parts.cc
+@@ -83,6 +83,24 @@ GURL GetStartupURL() {
+   // Delay renderer creation on Android until surface is ready.
+   return GURL();
+ #else
++  if (command_line->HasSwitch(switches::kViewerAppUrl)) {
++    const base::FilePath viewer_app_path =
++        command_line->GetSwitchValuePath(switches::kViewerAppUrl);
++    if (!viewer_app_path.empty() && viewer_app_path.IsAbsolute()) {
++      return net::FilePathToFileURL(
++          base::MakeAbsoluteFilePath(viewer_app_path));
++    }
++
++    const std::string viewer_app_url =
++        command_line->GetSwitchValueASCII(switches::kViewerAppUrl);
++    GURL url(viewer_app_url);
++    if (url.is_valid() && url.has_scheme())
++      return url;
++
++    return net::FilePathToFileURL(base::MakeAbsoluteFilePath(
++        viewer_app_path));
++  }
++
+   const base::CommandLine::StringVector& args = command_line->GetArgs();
+   if (args.empty())
+     return GURL("https://www.google.com/");
+diff --git a/content/shell/browser/shell_content_browser_client.cc b/content/shell/browser/shell_content_browser_client.cc
+index 948a8755c0..ef94488ee7 100644
+--- a/content/shell/browser/shell_content_browser_client.cc
++++ b/content/shell/browser/shell_content_browser_client.cc
+@@ -19,6 +19,8 @@
+ #include "base/containers/flat_set.h"
+ #include "base/feature_list.h"
+ #include "base/files/file.h"
++#include "base/files/file_path.h"
++#include "base/files/file_util.h"
+ #include "base/functional/callback_helpers.h"
+ #include "base/logging.h"
+ #include "base/no_destructor.h"
+@@ -48,6 +50,7 @@
+ #include "components/variations/service/variations_service.h"
+ #include "content/public/browser/client_certificate_delegate.h"
+ #include "content/public/browser/login_delegate.h"
++#include "content/public/browser/navigation_handle.h"
+ #include "content/public/browser/navigation_throttle.h"
+ #include "content/public/browser/navigation_throttle_registry.h"
+ #include "content/public/browser/network_service_instance.h"
+@@ -77,6 +80,7 @@
+ #include "mojo/public/cpp/bindings/binder_map.h"
+ #include "mojo/public/cpp/bindings/remote.h"
+ #include "mojo/public/cpp/bindings/self_owned_receiver.h"
++#include "net/base/filename_util.h"
+ #include "net/base/features.h"
+ #include "net/dns/public/dns_over_https_config.h"
+ #include "net/dns/public/secure_dns_mode.h"
+@@ -246,6 +250,88 @@ base::flat_set<url::Origin> GetIsolatedContextOriginSetFromFlag() {
+   return origin_set;
+ }
+ 
++GURL GetViewerAppUrlFromCommandLine() {
++  const base::CommandLine& command_line =
++      *base::CommandLine::ForCurrentProcess();
++  if (!command_line.HasSwitch(switches::kViewerAppUrl))
++    return GURL();
++
++  const base::FilePath viewer_app_path =
++      command_line.GetSwitchValuePath(switches::kViewerAppUrl);
++  if (!viewer_app_path.empty() && viewer_app_path.IsAbsolute()) {
++    return net::FilePathToFileURL(base::MakeAbsoluteFilePath(viewer_app_path));
++  }
++
++  const std::string viewer_app_url =
++      command_line.GetSwitchValueASCII(switches::kViewerAppUrl);
++  GURL url(viewer_app_url);
++  if (url.is_valid() && url.has_scheme())
++    return url;
++
++  return net::FilePathToFileURL(base::MakeAbsoluteFilePath(
++      viewer_app_path));
++}
++
++bool IsViewerFileNavigationAllowed(const GURL& viewer_app_url,
++                                   const GURL& navigation_url) {
++  if (!navigation_url.SchemeIsFile())
++    return false;
++
++  base::FilePath viewer_app_path;
++  base::FilePath navigation_path;
++  if (!net::FileURLToFilePath(viewer_app_url, &viewer_app_path) ||
++      !net::FileURLToFilePath(navigation_url, &navigation_path)) {
++    return false;
++  }
++
++  viewer_app_path = base::MakeAbsoluteFilePath(viewer_app_path);
++  navigation_path = base::MakeAbsoluteFilePath(navigation_path);
++  if (viewer_app_path.empty() || navigation_path.empty())
++    return false;
++
++  const base::FilePath viewer_app_dir = viewer_app_path.DirName();
++  return navigation_path == viewer_app_path ||
++         viewer_app_dir.IsParent(navigation_path);
++}
++
++bool IsViewerNavigationAllowed(const GURL& viewer_app_url,
++                               const GURL& navigation_url) {
++  if (!viewer_app_url.is_valid() || !navigation_url.is_valid())
++    return false;
++
++  if (navigation_url == GURL(url::kAboutBlankURL))
++    return true;
++
++  if (viewer_app_url.SchemeIsFile())
++    return IsViewerFileNavigationAllowed(viewer_app_url, navigation_url);
++
++  return url::Origin::Create(viewer_app_url)
++      .IsSameOriginWith(url::Origin::Create(navigation_url));
++}
++
++class ViewerNavigationThrottle : public NavigationThrottle {
++ public:
++  explicit ViewerNavigationThrottle(NavigationThrottleRegistry& registry)
++      : NavigationThrottle(registry) {}
++
++  ThrottleCheckResult WillStartRequest() override { return CheckNavigation(); }
++  ThrottleCheckResult WillRedirectRequest() override {
++    return CheckNavigation();
++  }
++  const char* GetNameForLogging() override {
++    return "ViewerNavigationThrottle";
++  }
++
++ private:
++  ThrottleCheckResult CheckNavigation() {
++    const GURL viewer_app_url = GetViewerAppUrlFromCommandLine();
++    if (IsViewerNavigationAllowed(viewer_app_url, navigation_handle()->GetURL()))
++      return PROCEED;
++
++    return BLOCK_REQUEST;
++  }
++};
++
+ // In content browser tests we allow more than one ShellContentBrowserClient
+ // to be created (actually, ContentBrowserTestContentBrowserClient). Any state
+ // needed should be added here so that it's shared between the instances.
+@@ -651,6 +737,11 @@ void ShellContentBrowserClient::OpenURL(
+ 
+ void ShellContentBrowserClient::CreateThrottlesForNavigation(
+     NavigationThrottleRegistry& registry) {
++  if (base::CommandLine::ForCurrentProcess()->HasSwitch(
++          switches::kViewerBlockExternalNavigation)) {
++    registry.AddThrottle(std::make_unique<ViewerNavigationThrottle>(registry));
++  }
++
+   if (create_throttles_for_navigation_callback_) {
+     create_throttles_for_navigation_callback_.Run(registry);
+   }
+diff --git a/content/shell/common/shell_switches.h b/content/shell/common/shell_switches.h
+index 8757fa418d..4397be757a 100644
+--- a/content/shell/common/shell_switches.h
++++ b/content/shell/common/shell_switches.h
+@@ -40,6 +40,47 @@ inline constexpr char kContentShellHostWindowSize[] =
+ // Hides toolbar from content_shell's host window.
+ inline constexpr char kContentShellHideToolbar[] = "content-shell-hide-toolbar";
+ 
++// Loads the single-purpose Three.js viewer URL or local path at startup.
++inline constexpr char kViewerAppUrl[] = "viewer-app-url";
++
++// Blocks top-level navigation outside the trusted viewer URL origin or,
++// for file launches, outside the local viewer app directory.
++inline constexpr char kViewerBlockExternalNavigation[] =
++    "viewer-block-external-navigation";
++
++// Marks viewer mode as trusted-local-content only. Unsafe optimizations must
++// also require --viewer-app-url and their own explicit switches.
++inline constexpr char kViewerTrustedContent[] = "viewer-trusted-content";
++
++// Enables trusted-content GPU/runtime switch aliases that are too risky for
++// arbitrary browsing. Current aliases avoid software fallback, enable WebGPU
++// developer paths, request the high-performance GPU, and avoid delayed
++// DX12/Vulkan info collection.
++inline constexpr char kViewerAggressiveGpu[] = "viewer-aggressive-gpu";
++
++// Requests Chromium's pass-through command decoder for a trusted-content
++// WebGL validation-overhead experiment.
++inline constexpr char kViewerRelaxedWebGLValidation[] =
++    "viewer-relaxed-webgl-validation";
++
++// Runs the GPU service in-process for trusted-content experiments.
++inline constexpr char kViewerInProcessGpu[] = "viewer-in-process-gpu";
++
++// Runs Chromium in single-process mode for trusted-content experiments.
++inline constexpr char kViewerSingleProcess[] = "viewer-single-process";
++
++// Forwards to Chromium's --use-angle switch when the value is not "default".
++inline constexpr char kViewerForceAngleBackend[] =
++    "viewer-force-angle-backend";
++
++// Reserved for a future measured Blink feature-reduction experiment.
++inline constexpr char kViewerDisableUnneededBlinkFeatures[] =
++    "viewer-disable-unneeded-blink-features";
++
++// Reserved for a future measured direct presentation experiment.
++inline constexpr char kViewerDirectGpuPresentation[] =
++    "viewer-direct-gpu-presentation";
++
+ // Enables APIs guarded with the [IsolatedContext] IDL attribute for the given
+ // comma-separated list of origins.
+ inline constexpr char kIsolatedContextOrigins[] = "isolated-context-origins";

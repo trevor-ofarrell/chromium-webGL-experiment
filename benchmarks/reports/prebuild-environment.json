@@ -1,0 +1,226 @@
+﻿{
+    "generated_at":  "2026-05-18T21:41:05.5630160Z",
+    "root":  "C:\\Users\\trevo\\code\\three-browser",
+    "user":  "DESKTOP-1IAA42N\\trevo",
+    "is_admin":  false,
+    "platform":  {
+                     "os":  "Microsoft Windows NT 10.0.26200.0",
+                     "architecture":  "X64",
+                     "powershell_version":  "5.1.26100.8457"
+                 },
+    "chromium":  {
+                     "expected_revision":  "e39c315b5d5d0b0cf9963bf00130a98d13cfec51",
+                     "actual_revision":  "e39c315b5d5d0b0cf9963bf00130a98d13cfec51",
+                     "upstream_head_revision":  "fc4900c7354139df60016f1e1cc46f7bcefd2810",
+                     "upstream_head_checked_at":  "2026-05-18T21:41:05.5630160Z",
+                     "upstream_head_matches_expected":  false,
+                     "pin_refresh":  {
+                                         "path":  "benchmarks\\reports\\chromium-pin-refresh.json",
+                                         "exists":  true,
+                                         "target_revision":  "e39c315b5d5d0b0cf9963bf00130a98d13cfec51",
+                                         "previous_revision":  "b80505dd3614a2ede6b009015131b1d19f7da890",
+                                         "selected_from_upstream_head":  true,
+                                         "selected_at":  "2026-05-18T21:21:48.2933332Z",
+                                         "source":  "origin HEAD",
+                                         "generated_at":  "2026-05-18T21:24:55.7705153Z",
+                                         "target_matches_expected":  true
+                                     },
+                     "status_short":  [
+                                          "## HEAD (no branch)"
+                                      ]
+                 },
+    "environment":  {
+                        "DEPOT_TOOLS_WIN_TOOLCHAIN":  null,
+                        "vs2022_install":  "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools",
+                        "visual_studio_installer":  "C:\\Program Files (x86)\\Microsoft Visual Studio\\Installer\\setup.exe",
+                        "visual_studio_vswhere":  "C:\\Program Files (x86)\\Microsoft Visual Studio\\Installer\\vswhere.exe",
+                        "atl_component_id":  "Microsoft.VisualStudio.Component.VC.ATLMFC",
+                        "visual_studio_instance":  {
+                                                       "instance_id":  "d55bb18e",
+                                                       "installation_path":  "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools",
+                                                       "installation_version":  "17.14.37111.16",
+                                                       "product_id":  "Microsoft.VisualStudio.Product.BuildTools",
+                                                       "is_complete":  true,
+                                                       "is_launchable":  true,
+                                                       "is_reboot_required":  false
+                                                   },
+                        "atl_component_reported_by_vswhere":  false,
+                        "navigation_external_ipv4_addresses":  [
+                                                                   {
+                                                                       "address":  "192.168.1.84",
+                                                                       "interface_name":  "Wi-Fi",
+                                                                       "interface_type":  "Wireless80211"
+                                                                   }
+                                                               ],
+                        "test_assumed_viewer_patch_already_applied":  false
+                    },
+    "patch":  {
+                  "path":  "chromium_patches\\0001-draft-minimal-three-viewer-entrypoint.patch",
+                  "exists":  true,
+                  "applies_cleanly":  true,
+                  "already_applied":  false,
+                  "sha256":  "0fda4df8b9db9607664ab9aafcd4ed0af3bc39a9a93a50980a1417322712f588"
+              },
+    "gn_args":  [
+                    {
+                        "path":  "build\\gn_args\\baseline_content_shell.gn",
+                        "exists":  true,
+                        "sha256":  "bd7a13954054220923cb41d0f2ad96f3d4ed46cef6007654f477d785340887bf"
+                    },
+                    {
+                        "path":  "build\\gn_args\\fork_safe_content_shell.gn",
+                        "exists":  true,
+                        "sha256":  "bd7a13954054220923cb41d0f2ad96f3d4ed46cef6007654f477d785340887bf"
+                    },
+                    {
+                        "path":  "build\\gn_args\\fork_trusted_aggressive.gn",
+                        "exists":  true,
+                        "sha256":  "37411591ad17e791bdbac7638a3119913abe92827530ec7b8d62240c46f58b5b"
+                    },
+                    {
+                        "path":  "src\\out\\ReleaseBaseline\\args.gn",
+                        "exists":  true,
+                        "sha256":  "bd7a13954054220923cb41d0f2ad96f3d4ed46cef6007654f477d785340887bf"
+                    },
+                    {
+                        "path":  "src\\out\\ReleaseViewerDefault\\args.gn",
+                        "exists":  true,
+                        "sha256":  "bd7a13954054220923cb41d0f2ad96f3d4ed46cef6007654f477d785340887bf"
+                    },
+                    {
+                        "path":  "src\\out\\ReleaseViewerTrustedAggressive\\args.gn",
+                        "exists":  true,
+                        "sha256":  "37411591ad17e791bdbac7638a3119913abe92827530ec7b8d62240c46f58b5b"
+                    }
+                ],
+    "binaries":  [
+                     {
+                         "path":  "src\\out\\ReleaseBaseline\\content_shell.exe",
+                         "exists":  false,
+                         "size_bytes":  null,
+                         "sha256":  null
+                     },
+                     {
+                         "path":  "src\\out\\ReleaseViewerDefault\\content_shell.exe",
+                         "exists":  false,
+                         "size_bytes":  null,
+                         "sha256":  null
+                     }
+                 ],
+    "build_failures":  [
+                           {
+                               "out_dir":  "src\\out\\ReleaseBaseline",
+                               "failed_targets_exists":  true,
+                               "siso_output_exists":  true,
+                               "requested_targets":  [
+                                                         "content_shell"
+                                                     ],
+                               "failed_targets":  [
+                                                      "obj/base/base/atl_throw.obj"
+                                                  ],
+                               "first_fatal_error":  "../..\\base/win/atl_throw.h(35,10): fatal error: \u0027atldef.h\u0027 file not found",
+                               "failed_targets_sha256":  "4c06d5ff0a3485f1caed1a18fe66e7c5d802577dea99282471e389b7139be0bd",
+                               "siso_output_sha256":  "e88cbeedf3e536c4a93cfa2bfae4fedf502f49bbb2cd650483a809229b63b9a6",
+                               "failed_targets_last_write_utc":  "2026-05-18T15:42:42.5284080Z",
+                               "siso_output_last_write_utc":  "2026-05-18T15:42:32.1232090Z",
+                               "build_ninja_last_write_utc":  "2026-05-18T21:24:05.4052415Z",
+                               "build_ninja_stamp_last_write_utc":  "2026-05-18T21:24:05.4211034Z",
+                               "failure_logs_current_for_generated_build":  false,
+                               "failure_logs_stale_after_gn_gen":  true
+                           },
+                           {
+                               "out_dir":  "src\\out\\ReleaseViewerDefault",
+                               "failed_targets_exists":  false,
+                               "siso_output_exists":  false,
+                               "requested_targets":  [
+
+                                                     ],
+                               "failed_targets":  [
+
+                                                  ],
+                               "first_fatal_error":  null,
+                               "failed_targets_sha256":  null,
+                               "siso_output_sha256":  null,
+                               "failed_targets_last_write_utc":  null,
+                               "siso_output_last_write_utc":  null,
+                               "build_ninja_last_write_utc":  "2026-05-18T21:24:29.9051442Z",
+                               "build_ninja_stamp_last_write_utc":  "2026-05-18T21:24:29.9210109Z",
+                               "failure_logs_current_for_generated_build":  false,
+                               "failure_logs_stale_after_gn_gen":  false
+                           }
+                       ],
+    "checks":  [
+                   {
+                       "name":  "depot_tools",
+                       "ok":  true,
+                       "detail":  "C:\\Users\\trevo\\code\\three-browser\\tools\\depot_tools"
+                   },
+                   {
+                       "name":  "visual_studio_installer",
+                       "ok":  true,
+                       "detail":  "C:\\Program Files (x86)\\Microsoft Visual Studio\\Installer\\setup.exe"
+                   },
+                   {
+                       "name":  "chromium_revision",
+                       "ok":  true,
+                       "detail":  "expected=e39c315b5d5d0b0cf9963bf00130a98d13cfec51 actual=e39c315b5d5d0b0cf9963bf00130a98d13cfec51"
+                   },
+                   {
+                       "name":  "gclient_entries",
+                       "ok":  true,
+                       "detail":  "C:\\Users\\trevo\\code\\three-browser\\.gclient_entries"
+                   },
+                   {
+                       "name":  "gn",
+                       "ok":  true,
+                       "detail":  "C:\\Users\\trevo\\code\\three-browser\\src\\buildtools\\win\\gn.exe"
+                   },
+                   {
+                       "name":  "ninja",
+                       "ok":  true,
+                       "detail":  "C:\\Users\\trevo\\code\\three-browser\\src\\third_party\\ninja\\ninja.exe"
+                   },
+                   {
+                       "name":  "vs2022_install",
+                       "ok":  true,
+                       "detail":  "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools"
+                   },
+                   {
+                       "name":  "visual_studio_atl",
+                       "ok":  false,
+                       "detail":  "missing atldef.h"
+                   },
+                   {
+                       "name":  "visual_studio_atl_component",
+                       "ok":  false,
+                       "detail":  "vswhere does not report component Microsoft.VisualStudio.Component.VC.ATLMFC"
+                   },
+                   {
+                       "name":  "windows_sdk_debuggers",
+                       "ok":  true,
+                       "detail":  "C:\\Program Files (x86)\\Windows Kits\\10\\Debuggers\\x64\\dbghelp.dll"
+                   },
+                   {
+                       "name":  "viewer_dist",
+                       "ok":  true,
+                       "detail":  "C:\\Users\\trevo\\code\\three-browser\\viewer\\dist\\index.html"
+                   },
+                   {
+                       "name":  "viewer_patch_available",
+                       "ok":  true,
+                       "detail":  "C:\\Users\\trevo\\code\\three-browser\\chromium_patches\\0001-draft-minimal-three-viewer-entrypoint.patch"
+                   },
+                   {
+                       "name":  "viewer_patch_state",
+                       "ok":  true,
+                       "detail":  "applies cleanly"
+                   },
+                   {
+                       "name":  "navigation_external_ipv4",
+                       "ok":  true,
+                       "detail":  "192.168.1.84 on Wi-Fi"
+                   }
+               ],
+    "ok":  false
+}
+
