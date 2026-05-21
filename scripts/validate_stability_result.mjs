@@ -14,6 +14,7 @@ function parseArgs(argv) {
     expectedVariant: '',
     requireCheckout: false,
     requireBuildArgs: false,
+    expectedBuildArgsHash: '',
     expectedChromiumRevision: '',
     expectedBrowser: '',
     requireForkRevision: false,
@@ -46,6 +47,8 @@ function parseArgs(argv) {
       args.requireCheckout = true;
     } else if (token === '--requireBuildArgs') {
       args.requireBuildArgs = true;
+    } else if (token === '--expectedBuildArgsHash') {
+      args.expectedBuildArgsHash = argv[++i].toLowerCase();
     } else if (token === '--expectedChromiumRevision') {
       args.expectedChromiumRevision = argv[++i];
     } else if (token === '--expectedBrowser') {
@@ -74,7 +77,7 @@ function parseArgs(argv) {
   }
 
   if (!args.file) {
-    throw new Error('Usage: node scripts/validate_stability_result.mjs <result.json> [--maxRssDeltaMb N] [--maxRendererResourceDelta N] [--expectedBrowser PATH]');
+    throw new Error('Usage: node scripts/validate_stability_result.mjs <result.json> [--maxRssDeltaMb N] [--maxRendererResourceDelta N] [--expectedBrowser PATH] [--expectedBuildArgsHash SHA256]');
   }
   for (const [name, value] of [
     ['--maxRssDeltaMb', args.maxRssDeltaMb],
@@ -266,6 +269,12 @@ function validate(data, args) {
   }
   if (args.requireBuildArgs && !data.build_args_hash) {
     errors.push('build_args_hash is required');
+  }
+  const actualBuildArgsHash = typeof data.build_args_hash === 'string'
+    ? data.build_args_hash.toLowerCase()
+    : data.build_args_hash;
+  if (args.expectedBuildArgsHash && actualBuildArgsHash !== args.expectedBuildArgsHash) {
+    errors.push(`build_args_hash is ${data.build_args_hash || 'missing'}, expected ${args.expectedBuildArgsHash}`);
   }
   if (args.requireForkRevision && !data.fork_revision) {
     errors.push('fork_revision is required');

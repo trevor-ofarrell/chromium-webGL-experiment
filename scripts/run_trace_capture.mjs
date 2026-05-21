@@ -44,6 +44,7 @@ function parseArgs(argv) {
     viewerDisableUnneededBlinkFeatures: false,
     viewerDirectGpuPresentation: false,
     browserFlag: [],
+    unsafeFullSizeWindow: false,
   };
   const booleanArgs = new Set([
     'viewerMode',
@@ -55,6 +56,7 @@ function parseArgs(argv) {
     'viewerDisableUnneededBlinkFeatures',
     'viewerDirectGpuPresentation',
     'precompile',
+    'unsafeFullSizeWindow',
   ]);
 
   for (let i = 2; i < argv.length; i += 1) {
@@ -95,6 +97,24 @@ function assertTrustedViewerExperimentGates(args) {
 
 function ensureFile(file, label) {
   if (!file || !fs.existsSync(file)) throw new Error(`${label} not found: ${file}`);
+}
+
+function hasSwitch(flags, name) {
+  return flags.some((flag) => flag === name || flag.startsWith(`${name}=`));
+}
+
+function pushDefaultFlag(flags, extraFlags, flag) {
+  const name = flag.split('=')[0];
+  if (!hasSwitch(flags, name) && !hasSwitch(extraFlags, name)) {
+    flags.push(flag);
+  }
+}
+
+function addSafeDesktopFlags(flags, extraFlags) {
+  pushDefaultFlag(flags, extraFlags, '--force-high-performance-gpu');
+  pushDefaultFlag(flags, extraFlags, '--window-size=640,480');
+  pushDefaultFlag(flags, extraFlags, '--window-position=40,40');
+  pushDefaultFlag(flags, extraFlags, '--force-device-scale-factor=1');
 }
 
 function killProcessTree(child) {
@@ -168,13 +188,18 @@ async function waitForJson(url, timeoutMs) {
 
 async function waitForPageTarget(debugPort, timeoutMs) {
   const start = Date.now();
+  let lastError = null;
   while (Date.now() - start < timeoutMs) {
-    const targets = await waitForJson(`http://127.0.0.1:${debugPort}/json/list`, 5000);
-    const page = targets.find((target) => target.type === 'page' && target.webSocketDebuggerUrl);
-    if (page) return page;
+    try {
+      const targets = await waitForJson(`http://127.0.0.1:${debugPort}/json/list`, 5000);
+      const page = targets.find((target) => target.type === 'page' && target.webSocketDebuggerUrl);
+      if (page) return page;
+    } catch (error) {
+      lastError = error;
+    }
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
-  throw new Error('Timed out waiting for a debuggable page target.');
+  throw lastError || new Error('Timed out waiting for a debuggable page target.');
 }
 
 class CdpClient {
@@ -298,6 +323,9 @@ async function main() {
     '--disable-renderer-backgrounding',
     '--disable-background-timer-throttling',
   ];
+  if (!args.unsafeFullSizeWindow) {
+    addSafeDesktopFlags(browserArgs, args.browserFlag);
+  }
   if (args.viewerMode) {
     browserArgs.push(`--viewer-app-url=${viewerUrl}`);
     browserArgs.push('--viewer-block-external-navigation');

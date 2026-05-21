@@ -85,15 +85,19 @@ $DocumentSpecs = @(
     Path = "docs\build.md"
     Terms = @(
       "Microsoft.VisualStudio.Component.VC.ATLMFC",
-      "bootstrap_chromium.ps1",
+      "install_vs_atl.ps1",
       "verify_prebuild.ps1",
       "refresh_chromium_pin.ps1",
       "ReleaseBaseline",
       "ReleaseViewerDefault",
+      "stage_viewer_package.ps1",
+      "-ChromiumOutDir",
       "run_post_atl_pipeline.ps1",
+      "-RefreshChromiumPin",
       "-IncludeWebGPU",
       "-IncludeAggressiveGpu",
       "-AggressiveAngleBackend d3d11",
+      "-CaptureTrace",
       "-RunTrustedExperimentMatrix",
       "-TrustedMatrixAngleBackend d3d11",
       "-MaxRssDeltaMb 128",
@@ -104,25 +108,25 @@ $DocumentSpecs = @(
   [pscustomobject]@{
     Path = "docs\benchmark_methodology.md"
     Terms = @(
-      "Required Comparisons",
-      "Scene Suite",
+      "Required Scene Suite",
+      "Official Comparison",
       "Metric Schema",
       "chromium_revision",
       "startup_ms_to_first_frame",
-      "Official comparison workflow",
-      "Trusted experiment matrix",
-      "Long-run stability",
-      "Prompt-to-artifact audit"
+      "software-renderer rejection",
+      "Trusted matrix manifest",
+      "Stability",
+      "Trace Capture"
     )
   },
   [pscustomobject]@{
     Path = "docs\optimization_log.md"
     Terms = @(
-      "| ID | Optimization | Status | Mode | Evidence | Risk | Relevant files | Notes |",
+      "| Optimization class | Status | Measured effect | Risk | Relevant evidence | Notes |",
       "content_shell",
       "trusted-content",
-      "same-revision",
-      "O-124"
+      "official-comparison-manifest.json",
+      "Prompt Optimization Class Decisions"
     )
   },
   [pscustomobject]@{
@@ -131,27 +135,29 @@ $DocumentSpecs = @(
       "Rationale",
       "Regression risk",
       "Current evidence",
-      "no Chromium subsystem has been physically removed",
-      "not accepted as completed optimization work"
+      "Final Register",
+      "Prompt Optimization Class Tracking",
+      "Subsystems Explicitly Kept For Now",
+      "Update Rule"
     )
   },
   [pscustomobject]@{
     Path = "docs\known_limitations.md"
     Terms = @(
-      "ATL/MFC",
-      "Installed Chrome smoke results are harness validation only",
-      "not accepted as baseline evidence",
-      "one-hour stock and fork stability runs"
+      "Windows NVIDIA ANGLE D3D11",
+      "WebGPU GPU timestamp timing is disabled",
+      "does not improve average WebGL2 FPS",
+      "smaller friendly window"
     )
   },
   [pscustomobject]@{
     Path = "docs\future_work.md"
     Terms = @(
-      'Build the stock `content_shell` baseline',
-      "Apply the viewer entrypoint patch",
-      "WebGL2 and WebGPU benchmark suites",
-      "trusted-only aggressive flags",
-      "one-hour stock and fork stability loops"
+      "additional GPUs and drivers",
+      "direct presentation prototype",
+      "source-level",
+      "WebGPU pipeline cache",
+      "Automate rebase checks"
     )
   },
   [pscustomobject]@{
@@ -182,7 +188,7 @@ $DocumentSpecs = @(
       "--viewer-aggressive-gpu",
       "--viewer-force-angle-backend",
       "Reserved gate only",
-      "Raw benchmark JSON records"
+      "Benchmark metadata fields"
     )
   },
   [pscustomobject]@{
@@ -192,41 +198,39 @@ $DocumentSpecs = @(
       "WebGPU Device Loss",
       "Resource Growth Fields",
       "process_rss_delta_mb <= 128",
-      "one-hour stock/fork stability runs remain pending"
+      "NVIDIA ANGLE D3D11"
     )
   },
   [pscustomobject]@{
     Path = "docs\webgpu_scene_coverage.md"
     Terms = @(
-      "installed Chrome only",
-      "not same-revision stock/fork performance evidence",
+      "official WebGPU suite",
+      "WebGPURenderer",
       "gltf-loader-stress",
-      "Required Follow-Up"
+      "timestamp queries caused device loss"
     )
   },
   [pscustomobject]@{
     Path = "docs\completion_audit.md"
     Terms = @(
-      "Status: not complete",
-      "Primary Deliverables",
+      "Deliverables",
       "Build Completion",
       "Runtime Completion",
       "Performance Completion",
-      "Optimization Completion",
       "Stability Completion",
-      "Documentation Completion",
-      "Current Blocking Command",
-      "run_post_atl_pipeline.ps1"
+      "Remaining Bottlenecks",
+      "Final Gate",
+      "audit_artifacts.ps1"
     )
   },
   [pscustomobject]@{
     Path = "docs\requirement_traceability.md"
     Terms = @(
-      "Current Hard Blocker",
-      "Microsoft.VisualStudio.Component.VC.ATLMFC",
-      "same-revision",
-      "Trusted experiment matrix",
-      "Prompt-to-artifact audit",
+      "Start from current Chromium source",
+      "official-comparison-manifest.json",
+      "same Chromium revision",
+      "Trusted matrix manifest",
+      "run_post_atl_pipeline.ps1",
       "-FinalGate"
     )
   }

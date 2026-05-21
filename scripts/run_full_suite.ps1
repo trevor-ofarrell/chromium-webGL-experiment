@@ -19,6 +19,9 @@ param(
   [switch]$ViewerDisableUnneededBlinkFeatures,
   [switch]$ViewerDirectGpuPresentation,
   [switch]$Precompile,
+  [switch]$DisableGpuTiming,
+  [switch]$ReuseValidResults,
+  [switch]$RequireGpuMetadata,
   [int]$PrerenderFrames = 0,
   [double]$Complexity = 1.0
 )
@@ -35,8 +38,57 @@ $Scenes = @(
   "gltf-loader-stress"
 )
 
+function Test-ResultGpuMetadata {
+  param([string]$PathValue)
+  try {
+    $Result = Get-Content -LiteralPath $PathValue -Raw | ConvertFrom-Json
+  } catch {
+    return $false
+  }
+
+  foreach ($Key in @("gpu_name", "driver_version", "angle_backend")) {
+    $Value = $Result.$Key
+    if ($Value -is [string] -and $Value.Trim().Length -gt 0) {
+      return $true
+    }
+  }
+
+  return $false
+}
+
+function Test-ResultGpuTimingMode {
+  param(
+    [string]$PathValue,
+    [bool]$ExpectedEnabled
+  )
+  try {
+    $Result = Get-Content -LiteralPath $PathValue -Raw | ConvertFrom-Json
+  } catch {
+    return $false
+  }
+  return [bool]$Result.gpu_timing_enabled -eq $ExpectedEnabled
+}
+
 foreach ($Scene in $Scenes) {
   $Out = Join-Path $Root "benchmarks\raw\$Label-$Scene-$Renderer.json"
+  $ExpectedGpuTimingEnabled = -not $DisableGpuTiming
+  if ($ReuseValidResults -and (Test-Path -LiteralPath $Out)) {
+    node (Join-Path $Root "scripts\validate_metrics.mjs") $Out
+    if ($LASTEXITCODE -eq 0) {
+      if ($RequireGpuMetadata -and -not (Test-ResultGpuMetadata $Out)) {
+        Write-Host "Existing benchmark result is missing GPU metadata and will be regenerated: $Out"
+      } elseif (-not (Test-ResultGpuTimingMode $Out $ExpectedGpuTimingEnabled)) {
+        Write-Host "Existing benchmark result has the wrong GPU timing mode and will be regenerated: $Out"
+      } else {
+        Write-Host "Reusing valid benchmark result: $Out"
+        continue
+      }
+    }
+    if ($LASTEXITCODE -ne 0) {
+      Write-Host "Existing benchmark result failed validation and will be regenerated: $Out"
+    }
+  }
+
   $Command = @(
     (Join-Path $Root "scripts\run_benchmark.mjs"),
     "--browser", $Browser,
@@ -88,6 +140,9 @@ foreach ($Scene in $Scenes) {
   if ($Precompile) {
     $Command += "--precompile"
   }
+  if ($DisableGpuTiming) {
+    $Command += "--disableGpuTiming"
+  }
   if ($PrerenderFrames -gt 0) {
     $Command += @("--prerenderFrames", [string]$PrerenderFrames)
   }
@@ -100,5 +155,11 @@ foreach ($Scene in $Scenes) {
   node (Join-Path $Root "scripts\validate_metrics.mjs") $Out
   if ($LASTEXITCODE -ne 0) {
     throw "Benchmark output failed metric validation for scene '$Scene': $Out"
+  }
+  if ($RequireGpuMetadata -and -not (Test-ResultGpuMetadata $Out)) {
+    throw "Benchmark output is missing GPU metadata for scene '$Scene': $Out"
+  }
+  if (-not (Test-ResultGpuTimingMode $Out $ExpectedGpuTimingEnabled)) {
+    throw "Benchmark output has the wrong GPU timing mode for scene '$Scene': $Out"
   }
 }

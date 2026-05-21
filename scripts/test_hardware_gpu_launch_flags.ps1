@@ -34,6 +34,9 @@ function Assert-LaunchListContains {
   )
 
   Assert-Contains $PathValue $Text "'--disable-software-rasterizer'|`"--disable-software-rasterizer`"" "hardware-GPU fail-closed launch flag"
+  Assert-Contains $PathValue $Text "'--force-high-performance-gpu'|`"--force-high-performance-gpu`"" "discrete/high-performance GPU request flag"
+  Assert-Contains $PathValue $Text "'--window-size=640,480'|`"--window-size=640,480`"" "safe small-window launch flag"
+  Assert-Contains $PathValue $Text "'--force-device-scale-factor=1'|`"--force-device-scale-factor=1`"" "safe device-scale launch flag"
   Assert-Contains $PathValue $Text "'--enable-unsafe-webgpu'|`"--enable-unsafe-webgpu`"" "WebGPU launch flag"
 }
 
@@ -69,6 +72,11 @@ Assert-Contains "scripts\run_official_comparison.ps1" $OfficialRunner "--require
 Assert-Contains "scripts\run_official_comparison.ps1" $OfficialRunner "--required-browser-flag" "official runtime smoke required launch-flag handoff"
 Assert-Contains "scripts\run_trusted_experiment_matrix.ps1" $TrustedRunner "--requiredBrowserFlag" "trusted suite required launch-flag handoff"
 Assert-Contains "scripts\run_long_stability.ps1" $LongStabilityRunner "--requiredBrowserFlag" "long-stability required launch-flag handoff"
+Assert-Contains "scripts\run_long_stability.ps1" $LongStabilityRunner "--requireGpuMetadata" "long-stability GPU metadata validation handoff"
+Assert-Contains "scripts\run_long_stability.ps1" $LongStabilityRunner "--rejectSoftwareRendering" "long-stability software-renderer rejection handoff"
+Assert-Contains "scripts\run_long_stability.ps1" $LongStabilityRunner "FriendlyWindow" "long-stability friendly launch profile"
+Assert-Contains "scripts\run_long_stability.ps1" $LongStabilityRunner "--window-size=640,480" "long-stability friendly small-window flag"
+Assert-Contains "scripts\run_long_stability.ps1" $LongStabilityRunner "--force-device-scale-factor=1" "long-stability friendly device-scale flag"
 
 foreach ($LabelAndText in @(
     @("scripts\validate_benchmark_suite.mjs", $SuiteValidator),

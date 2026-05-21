@@ -6,6 +6,8 @@ $Root = Resolve-Path (Join-Path $PSScriptRoot "..")
 $TempDir = Join-Path $Root "benchmarks\tmp\official-manifest-provenance-audit"
 $ManifestPath = Join-Path $TempDir "official-comparison-manifest.json"
 $BackupPath = Join-Path $TempDir "official-comparison-manifest.provenance-audit.backup.json"
+$PinRefreshPath = Join-Path $Root "benchmarks\reports\chromium-pin-refresh.json"
+$PinRefreshBackupPath = Join-Path $TempDir "chromium-pin-refresh.official-provenance-audit.backup.json"
 $TempOutput = Join-Path $TempDir "official-manifest-provenance-audit.md"
 $RequiredScenes = @(
   "many-draw-calls",
@@ -205,9 +207,12 @@ function New-ValidOfficialManifest {
     suite_validation = [pscustomobject]@{
       require_checkout = $true
       require_build_args = $true
+      expected_baseline_build_args_hash = "0123456789abcdef"
+      expected_fork_build_args_hash = "0123456789abcdef"
       forbid_smoke = $true
       reject_software_rendering = $true
       require_gpu_metadata = $true
+      require_frame_times = $true
       expected_measured_seconds = 120
       expected_warmup_seconds = 20
       expected_chromium_revision = $ChromiumRevision
@@ -321,17 +326,38 @@ function Assert-AuditRejects {
   $Manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $ManifestPath -Encoding UTF8
   $Checklist = Invoke-AuditAndReadChecklist
   if ($Checklist -notmatch $Pattern) {
-    throw "Artifact audit accepted or misreported a completed official manifest with $Description."
+    $OfficialRows = (($Checklist -split "`r?`n" | Where-Object { $_ -match "Official comparison manifest" }) -join "`n")
+    throw "Artifact audit accepted or misreported a completed official manifest with $Description. Official manifest rows: $OfficialRows"
   }
 }
 
 New-Item -ItemType Directory -Path $TempDir -Force | Out-Null
 $HadManifest = Test-Path -LiteralPath $ManifestPath
+$HadPinRefresh = Test-Path -LiteralPath $PinRefreshPath
 if ($HadManifest) {
   Copy-Item -LiteralPath $ManifestPath -Destination $BackupPath -Force
 }
+if ($HadPinRefresh) {
+  Copy-Item -LiteralPath $PinRefreshPath -Destination $PinRefreshBackupPath -Force
+}
 
 try {
+  $ChromiumRevision = Get-GitRevision (Join-Path $Root "src")
+  $PinSelectedAt = (Get-Date).ToUniversalTime().AddMinutes(-1).ToString("o")
+  $SyntheticPinRefresh = [pscustomobject]@{
+    generated_at = (Get-Date).ToUniversalTime().ToString("o")
+    target_revision = $ChromiumRevision
+    previous_revision = $ChromiumRevision
+    selected_from_upstream_head = $true
+    selected_at = $PinSelectedAt
+    source = "synthetic official provenance audit test"
+    skip_sync = $true
+    skip_hooks = $true
+    skip_gn_gen = $true
+  }
+  New-Item -ItemType Directory -Path (Split-Path $PinRefreshPath -Parent) -Force | Out-Null
+  Write-Json $PinRefreshPath $SyntheticPinRefresh
+
   Assert-AuditRejects { param($Manifest) $Manifest.dry_run = $true } "Official comparison manifest.*pending.*dry-run manifest" "dry_run=true"
   Assert-AuditRejects { param($Manifest) $Manifest.phase = "planned" } "Official comparison manifest.*pending.*phase=planned" "phase other than completed"
   Assert-AuditRejects { param($Manifest) $Manifest.chromium_revision = "stale-chromium-revision" } "Official comparison manifest.*pending.*chromium_revision=stale-chromium-revision" "stale Chromium revision"
@@ -339,6 +365,9 @@ try {
   Assert-AuditRejects { param($Manifest) $Manifest.fork_revision = "stale-fork-revision" } "Official comparison manifest.*pending.*fork_revision=stale-fork-revision" "stale fork revision"
   Assert-AuditRejects { param($Manifest) $Manifest.suite_validation.expected_measured_seconds = 1 } "Official comparison manifest.*pending.*duration/warmup validation" "mismatched duration validation"
   Assert-AuditRejects { param($Manifest) $Manifest.suite_validation.require_checkout = $false } "Official comparison manifest.*pending.*suite validation settings mismatch.*require_checkout" "missing checkout suite validation setting"
+  Assert-AuditRejects { param($Manifest) $Manifest.suite_validation.require_frame_times = $false } "Official comparison manifest.*pending.*suite validation settings mismatch.*require_frame_times" "missing raw frame-time suite validation setting"
+  Assert-AuditRejects { param($Manifest) $Manifest.suite_validation.expected_baseline_build_args_hash = "wrong-hash" } "Official comparison manifest.*pending.*suite validation settings mismatch.*expected_baseline_build_args_hash" "mismatched expected baseline build args hash setting"
+  Assert-AuditRejects { param($Manifest) $Manifest.suite_validation.expected_fork_build_args_hash = "wrong-hash" } "Official comparison manifest.*pending.*suite validation settings mismatch.*expected_fork_build_args_hash" "mismatched expected fork build args hash setting"
   Assert-AuditRejects { param($Manifest) $Manifest.suite_validation.expected_fork_browser = "" } "Official comparison manifest.*pending.*suite validation settings mismatch.*expected_fork_browser" "missing expected fork browser suite validation setting"
   Assert-AuditRejects { param($Manifest) $Manifest.suite_validation.expected_flag_metadata.fork_default = @() } "Official comparison manifest.*pending.*suite validation settings mismatch.*expected_flag_metadata\.fork_default" "missing fork default expected flag metadata setting"
   Assert-AuditRejects {
@@ -348,14 +377,23 @@ try {
     $Manifest.suite_validation.expected_flag_metadata.fork_default_webgpu = @("viewer_mode=true")
   } "Official comparison manifest.*pending.*suite validation settings mismatch.*require_webgpu_runtime_smoke" "missing required WebGPU runtime smoke suite validation setting"
   Assert-AuditRejects { param($Manifest) $Manifest.artifact_metadata.inputs.fork_browser.exists = $false } "Official comparison manifest.*pending.*browser binaries" "missing fork browser metadata"
-  Assert-AuditRejects { param($Manifest) $Manifest.artifact_metadata.inputs.fork_build_args.sha256 = $null } "Official comparison manifest.*pending.*build-args hashes" "missing fork build-args hash"
+  Assert-AuditRejects {
+    param($Manifest)
+    $Manifest.artifact_metadata.inputs.fork_build_args.sha256 = $null
+    $Manifest.suite_validation.expected_fork_build_args_hash = ""
+  } "Official comparison manifest.*pending.*build-args hashes" "missing fork build-args hash"
 } finally {
   if ($HadManifest) {
     Copy-Item -LiteralPath $BackupPath -Destination $ManifestPath -Force
   } elseif (Test-Path -LiteralPath $ManifestPath) {
     Remove-Item -LiteralPath $ManifestPath -Force
   }
-  foreach ($PathValue in @($BackupPath, $TempOutput)) {
+  if ($HadPinRefresh) {
+    Copy-Item -LiteralPath $PinRefreshBackupPath -Destination $PinRefreshPath -Force
+  } elseif (Test-Path -LiteralPath $PinRefreshPath) {
+    Remove-Item -LiteralPath $PinRefreshPath -Force
+  }
+  foreach ($PathValue in @($BackupPath, $PinRefreshBackupPath, $TempOutput)) {
     if (Test-Path -LiteralPath $PathValue) {
       Remove-Item -LiteralPath $PathValue -Force
     }

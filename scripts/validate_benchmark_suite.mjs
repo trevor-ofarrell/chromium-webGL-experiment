@@ -43,6 +43,7 @@ function parseArgs(argv) {
     expectedScenes: defaultScenes,
     requireCheckout: false,
     requireBuildArgs: false,
+    expectedBuildArgsHash: '',
     expectedChromiumRevision: '',
     expectedBrowser: '',
     requireForkRevision: false,
@@ -51,6 +52,7 @@ function parseArgs(argv) {
     rejectSoftwareRendering: false,
     requireGpuMetadata: false,
     requirePackageSize: false,
+    requireFrameTimes: false,
     expectedMeasuredSeconds: null,
     expectedWarmupSeconds: null,
     expectedFlagMetadata: [],
@@ -69,6 +71,8 @@ function parseArgs(argv) {
       args.requireCheckout = true;
     } else if (token === '--requireBuildArgs') {
       args.requireBuildArgs = true;
+    } else if (token === '--expectedBuildArgsHash') {
+      args.expectedBuildArgsHash = argv[++i].toLowerCase();
     } else if (token === '--expectedChromiumRevision') {
       args.expectedChromiumRevision = argv[++i];
     } else if (token === '--expectedBrowser') {
@@ -85,6 +89,8 @@ function parseArgs(argv) {
       args.requireGpuMetadata = true;
     } else if (token === '--requirePackageSize') {
       args.requirePackageSize = true;
+    } else if (token === '--requireFrameTimes') {
+      args.requireFrameTimes = true;
     } else if (token === '--expectedMeasuredSeconds') {
       args.expectedMeasuredSeconds = Number(argv[++i]);
     } else if (token === '--expectedWarmupSeconds') {
@@ -230,6 +236,19 @@ function validateRequiredBrowserFlags(errors, result, label, requiredFlags) {
   }
 }
 
+function validateRequiredFrameTimes(errors, result) {
+  if (!Array.isArray(result.frame_times_ms) || result.frame_times_ms.length === 0) {
+    errors.push(`${result.scene_name}: frame_times_ms must be a non-empty array when --requireFrameTimes is set`);
+    return;
+  }
+
+  result.frame_times_ms.forEach((value, index) => {
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+      errors.push(`${result.scene_name}: frame_times_ms[${index}] must be a non-negative finite number`);
+    }
+  });
+}
+
 function validateSuite(results, args) {
   const errors = [];
   const expected = new Set(args.expectedScenes);
@@ -262,6 +281,9 @@ function validateSuite(results, args) {
     if (args.requireBuildArgs && !result.build_args_hash) {
       errors.push(`${result.scene_name}: build_args_hash is required`);
     }
+    if (args.expectedBuildArgsHash && result.build_args_hash !== args.expectedBuildArgsHash) {
+      errors.push(`${result.scene_name}: build_args_hash is ${result.build_args_hash || 'missing'}, expected ${args.expectedBuildArgsHash}`);
+    }
     if (args.requireForkRevision && !result.fork_revision) {
       errors.push(`${result.scene_name}: fork_revision is required`);
     }
@@ -286,6 +308,9 @@ function validateSuite(results, args) {
       result.package_size_mb <= 0
     )) {
       errors.push(`${result.scene_name}: package_size_mb must be a positive number when package size evidence is required`);
+    }
+    if (args.requireFrameTimes) {
+      validateRequiredFrameTimes(errors, result);
     }
     if (args.expectedMeasuredSeconds !== null && !numericEquals(result.measured_seconds, args.expectedMeasuredSeconds)) {
       errors.push(`${result.scene_name}: measured_seconds is ${result.measured_seconds}, expected ${args.expectedMeasuredSeconds}`);

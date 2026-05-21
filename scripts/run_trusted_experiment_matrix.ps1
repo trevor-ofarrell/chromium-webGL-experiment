@@ -159,6 +159,17 @@ function Get-ShortSha256 {
   return (Get-FileHash -Algorithm SHA256 -LiteralPath $PathValue).Hash.Substring(0, 12).ToLowerInvariant()
 }
 
+function Get-Sha256 {
+  param([string]$PathValue)
+  if (-not (Test-Path $PathValue)) {
+    if ($DryRun) {
+      return ""
+    }
+    throw "File not found for hash: $PathValue"
+  }
+  return (Get-FileHash -Algorithm SHA256 -LiteralPath $PathValue).Hash.ToLowerInvariant()
+}
+
 function Get-FileMetadata {
   param([string]$PathValue)
   if (-not $PathValue) {
@@ -225,6 +236,7 @@ function Invoke-BenchmarkSuiteValidation {
     [string[]]$Files,
     [string]$ExpectedChromiumRevision = "",
     [string]$ExpectedBrowser = "",
+    [string]$ExpectedBuildArgsHash = "",
     [string[]]$ExpectedFlagMetadata = @(),
     [string[]]$RequiredBrowserFlags = @()
   )
@@ -240,6 +252,7 @@ function Invoke-BenchmarkSuiteValidation {
     "--forbidSmoke",
     "--rejectSoftwareRendering",
     "--requireGpuMetadata",
+    "--requireFrameTimes",
     "--expectedMeasuredSeconds", [string]$Duration,
     "--expectedWarmupSeconds", [string]$Warmup,
     "--requireForkRevision",
@@ -250,6 +263,9 @@ function Invoke-BenchmarkSuiteValidation {
   }
   if ($ExpectedBrowser) {
     $Command += @("--expectedBrowser", $ExpectedBrowser)
+  }
+  if ($ExpectedBuildArgsHash) {
+    $Command += @("--expectedBuildArgsHash", $ExpectedBuildArgsHash)
   }
   if ($PackageDir) {
     $Command += "--requirePackageSize"
@@ -390,8 +406,10 @@ function Write-TrustedExperimentManifest {
       forbid_smoke = $true
       reject_software_rendering = $true
       require_gpu_metadata = $true
+      require_frame_times = $true
       expected_chromium_revision = $ChromiumRevision
       expected_browser = $Browser
+      expected_build_args_hash = $BuildArgsHash
       expected_measured_seconds = $Duration
       expected_warmup_seconds = $Warmup
       exact_scene_output_files = $true
@@ -441,6 +459,7 @@ if (-not $BuildArgs) {
 }
 $Browser = Require-InputFile $Browser "Browser executable"
 $BuildArgs = Require-InputFile $BuildArgs "Build args"
+$BuildArgsHash = Get-Sha256 $BuildArgs
 $PackageDir = Require-PackageDirectory $PackageDir "Trusted package directory" $Browser
 $ChromiumRevision = Get-GitRevision (Join-Path $Root "src")
 if (-not $ForkRevision) {
@@ -521,6 +540,7 @@ foreach ($Experiment in $Experiments) {
     -Files @($ExperimentFiles) `
     -ExpectedChromiumRevision $ChromiumRevision `
     -ExpectedBrowser $Browser `
+    -ExpectedBuildArgsHash $BuildArgsHash `
     -ExpectedFlagMetadata (Get-ExperimentExpectedFlagMetadata $Experiment) `
     -RequiredBrowserFlags $RequiredBrowserFlags
   foreach ($File in $ExperimentFiles) {

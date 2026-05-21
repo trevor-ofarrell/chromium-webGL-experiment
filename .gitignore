@@ -5,6 +5,8 @@ viewer/dist/
 benchmarks/tmp/
 benchmarks/traces/
 benchmarks/screenshots/
+benchmarks/packages/
+.cipd/
 *.log
 *.tmp
 .DS_Store

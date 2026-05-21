@@ -8,6 +8,8 @@ $OfficialManifestPath = Join-Path $TempDir "official-comparison-manifest.json"
 $TrustedManifestPath = Join-Path $TempDir "trusted-experiment-matrix-manifest.json"
 $OfficialBackupPath = Join-Path $TempDir "official-comparison-manifest.package-audit.backup.json"
 $TrustedBackupPath = Join-Path $TempDir "trusted-experiment-matrix-manifest.package-audit.backup.json"
+$PinRefreshPath = Join-Path $Root "benchmarks\reports\chromium-pin-refresh.json"
+$PinRefreshBackupPath = Join-Path $TempDir "chromium-pin-refresh.package-audit.backup.json"
 $OfficialOutput = Join-Path $TempDir "official-manifest-package-audit.md"
 $TrustedOutput = Join-Path $TempDir "trusted-manifest-package-audit.md"
 $RequiredScenes = @(
@@ -74,15 +76,20 @@ function New-OfficialSuiteValidation {
     [string]$ChromiumRevision,
     [string]$ForkRevision,
     [string]$BaselineBrowser = "baseline.exe",
-    [string]$ForkBrowser = "fork.exe"
+    [string]$ForkBrowser = "fork.exe",
+    [string]$BaselineBuildArgsHash = "0123456789abcdef",
+    [string]$ForkBuildArgsHash = "0123456789abcdef"
   )
 
   [pscustomobject]@{
     require_checkout = $true
     require_build_args = $true
+    expected_baseline_build_args_hash = $BaselineBuildArgsHash
+    expected_fork_build_args_hash = $ForkBuildArgsHash
     forbid_smoke = $true
     reject_software_rendering = $true
     require_gpu_metadata = $true
+    require_frame_times = $true
     expected_measured_seconds = 120
     expected_warmup_seconds = 20
     expected_chromium_revision = $ChromiumRevision
@@ -106,18 +113,21 @@ function New-TrustedSuiteValidation {
   param(
     [string]$ChromiumRevision,
     [string]$ForkRevision,
-    [string]$Browser = "fork.exe"
+    [string]$Browser = "fork.exe",
+    [string]$BuildArgsHash = "0123456789abcdef"
   )
 
   [pscustomobject]@{
     expected_scenes = $RequiredScenes
     require_checkout = $true
     require_build_args = $true
+    expected_build_args_hash = $BuildArgsHash
     require_fork_revision = $true
     expected_fork_revision = $ForkRevision
     forbid_smoke = $true
     reject_software_rendering = $true
     require_gpu_metadata = $true
+    require_frame_times = $true
     expected_chromium_revision = $ChromiumRevision
     expected_browser = $Browser
     expected_measured_seconds = 60
@@ -291,17 +301,35 @@ function Invoke-AuditForTest {
 New-Item -ItemType Directory -Path $TempDir -Force | Out-Null
 $HadOfficialManifest = Test-Path -LiteralPath $OfficialManifestPath
 $HadTrustedManifest = Test-Path -LiteralPath $TrustedManifestPath
+$HadPinRefresh = Test-Path -LiteralPath $PinRefreshPath
 if ($HadOfficialManifest) {
   Copy-Item -LiteralPath $OfficialManifestPath -Destination $OfficialBackupPath -Force
 }
 if ($HadTrustedManifest) {
   Copy-Item -LiteralPath $TrustedManifestPath -Destination $TrustedBackupPath -Force
 }
+if ($HadPinRefresh) {
+  Copy-Item -LiteralPath $PinRefreshPath -Destination $PinRefreshBackupPath -Force
+}
 
 try {
   $ChromiumRevision = Get-GitRevision (Join-Path $Root "src")
   $PatchHash = Get-ShortSha256 (Join-Path $Root "chromium_patches\0001-draft-minimal-three-viewer-entrypoint.patch")
   $ForkRevision = "$ChromiumRevision+viewerpatch-$PatchHash"
+  $PinSelectedAt = (Get-Date).ToUniversalTime().AddMinutes(-1).ToString("o")
+  $SyntheticPinRefresh = [pscustomobject]@{
+    generated_at = (Get-Date).ToUniversalTime().ToString("o")
+    target_revision = $ChromiumRevision
+    previous_revision = $ChromiumRevision
+    selected_from_upstream_head = $true
+    selected_at = $PinSelectedAt
+    source = "synthetic package audit test"
+    skip_sync = $true
+    skip_hooks = $true
+    skip_gn_gen = $true
+  }
+  New-Item -ItemType Directory -Path (Split-Path $PinRefreshPath -Parent) -Force | Out-Null
+  Write-Json $PinRefreshPath $SyntheticPinRefresh
 
   $BaselineWebGl = New-ResultFiles "baseline-content-shell" "webgl2"
   $ForkWebGl = New-ResultFiles "fork-viewer-default" "webgl2"
@@ -457,7 +485,12 @@ try {
   } elseif (Test-Path -LiteralPath $TrustedManifestPath) {
     Remove-Item -LiteralPath $TrustedManifestPath -Force
   }
-  foreach ($PathValue in @($OfficialBackupPath, $TrustedBackupPath, $OfficialOutput, $TrustedOutput)) {
+  if ($HadPinRefresh) {
+    Copy-Item -LiteralPath $PinRefreshBackupPath -Destination $PinRefreshPath -Force
+  } elseif (Test-Path -LiteralPath $PinRefreshPath) {
+    Remove-Item -LiteralPath $PinRefreshPath -Force
+  }
+  foreach ($PathValue in @($OfficialBackupPath, $TrustedBackupPath, $PinRefreshBackupPath, $OfficialOutput, $TrustedOutput)) {
     if (Test-Path -LiteralPath $PathValue) {
       Remove-Item -LiteralPath $PathValue -Force
     }

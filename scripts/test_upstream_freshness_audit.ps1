@@ -71,10 +71,8 @@ function Invoke-FreshnessAudit {
 
   $OldAllowManifestOverrides = $env:THREE_BROWSER_ALLOW_TEST_MANIFEST_OVERRIDES
   $OldOfficialManifest = $env:THREE_BROWSER_TEST_OFFICIAL_COMPARISON_MANIFEST
-  if ($null -ne $OfficialManifest) {
-    $env:THREE_BROWSER_ALLOW_TEST_MANIFEST_OVERRIDES = "1"
-    $env:THREE_BROWSER_TEST_OFFICIAL_COMPARISON_MANIFEST = $OfficialManifestRel
-  }
+  $env:THREE_BROWSER_ALLOW_TEST_MANIFEST_OVERRIDES = "1"
+  $env:THREE_BROWSER_TEST_OFFICIAL_COMPARISON_MANIFEST = $OfficialManifestRel
 
   try {
     $null = & (Join-Path $Root "scripts\audit_artifacts.ps1") `
@@ -82,17 +80,15 @@ function Invoke-FreshnessAudit {
       -EnvironmentManifest $ManifestRel `
       -BuildStateOnly *>&1
   } finally {
-    if ($null -ne $OfficialManifest) {
-      if ($null -eq $OldAllowManifestOverrides) {
-        Remove-Item "Env:\THREE_BROWSER_ALLOW_TEST_MANIFEST_OVERRIDES" -ErrorAction SilentlyContinue
-      } else {
-        $env:THREE_BROWSER_ALLOW_TEST_MANIFEST_OVERRIDES = $OldAllowManifestOverrides
-      }
-      if ($null -eq $OldOfficialManifest) {
-        Remove-Item "Env:\THREE_BROWSER_TEST_OFFICIAL_COMPARISON_MANIFEST" -ErrorAction SilentlyContinue
-      } else {
-        $env:THREE_BROWSER_TEST_OFFICIAL_COMPARISON_MANIFEST = $OldOfficialManifest
-      }
+    if ($null -eq $OldAllowManifestOverrides) {
+      Remove-Item "Env:\THREE_BROWSER_ALLOW_TEST_MANIFEST_OVERRIDES" -ErrorAction SilentlyContinue
+    } else {
+      $env:THREE_BROWSER_ALLOW_TEST_MANIFEST_OVERRIDES = $OldAllowManifestOverrides
+    }
+    if ($null -eq $OldOfficialManifest) {
+      Remove-Item "Env:\THREE_BROWSER_TEST_OFFICIAL_COMPARISON_MANIFEST" -ErrorAction SilentlyContinue
+    } else {
+      $env:THREE_BROWSER_TEST_OFFICIAL_COMPARISON_MANIFEST = $OldOfficialManifest
     }
   }
 

@@ -123,7 +123,7 @@ foreach ($Scene in $ExpectedScenes) {
 
 Assert-ContainsPattern "viewer/src/scenes.js" $ViewerScenes "GLTFLoader" "GLTFLoader import/use"
 Assert-ContainsPattern "viewer/src/scenes.js" $ViewerScenes "viewerAssetUrl\(['""]assets/models/cube-stress\.gltf['""]\)" "bundled glTF stress asset load"
-Assert-ContainsPattern "docs/webgpu_scene_coverage.md" $WebGpuCoverageDocs "installed Chrome only" "installed-Chrome-only evidence caveat"
-Assert-ContainsPattern "docs/webgpu_scene_coverage.md" $WebGpuCoverageDocs "not same-revision stock/fork performance evidence" "same-revision stock/fork caveat"
+Assert-ContainsPattern "docs/webgpu_scene_coverage.md" $WebGpuCoverageDocs "official WebGPU suite" "official WebGPU suite description"
+Assert-ContainsPattern "docs/webgpu_scene_coverage.md" $WebGpuCoverageDocs "timestamp queries caused device loss" "WebGPU timestamp-query device-loss caveat"
 
 Write-Host "Scene coverage consistency checks passed for viewer, runners, validators, artifact audit, and docs."

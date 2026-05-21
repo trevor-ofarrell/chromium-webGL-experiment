@@ -133,7 +133,7 @@ $AddedCodeWithoutDefinitions = $AddedCodeWithoutDefinitions -replace "inline con
 
 Assert-Contains `
   $TrustedFunction `
-  "HasSwitch\(switches::kViewerRelaxedWebGLValidation\)[\s\S]*?AppendSwitchASCIIIfAbsent\(command_line,\s*switches::kUseCmdDecoder,\s*switches::kCmdDecoderPassthroughName\)" `
+  "HasSwitch\(switches::kViewerRelaxedWebGLValidation\)[\s\S]*?AppendSwitchASCIIIfAbsent\(command_line,\s*switches::kUseCmdDecoder,\s*gl::kCmdDecoderPassthroughName\)" `
   "relaxed WebGL validation gate maps to pass-through command decoder inside trusted-content configuration"
 
 foreach ($SwitchName in $ReservedNoopGates) {

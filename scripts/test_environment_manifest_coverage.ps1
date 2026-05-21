@@ -78,6 +78,19 @@ try {
   Assert-True ([string]::IsNullOrWhiteSpace($Manifest.environment.visual_studio_vswhere) -eq $false) "Manifest does not record the Visual Studio vswhere path."
   Assert-True ($null -ne $Manifest.environment.atl_component_reported_by_vswhere) "Manifest does not record whether vswhere reports the ATL/MFC component."
   Assert-True ($null -ne $Manifest.environment.navigation_external_ipv4_addresses) "Manifest does not record non-loopback IPv4 addresses for external navigation smoke."
+  Assert-True ($null -ne $Manifest.environment.windows_code_integrity) "Manifest does not record Windows Code Integrity state."
+  foreach ($PropertyName in @(
+    "active_policy_ids",
+    "verified_and_reputable_policy_state",
+    "sample_dlls",
+    "blocked_sample_dll_count",
+    "recent_block_count",
+    "recent_active_policy_block_count",
+    "recent_policy_ids",
+    "query_error"
+  )) {
+    Assert-True ($null -ne $Manifest.environment.windows_code_integrity.PSObject.Properties[$PropertyName]) "Manifest Windows Code Integrity entry lacks $PropertyName."
+  }
   if ($Manifest.environment.visual_studio_instance) {
     Assert-True ([string]::IsNullOrWhiteSpace($Manifest.environment.visual_studio_instance.installation_path) -eq $false) "Manifest Visual Studio instance lacks installation_path."
     Assert-True ([string]::IsNullOrWhiteSpace($Manifest.environment.visual_studio_instance.installation_version) -eq $false) "Manifest Visual Studio instance lacks installation_version."
@@ -123,6 +136,7 @@ try {
     "visual_studio_atl",
     "visual_studio_atl_component",
     "windows_sdk_debuggers",
+    "windows_code_integrity_chromium_rust",
     "viewer_dist",
     "viewer_patch_available",
     "viewer_patch_state",
@@ -160,7 +174,8 @@ try {
     "Get-FileHashOrNull",
     "Get-FileLastWriteUtcOrNull",
     "Format-DateTimeUtcOrNull",
-    "Get-SisoBuildFailure"
+    "Get-SisoBuildFailure",
+    "Get-CodeIntegrityChromiumRustBlock"
   )) {
     $FunctionAst = $Ast.Find({
         param($Node)

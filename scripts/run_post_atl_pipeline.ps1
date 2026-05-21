@@ -4,6 +4,7 @@ param(
   [string]$ForkOutDir = "out\ReleaseViewerDefault",
   [string]$BaselineArgsFile = "build\gn_args\baseline_content_shell.gn",
   [string]$ForkArgsFile = "build\gn_args\fork_safe_content_shell.gn",
+  [int]$BuildJobs = 0,
   [string]$BaselinePackageDir = ".\benchmarks\packages\baseline-content-shell",
   [string]$ForkPackageDir = ".\benchmarks\packages\viewer-default",
   [switch]$RefreshChromiumPin,
@@ -20,6 +21,9 @@ param(
   [int]$TraceWarmup = 2,
   [int]$TraceStartDelayMs = 2000,
   [switch]$Precompile,
+  [switch]$DisableWebGpuTiming,
+  [switch]$DisableForkWebGpuTiming,
+  [switch]$ReuseValidResults,
   [int]$PrerenderFrames = 0,
   [switch]$RunTrustedExperimentMatrix,
   [string]$TrustedMatrixRenderer = "webgl2",
@@ -245,14 +249,77 @@ function Assert-ExistingPipelinePackage {
   }
 }
 
+function Assert-ExistingBuildProvenance {
+  param(
+    [string]$OutDir,
+    [string]$BrowserPath,
+    [string]$BuildArgsPath,
+    [string]$SourceArgsPath,
+    [string]$Reason,
+    [switch]$ExpectViewerPatchApplied
+  )
+
+  if ($DryRun) {
+    return
+  }
+
+  $ProvenancePath = Join-SrcOutPath $OutDir "three_browser_build_provenance.json"
+  Assert-ExistingPipelineFile $ProvenancePath "$Reason build provenance"
+
+  try {
+    $Provenance = Get-Content -LiteralPath $ProvenancePath -Raw | ConvertFrom-Json
+  } catch {
+    throw "$Reason build provenance is not valid JSON: $ProvenancePath"
+  }
+
+  if ($Provenance.chromium_revision -ne $ChromiumRevision) {
+    throw "$Reason build provenance revision mismatch: expected $ChromiumRevision, got $($Provenance.chromium_revision)"
+  }
+  if ($Provenance.target -ne "content_shell") {
+    throw "$Reason build provenance target mismatch: expected content_shell, got $($Provenance.target)"
+  }
+
+  $BrowserHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $BrowserPath).Hash.ToLowerInvariant()
+  if ([string]$Provenance.target_artifact_sha256 -ne $BrowserHash) {
+    throw "$Reason build provenance executable hash does not match $BrowserPath"
+  }
+
+  $BuildArgsHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $BuildArgsPath).Hash.ToLowerInvariant()
+  if ([string]$Provenance.args_gn_sha256 -ne $BuildArgsHash) {
+    throw "$Reason build provenance args.gn hash does not match $BuildArgsPath"
+  }
+
+  $ResolvedSourceArgsPath = Resolve-RepoPath $SourceArgsPath
+  Assert-ExistingPipelineFile $ResolvedSourceArgsPath "$Reason source GN args"
+  $SourceArgsHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $ResolvedSourceArgsPath).Hash.ToLowerInvariant()
+  if ([string]$Provenance.source_args_sha256 -ne $SourceArgsHash) {
+    throw "$Reason build provenance source args hash does not match $ResolvedSourceArgsPath"
+  }
+
+  if ($ExpectViewerPatchApplied) {
+    if ($Provenance.viewer_patch_already_applied -ne $true) {
+      throw "$Reason build provenance does not show the viewer patch applied."
+    }
+  } else {
+    if ($Provenance.viewer_patch_already_applied -eq $true) {
+      throw "$Reason build provenance shows the viewer patch applied; stock baseline evidence must come from an unmodified checkout."
+    }
+    if ($Provenance.viewer_patch_applies_cleanly -ne $true) {
+      throw "$Reason build provenance does not show the viewer patch applying cleanly to the stock baseline checkout."
+    }
+  }
+}
+
 function Assert-SkippedArtifactState {
   if ($SkipBaselineBuild) {
     Assert-ExistingPipelineFile $BaselineBrowser "SkipBaselineBuild requires an existing stock baseline binary"
     Assert-ExistingPipelineFile $BaselineBuildArgs "SkipBaselineBuild requires existing stock baseline GN args"
+    Assert-ExistingBuildProvenance $BaselineOutDir $BaselineBrowser $BaselineBuildArgs $BaselineArgsFile "SkipBaselineBuild requires current stock baseline"
   }
   if ($SkipForkBuild) {
     Assert-ExistingPipelineFile $ForkBrowser "SkipForkBuild requires an existing fork binary"
     Assert-ExistingPipelineFile $ForkBuildArgs "SkipForkBuild requires existing fork GN args"
+    Assert-ExistingBuildProvenance $ForkOutDir $ForkBrowser $ForkBuildArgs $ForkArgsFile "SkipForkBuild requires current fork" -ExpectViewerPatchApplied
   }
   if ($SkipPackage -and (-not $SkipOfficialComparison -or $RunTrustedExperimentMatrix -or $RunLongStability)) {
     if (-not $SkipBaselineBuild) {
@@ -263,6 +330,56 @@ function Assert-SkippedArtifactState {
     }
     Assert-ExistingPipelinePackage $BaselinePackageDir "SkipPackage requires an existing stock baseline package" $BaselineBrowser
     Assert-ExistingPipelinePackage $ForkPackageDir "SkipPackage requires an existing fork package" $ForkBrowser
+  }
+}
+
+function Assert-FinalGateOptions {
+  if (-not $FinalGate) {
+    return
+  }
+
+  $Missing = [System.Collections.Generic.List[string]]::new()
+  if (-not $RefreshChromiumPin) {
+    $Missing.Add("-RefreshChromiumPin") | Out-Null
+  }
+  if (-not $IncludeWebGPU) {
+    $Missing.Add("-IncludeWebGPU") | Out-Null
+  }
+  if (-not $IncludeAggressiveGpu) {
+    $Missing.Add("-IncludeAggressiveGpu") | Out-Null
+  }
+  if (-not $AggressiveAngleBackend) {
+    $Missing.Add("-AggressiveAngleBackend <backend>") | Out-Null
+  }
+  if (-not $CaptureTrace) {
+    $Missing.Add("-CaptureTrace") | Out-Null
+  }
+  if (-not $RunTrustedExperimentMatrix) {
+    $Missing.Add("-RunTrustedExperimentMatrix") | Out-Null
+  }
+  if (-not $TrustedMatrixInProcessGpu) {
+    $Missing.Add("-TrustedMatrixInProcessGpu") | Out-Null
+  }
+  if (-not $TrustedMatrixSingleProcess) {
+    $Missing.Add("-TrustedMatrixSingleProcess") | Out-Null
+  }
+  if (-not $TrustedMatrixReservedNoopGates) {
+    $Missing.Add("-TrustedMatrixReservedNoopGates") | Out-Null
+  }
+  if (-not $RunLongStability) {
+    $Missing.Add("-RunLongStability") | Out-Null
+  }
+  if (-not $BaselinePackageDir) {
+    $Missing.Add("-BaselinePackageDir <dir>") | Out-Null
+  }
+  if (-not $ForkPackageDir) {
+    $Missing.Add("-ForkPackageDir <dir>") | Out-Null
+  }
+  if ($SkipOfficialComparison) {
+    throw "-FinalGate cannot be combined with -SkipOfficialComparison because official stock/fork evidence is required."
+  }
+  if ($Missing.Count -gt 0) {
+    throw "-FinalGate requires completion-oriented options: $($Missing -join ', ')"
   }
 }
 
@@ -279,6 +396,7 @@ if ($RefreshRevision -and -not $RefreshChromiumPin) {
 if ($RefreshRevision -and $RefreshRevision -notmatch "^[0-9a-f]{40}$") {
   throw "Refresh revision must be a 40-character Chromium commit SHA: $RefreshRevision"
 }
+Assert-FinalGateOptions
 
 $PlannedChromiumRevision = ""
 if ($RefreshChromiumPin) {
@@ -308,21 +426,29 @@ Invoke-Step "prebuild verification" @(
 )
 
 if (-not $SkipBaselineBuild) {
-  Invoke-Step "build stock baseline content_shell" @(
+  $BaselineBuildCommand = @(
     (Join-Path $Root "scripts\build_chromium.ps1"),
     "-OutDir", $BaselineOutDir,
     "-Target", "content_shell",
     "-ArgsFile", $BaselineArgsFile
   )
+  if ($BuildJobs -gt 0) {
+    $BaselineBuildCommand += @("-Jobs", "$BuildJobs")
+  }
+  Invoke-Step "build stock baseline content_shell" $BaselineBuildCommand
 }
 
 if (-not $SkipForkBuild) {
-  Invoke-Step "build patched viewer fork content_shell" @(
+  $ForkBuildCommand = @(
     (Join-Path $Root "scripts\build_viewer_fork.ps1"),
     "-OutDir", $ForkOutDir,
     "-ArgsFile", $ForkArgsFile,
     "-ApplyPatch"
   )
+  if ($BuildJobs -gt 0) {
+    $ForkBuildCommand += @("-Jobs", "$BuildJobs")
+  }
+  Invoke-Step "build patched viewer fork content_shell" $ForkBuildCommand
 }
 
 if (-not $SkipPackage) {
@@ -376,6 +502,15 @@ if (-not $SkipOfficialComparison) {
   }
   if ($Precompile) {
     $OfficialCommand += "-Precompile"
+  }
+  if ($DisableWebGpuTiming) {
+    $OfficialCommand += "-DisableWebGpuTiming"
+  }
+  if ($DisableForkWebGpuTiming) {
+    $OfficialCommand += "-DisableForkWebGpuTiming"
+  }
+  if ($ReuseValidResults) {
+    $OfficialCommand += "-ReuseValidResults"
   }
   if ($PrerenderFrames -gt 0) {
     $OfficialCommand += @("-PrerenderFrames", [string]$PrerenderFrames)

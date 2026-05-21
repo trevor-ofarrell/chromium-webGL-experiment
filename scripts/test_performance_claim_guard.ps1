@@ -28,6 +28,7 @@ New-Item -ItemType Directory -Path $TempDir -Force | Out-Null
 $OldDocs = $env:THREE_BROWSER_TEST_PERFORMANCE_CLAIM_DOCS
 $OldAllowOverrides = $env:THREE_BROWSER_ALLOW_TEST_MANIFEST_OVERRIDES
 $OldSkip = $env:THREE_BROWSER_SKIP_PERFORMANCE_CLAIM_GUARD_TEST
+$OldOfficialManifest = $env:THREE_BROWSER_TEST_OFFICIAL_COMPARISON_MANIFEST
 
 try {
   $AuditText = Get-Content -LiteralPath (Join-Path $Root "scripts\audit_artifacts.ps1") -Raw
@@ -39,6 +40,7 @@ try {
   $env:THREE_BROWSER_ALLOW_TEST_MANIFEST_OVERRIDES = "1"
   $env:THREE_BROWSER_TEST_PERFORMANCE_CLAIM_DOCS = $ClaimDoc
   $env:THREE_BROWSER_SKIP_PERFORMANCE_CLAIM_GUARD_TEST = "1"
+  $env:THREE_BROWSER_TEST_OFFICIAL_COMPARISON_MANIFEST = Join-Path $TempDir "missing-official-manifest.json"
 
   @"
 # Synthetic Claim
@@ -50,6 +52,7 @@ The fork is 20% faster than stock Chromium in the WebGL2 draw-call benchmark.
   Assert-Matches $PendingChecklist "Documentation \| Premature performance claims \| pending" "pending premature claim row"
   Assert-Matches $PendingChecklist "20% faster than stock Chromium" "detected synthetic claim"
 
+  Remove-Item Env:\THREE_BROWSER_TEST_OFFICIAL_COMPARISON_MANIFEST -ErrorAction SilentlyContinue
   @"
 # Synthetic Guarded Claim
 
@@ -76,6 +79,11 @@ Before claiming the fork is 20% faster than stock Chromium, run the official sam
     Remove-Item Env:\THREE_BROWSER_SKIP_PERFORMANCE_CLAIM_GUARD_TEST -ErrorAction SilentlyContinue
   } else {
     $env:THREE_BROWSER_SKIP_PERFORMANCE_CLAIM_GUARD_TEST = $OldSkip
+  }
+  if ($null -eq $OldOfficialManifest) {
+    Remove-Item Env:\THREE_BROWSER_TEST_OFFICIAL_COMPARISON_MANIFEST -ErrorAction SilentlyContinue
+  } else {
+    $env:THREE_BROWSER_TEST_OFFICIAL_COMPARISON_MANIFEST = $OldOfficialManifest
   }
   if (Test-Path -LiteralPath $TempDir) {
     Remove-Item -LiteralPath $TempDir -Recurse -Force

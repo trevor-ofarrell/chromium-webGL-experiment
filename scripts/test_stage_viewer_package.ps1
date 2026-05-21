@@ -132,6 +132,11 @@ try {
     "--disable-renderer-backgrounding",
     "--disable-background-timer-throttling",
     "--disable-features=Translate,OptimizationHints,AutofillServerCommunication",
+    '[switch]$UnsafeFullSizeWindow',
+    "--force-high-performance-gpu",
+    "--window-size=640,480",
+    "--window-position=40,40",
+    "--force-device-scale-factor=1",
     '@ExtraArgs'
   )) {
     if ($Launcher -notmatch [regex]::Escape($Expected)) {

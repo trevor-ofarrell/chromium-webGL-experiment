@@ -18,6 +18,9 @@ param(
   [int]$TraceWarmup = 2,
   [int]$TraceStartDelayMs = 2000,
   [switch]$Precompile,
+  [switch]$DisableWebGpuTiming,
+  [switch]$DisableForkWebGpuTiming,
+  [switch]$ReuseValidResults,
   [int]$PrerenderFrames = 0,
   [switch]$SkipSmoke,
   [switch]$SkipNavigationLock,
@@ -158,6 +161,17 @@ function Get-ShortSha256 {
   return (Get-FileHash -Algorithm SHA256 -LiteralPath $PathValue).Hash.Substring(0, 12).ToLowerInvariant()
 }
 
+function Get-Sha256 {
+  param([string]$PathValue)
+  if (-not (Test-Path $PathValue)) {
+    if ($DryRun) {
+      return ""
+    }
+    throw "File not found for hash: $PathValue"
+  }
+  return (Get-FileHash -Algorithm SHA256 -LiteralPath $PathValue).Hash.ToLowerInvariant()
+}
+
 function Get-ViewerForkRevision {
   $ChromiumRevision = Get-GitRevision (Join-Path $Root "src")
   $PatchPath = Join-Path $Root "chromium_patches\0001-draft-minimal-three-viewer-entrypoint.patch"
@@ -174,6 +188,7 @@ function Invoke-BenchmarkSuiteValidation {
     [switch]$RequirePackageSize,
     [string]$ExpectedChromiumRevision = "",
     [string]$ExpectedBrowser = "",
+    [string]$ExpectedBuildArgsHash = "",
     [string]$ExpectedForkRevision = "",
     [string[]]$ExpectedFlagMetadata = @(),
     [string[]]$RequiredBrowserFlags = @()
@@ -190,6 +205,7 @@ function Invoke-BenchmarkSuiteValidation {
     "--forbidSmoke",
     "--rejectSoftwareRendering",
     "--requireGpuMetadata",
+    "--requireFrameTimes",
     "--expectedMeasuredSeconds", [string]$Duration,
     "--expectedWarmupSeconds", [string]$Warmup
   )
@@ -198,6 +214,9 @@ function Invoke-BenchmarkSuiteValidation {
   }
   if ($ExpectedBrowser) {
     $Command += @("--expectedBrowser", $ExpectedBrowser)
+  }
+  if ($ExpectedBuildArgsHash) {
+    $Command += @("--expectedBuildArgsHash", $ExpectedBuildArgsHash)
   }
   if ($RequireForkRevision) {
     $Command += "--requireForkRevision"
@@ -417,6 +436,9 @@ function Write-OfficialComparisonManifest {
       trace_warmup = $TraceWarmup
       trace_start_delay_ms = $TraceStartDelayMs
       precompile = [bool]$Precompile
+      disable_webgpu_timing = [bool]$DisableWebGpuTiming
+      disable_fork_webgpu_timing = [bool]$DisableForkWebGpuTiming
+      reuse_valid_results = [bool]$ReuseValidResults
       prerender_frames = $PrerenderFrames
       skip_smoke = [bool]$SkipSmoke
       skip_navigation_lock = [bool]$SkipNavigationLock
@@ -524,6 +546,9 @@ function Write-OfficialComparisonManifest {
       forbid_smoke = $true
       reject_software_rendering = $true
       require_gpu_metadata = $true
+      require_frame_times = $true
+      expected_baseline_build_args_hash = $BaselineBuildArgsHash
+      expected_fork_build_args_hash = $ForkBuildArgsHash
       require_webgpu_runtime_smoke = [bool]$IncludeWebGPU
       expected_measured_seconds = $Duration
       expected_warmup_seconds = $Warmup
@@ -553,6 +578,8 @@ $BaselineBrowser = Require-File $BaselineBrowser "Baseline browser"
 $ForkBrowser = Require-File $ForkBrowser "Fork browser"
 $BaselineBuildArgs = Require-File $BaselineBuildArgs "Baseline GN args"
 $ForkBuildArgs = Require-File $ForkBuildArgs "Fork GN args"
+$BaselineBuildArgsHash = Get-Sha256 $BaselineBuildArgs
+$ForkBuildArgsHash = Get-Sha256 $ForkBuildArgs
 if ($BaselinePackageDir) {
   $BaselinePackageDir = Require-PackageDirectory $BaselinePackageDir "Baseline package directory" $BaselineBrowser
 }
@@ -691,10 +718,14 @@ $BaselineWebGlCommand = @(
   "-Browser", $BaselineBrowser,
   "-Renderer", "webgl2",
   "-Duration", [string]$Duration,
-  "-Warmup", [string]$Warmup,
-  "-Label", $BaselineLabel,
-  "-BuildArgs", $BaselineBuildArgs
-)
+    "-Warmup", [string]$Warmup,
+    "-Label", $BaselineLabel,
+    "-BuildArgs", $BaselineBuildArgs
+  )
+if ($ReuseValidResults) {
+  $BaselineWebGlCommand += "-ReuseValidResults"
+}
+$BaselineWebGlCommand += "-RequireGpuMetadata"
 if ($BaselinePackageDir) {
   $BaselineWebGlCommand += @("-PackageDir", $BaselinePackageDir)
 }
@@ -709,9 +740,13 @@ $ForkWebGlCommand = @(
   "-Label", $ForkDefaultLabel,
   "-BuildArgs", $ForkBuildArgs,
   "-ForkRevision", $ViewerForkRevision,
-  "-ViewerMode",
-  "-ViewerTrustedContent"
-)
+    "-ViewerMode",
+    "-ViewerTrustedContent"
+  )
+if ($ReuseValidResults) {
+  $ForkWebGlCommand += "-ReuseValidResults"
+}
+$ForkWebGlCommand += "-RequireGpuMetadata"
 if ($ForkPackageDir) {
   $ForkWebGlCommand += @("-PackageDir", $ForkPackageDir)
 }
@@ -731,6 +766,10 @@ if ($IncludeAggressiveGpu) {
     "-ViewerTrustedContent",
     "-ViewerAggressiveGpu"
   )
+  if ($ReuseValidResults) {
+    $AggressiveCommand += "-ReuseValidResults"
+  }
+  $AggressiveCommand += "-RequireGpuMetadata"
   if ($AggressiveAngleBackend) {
     $AggressiveCommand += @("-ViewerForceAngleBackend", $AggressiveAngleBackend)
   }
@@ -750,6 +789,13 @@ if ($IncludeWebGPU) {
     "-Label", "$BaselineLabel-webgpu",
     "-BuildArgs", $BaselineBuildArgs
   )
+  if ($ReuseValidResults) {
+    $BaselineWebGpuCommand += "-ReuseValidResults"
+  }
+  $BaselineWebGpuCommand += "-RequireGpuMetadata"
+  if ($DisableWebGpuTiming) {
+    $BaselineWebGpuCommand += "-DisableGpuTiming"
+  }
   if ($BaselinePackageDir) {
     $BaselineWebGpuCommand += @("-PackageDir", $BaselinePackageDir)
   }
@@ -767,6 +813,13 @@ if ($IncludeWebGPU) {
     "-ViewerMode",
     "-ViewerTrustedContent"
   )
+  if ($ReuseValidResults) {
+    $ForkWebGpuCommand += "-ReuseValidResults"
+  }
+  $ForkWebGpuCommand += "-RequireGpuMetadata"
+  if ($DisableWebGpuTiming -or $DisableForkWebGpuTiming) {
+    $ForkWebGpuCommand += "-DisableGpuTiming"
+  }
   if ($ForkPackageDir) {
     $ForkWebGpuCommand += @("-PackageDir", $ForkPackageDir)
   }
@@ -786,6 +839,13 @@ if ($IncludeWebGPU) {
       "-ViewerTrustedContent",
       "-ViewerAggressiveGpu"
     )
+    if ($ReuseValidResults) {
+      $AggressiveWebGpuCommand += "-ReuseValidResults"
+    }
+    $AggressiveWebGpuCommand += "-RequireGpuMetadata"
+    if ($DisableWebGpuTiming -or $DisableForkWebGpuTiming) {
+      $AggressiveWebGpuCommand += "-DisableGpuTiming"
+    }
     if ($AggressiveAngleBackend) {
       $AggressiveWebGpuCommand += @("-ViewerForceAngleBackend", $AggressiveAngleBackend)
     }
@@ -858,6 +918,7 @@ Invoke-BenchmarkSuiteValidation `
   -RequirePackageSize:([bool]$BaselinePackageDir) `
   -ExpectedChromiumRevision $ChromiumRevision `
   -ExpectedBrowser $BaselineBrowser `
+  -ExpectedBuildArgsHash $BaselineBuildArgsHash `
   -ExpectedFlagMetadata (Get-ViewerFlagMetadata) `
   -RequiredBrowserFlags $RequiredBrowserFlags
 
@@ -869,6 +930,7 @@ Invoke-BenchmarkSuiteValidation `
   -RequirePackageSize:([bool]$ForkPackageDir) `
   -ExpectedChromiumRevision $ChromiumRevision `
   -ExpectedBrowser $ForkBrowser `
+  -ExpectedBuildArgsHash $ForkBuildArgsHash `
   -ExpectedForkRevision $ViewerForkRevision `
   -ExpectedFlagMetadata (Get-ViewerFlagMetadata -ViewerMode $true -ViewerTrustedContent $true) `
   -RequiredBrowserFlags $RequiredBrowserFlags
@@ -882,6 +944,7 @@ if ($IncludeAggressiveGpu) {
     -RequirePackageSize:([bool]$ForkPackageDir) `
     -ExpectedChromiumRevision $ChromiumRevision `
     -ExpectedBrowser $ForkBrowser `
+    -ExpectedBuildArgsHash $ForkBuildArgsHash `
     -ExpectedForkRevision $ViewerForkRevision `
     -ExpectedFlagMetadata (Get-ViewerFlagMetadata -ViewerMode $true -ViewerTrustedContent $true -ViewerAggressiveGpu $true -ViewerForceAngleBackend $AggressiveAngleBackend) `
     -RequiredBrowserFlags $RequiredBrowserFlags
@@ -895,6 +958,7 @@ if ($IncludeWebGPU) {
     -RequirePackageSize:([bool]$BaselinePackageDir) `
     -ExpectedChromiumRevision $ChromiumRevision `
     -ExpectedBrowser $BaselineBrowser `
+    -ExpectedBuildArgsHash $BaselineBuildArgsHash `
     -ExpectedFlagMetadata (Get-ViewerFlagMetadata) `
     -RequiredBrowserFlags $RequiredBrowserFlags
 
@@ -906,6 +970,7 @@ if ($IncludeWebGPU) {
     -RequirePackageSize:([bool]$ForkPackageDir) `
     -ExpectedChromiumRevision $ChromiumRevision `
     -ExpectedBrowser $ForkBrowser `
+    -ExpectedBuildArgsHash $ForkBuildArgsHash `
     -ExpectedForkRevision $ViewerForkRevision `
     -ExpectedFlagMetadata (Get-ViewerFlagMetadata -ViewerMode $true -ViewerTrustedContent $true) `
     -RequiredBrowserFlags $RequiredBrowserFlags
@@ -919,6 +984,7 @@ if ($IncludeWebGPU) {
       -RequirePackageSize:([bool]$ForkPackageDir) `
       -ExpectedChromiumRevision $ChromiumRevision `
       -ExpectedBrowser $ForkBrowser `
+      -ExpectedBuildArgsHash $ForkBuildArgsHash `
       -ExpectedForkRevision $ViewerForkRevision `
       -ExpectedFlagMetadata (Get-ViewerFlagMetadata -ViewerMode $true -ViewerTrustedContent $true -ViewerAggressiveGpu $true -ViewerForceAngleBackend $AggressiveAngleBackend) `
       -RequiredBrowserFlags $RequiredBrowserFlags

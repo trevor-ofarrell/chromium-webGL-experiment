@@ -24,6 +24,17 @@ function Assert-Contains {
   }
 }
 
+function Assert-NotContains {
+  param(
+    [string]$Text,
+    [string]$Pattern,
+    [string]$Description
+  )
+  if ($Text -match $Pattern) {
+    throw "Found disallowed navigation-lock evidence: $Description. Pattern: $Pattern"
+  }
+}
+
 function Get-FunctionBody {
   param(
     [string]$Text,
@@ -76,6 +87,11 @@ Assert-Contains `
   'HasSwitch\(\s*switches::kViewerBlockExternalNavigation\)\s*&&\s*params\.disposition != WindowOpenDisposition::CURRENT_TAB\)\s*\{\s*return nullptr;' `
   "viewer navigation lock blocks non-current-tab opens"
 
+Assert-Contains `
+  $AddedCode `
+  'HasSwitch\(\s*switches::kViewerBlockExternalNavigation\)\)\s*\{\s*if \(was_blocked\)\s*\*was_blocked\s*=\s*true;\s*return nullptr;' `
+  "viewer navigation lock blocks AddNewContents window.open path"
+
 Assert-Contains $AddedCode 'command_line->HasSwitch\(switches::kViewerAppUrl\)' "startup URL uses viewer app switch"
 Assert-Contains $AddedCode 'GetSwitchValuePath\(switches::kViewerAppUrl\)' "startup URL accepts local path switch values"
 Assert-Contains $AddedCode 'viewer_app_path\.IsAbsolute\(\)' "startup URL detects absolute local viewer paths"
@@ -86,15 +102,25 @@ Assert-Contains $AddedCode 'url\.is_valid\(\) && url\.has_scheme\(\)' "startup U
 $GetViewerAppUrlBody = Get-FunctionBody $AddedCode "GetViewerAppUrlFromCommandLine"
 Assert-Contains $GetViewerAppUrlBody 'GetSwitchValuePath\(switches::kViewerAppUrl\)' "navigation throttle resolves viewer app path"
 Assert-Contains $GetViewerAppUrlBody 'viewer_app_path\.IsAbsolute\(\)' "navigation throttle treats absolute viewer paths as local files"
-Assert-Contains $GetViewerAppUrlBody 'net::FilePathToFileURL\(base::MakeAbsoluteFilePath\(viewer_app_path\)\)' "navigation throttle converts viewer path to file URL"
+Assert-Contains $AddedCode 'base::FilePath NormalizeViewerFilePath\(base::FilePath path\)' "navigation throttle has non-blocking viewer path normalization helper"
+Assert-Contains $AddedCode 'path = path\.NormalizePathSeparators\(\);' "navigation throttle normalizes path separators without filesystem IO"
+Assert-Contains $AddedCode 'path\.ReferencesParent\(\)' "navigation throttle rejects parent-directory path references"
+Assert-Contains $AddedCode 'base::PathService::Get\(base::DIR_CURRENT, &current_dir\)' "navigation throttle resolves relative viewer paths from current directory without MakeAbsoluteFilePath"
+Assert-Contains $AddedCode 'current_dir\.Append\(path\)\.NormalizePathSeparators\(\)' "navigation throttle resolves relative viewer paths by string composition"
+Assert-Contains $AddedCode 'GURL ViewerFilePathToFileUrl\(base::FilePath path\)' "navigation throttle has file path to URL helper"
+Assert-Contains $AddedCode 'path = NormalizeViewerFilePath\(std::move\(path\)\)' "navigation throttle file URL helper normalizes paths"
+Assert-Contains $AddedCode 'net::FilePathToFileURL\(path\)' "navigation throttle converts normalized paths to file URLs"
+Assert-Contains $GetViewerAppUrlBody 'ViewerFilePathToFileUrl\(viewer_app_path\)' "navigation throttle converts viewer path through non-blocking helper"
+Assert-NotContains $GetViewerAppUrlBody 'MakeAbsoluteFilePath' "navigation throttle startup URL helper must not call blocking MakeAbsoluteFilePath"
 Assert-Contains $GetViewerAppUrlBody 'GURL url\(viewer_app_url\)' "navigation throttle parses viewer URL switch values"
 
 $FileBody = Get-FunctionBody $AddedCode "IsViewerFileNavigationAllowed"
 Assert-Contains $FileBody '!navigation_url\.SchemeIsFile\(\)\)\s*return false;' "file navigation rejects non-file URLs"
 Assert-Contains $FileBody 'net::FileURLToFilePath\(viewer_app_url, &viewer_app_path\)' "file navigation converts viewer URL"
 Assert-Contains $FileBody 'net::FileURLToFilePath\(navigation_url, &navigation_path\)' "file navigation converts target URL"
-Assert-Contains $FileBody 'viewer_app_path = base::MakeAbsoluteFilePath\(viewer_app_path\)' "file navigation normalizes viewer path"
-Assert-Contains $FileBody 'navigation_path = base::MakeAbsoluteFilePath\(navigation_path\)' "file navigation normalizes target path"
+Assert-Contains $FileBody 'viewer_app_path = NormalizeViewerFilePath\(std::move\(viewer_app_path\)\)' "file navigation normalizes viewer path without filesystem IO"
+Assert-Contains $FileBody 'navigation_path = NormalizeViewerFilePath\(std::move\(navigation_path\)\)' "file navigation normalizes target path without filesystem IO"
+Assert-NotContains $FileBody 'MakeAbsoluteFilePath' "file navigation throttle must not call blocking MakeAbsoluteFilePath"
 Assert-Contains $FileBody 'const base::FilePath viewer_app_dir = viewer_app_path\.DirName\(\);' "file navigation derives viewer app directory"
 Assert-Contains $FileBody 'navigation_path == viewer_app_path\s*\|\|\s*viewer_app_dir\.IsParent\(navigation_path\)' "file navigation allows only viewer file or children"
 

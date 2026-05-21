@@ -1,11 +1,11 @@
-﻿{
-    "generated_at":  "2026-05-18T21:24:55.7705153Z",
-    "target_revision":  "e39c315b5d5d0b0cf9963bf00130a98d13cfec51",
-    "previous_revision":  "b80505dd3614a2ede6b009015131b1d19f7da890",
+{
+    "generated_at":  "2026-05-20T20:52:02.8811186Z",
+    "target_revision":  "3a94d90ec3c04556622c56944796dd76753e0581",
+    "previous_revision":  "3a94d90ec3c04556622c56944796dd76753e0581",
     "selected_from_upstream_head":  true,
-    "selected_at":  "2026-05-18T21:21:48.2933332Z",
-    "source":  "origin HEAD",
-    "skip_sync":  false,
-    "skip_hooks":  false,
-    "skip_gn_gen":  false
+    "selected_at":  "2026-05-19T11:54:14.5578136Z",
+    "source":  "explicit -Revision preserving existing origin HEAD selection",
+    "skip_sync":  true,
+    "skip_hooks":  true,
+    "skip_gn_gen":  true
 }

@@ -2,6 +2,7 @@
 param(
   [string]$OutDir = "out\ReleaseViewerDefault",
   [string]$ArgsFile = "build\gn_args\fork_safe_content_shell.gn",
+  [int]$Jobs = 0,
   [switch]$ApplyPatch
 )
 
@@ -26,23 +27,49 @@ function Invoke-Checked {
   }
 }
 
+function Test-GitApply {
+  param(
+    [string]$Repo,
+    [string]$PatchPath,
+    [switch]$Reverse
+  )
+
+  $OldErrorActionPreference = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
+  try {
+    $Arguments = @("-C", $Repo, "apply")
+    if ($Reverse) {
+      $Arguments += "--reverse"
+    }
+    $Arguments += @("--check", $PatchPath)
+    $null = (& git @Arguments 2>$null)
+    return $LASTEXITCODE -eq 0
+  } finally {
+    $ErrorActionPreference = $OldErrorActionPreference
+  }
+}
+
 & (Join-Path $Root "scripts\check_prereqs.ps1")
 if ($LASTEXITCODE -ne 0) {
   throw "Prerequisite check failed. Fix host prerequisites before applying or building the viewer fork."
 }
 
 if ($ApplyPatch) {
-  git -C $Src apply --check $Patch 2>$null
-  if ($LASTEXITCODE -eq 0) {
+  if (Test-GitApply $Src $Patch) {
     Invoke-Checked "git" @("-C", $Src, "apply", $Patch)
+  } elseif (Test-GitApply $Src $Patch -Reverse) {
+    Write-Host "Viewer patch is already applied."
   } else {
-    git -C $Src apply --reverse --check $Patch 2>$null
-    if ($LASTEXITCODE -eq 0) {
-      Write-Host "Viewer patch is already applied."
-    } else {
-      throw "Viewer patch cannot be applied cleanly and is not already applied."
-    }
+    throw "Viewer patch cannot be applied cleanly and is not already applied."
   }
 }
 
-& (Join-Path $Root "scripts\build_chromium.ps1") -OutDir $OutDir -Target content_shell -ArgsFile $ArgsFile
+$BuildScript = Join-Path $Root "scripts\build_chromium.ps1"
+if ($Jobs -gt 0) {
+  & $BuildScript -OutDir $OutDir -Target "content_shell" -ArgsFile $ArgsFile -Jobs $Jobs
+} else {
+  & $BuildScript -OutDir $OutDir -Target "content_shell" -ArgsFile $ArgsFile
+}
+if ($LASTEXITCODE -ne 0) {
+  throw "$BuildScript exited with code $LASTEXITCODE"
+}

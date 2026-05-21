@@ -1,16 +1,14 @@
 # Benchmark Methodology
 
-## Required Comparisons
+Date: 2026-05-21
 
-Each benchmark suite compares:
+The benchmark system compares stock Chromium `content_shell`, the default viewer fork, and trusted viewer experiments built from the same Chromium revision.
 
-- Stock Chromium built from the pinned upstream revision.
-- Fork default-safe optimization profile.
-- Fork trusted-content aggressive optimization profile.
-
-## Scene Suite
+## Required Scene Suite
 
 Implemented viewer scene names:
+
+The viewer runs seven deterministic scenes:
 
 - `many-draw-calls`
 - `instancing`
@@ -22,26 +20,30 @@ Implemented viewer scene names:
 
 Renderer modes:
 
-- `webgl2`
-- `webgpu`
+Each scene is exercised through WebGL2. WebGPU is exercised for the same scene names where Three.js WebGPU support is available.
 
-Benchmark options are split between the browser page and the harness. The viewer
-page consumes query parameters for scene, renderer, duration, warmup,
-complexity, resource warmup, GPU timing, and trace start delay. The
-`--output <results.json>` file target is owned by `scripts/run_benchmark.mjs`:
-the page emits a single `THREE_VIEWER_RESULT <json>` console marker, the
-harness captures it through CDP, enriches it with checkout, build, browser, and
-package metadata, creates the output directory, and writes the final
-machine-readable JSON file. `scripts/test_viewer_runtime_surface.ps1`
-statically verifies both the viewer result marker and the harness-side output
-write path.
+## Runtime Surface
 
-Some custom GLSL scenes are WebGL-focused. WebGPU equivalents use supported Three.js material paths where possible and must be marked in benchmark notes when not equivalent.
-`gltf-loader-stress` loads a bundled glTF asset through Three.js `GLTFLoader` and expands it into many scene graph nodes, so the suite includes an imported-asset loader path rather than only procedural geometry.
+Runtime smoke validation covers:
 
-Current WebGPU equivalence notes are tracked in `docs/webgpu_scene_coverage.md`.
+- direct viewer launch
+- WebGL2 context creation
+- WebGPU adapter/device and Three.js `WebGPURenderer` creation when WebGPU suites are requested
+- `requestAnimationFrame`
+- Canvas
+- local `fetch`
+- `performance.now`
+- texture loading and shader material smoke
+- basic pointer, wheel, and keyboard input events
+- WebGL context-loss and WebGPU device-loss signal recording
+- navigation lock and file-navigation confinement for the fork
 
-Graphics loss behavior and emitted stability fields are tracked in `docs/stability_behavior.md`.
+Official manifest smoke hashes:
+
+- `benchmarks/raw/baseline-content-shell-runtime-smoke.json`
+- `benchmarks/raw/fork-viewer-default-runtime-smoke.json`
+- `benchmarks/raw/fork-viewer-default-navigation-lock.json`
+- `benchmarks/raw/fork-viewer-default-file-navigation-lock.json`
 
 ## Metric Schema
 
@@ -85,193 +87,100 @@ Each JSON result must include:
 - `viewer_bundle_size_mb`
 - `package_size_mb`
 
-Unavailable metrics are recorded as `null`, not omitted. `avg_compositor_latency_ms` and `avg_presentation_latency_ms` are required nullable fields because Chromium does not expose a reliable low-overhead presentation-latency value to the viewer in all modes; official latency claims must use these fields when populated and the raw Chrome traces when they remain `null`.
+Unavailable metrics are recorded as `null` rather than omitted.
 
-Fork benchmark results must identify the actual fork patch content, not only the upstream Chromium commit. The official comparison, trusted experiment matrix, and post-ATL long-stability fork paths pass `fork_revision` as:
+Every benchmark JSON is validated by `scripts/validate_metrics.mjs`.
 
-```text
-<chromium_revision>+viewerpatch-<12-char sha256 of chromium_patches/0001-draft-minimal-three-viewer-entrypoint.patch>
-```
+The harness enriches viewer-emitted metrics with checkout provenance, browser executable metadata, build args hash, package metadata, creates the output directory, and writes the final machine-readable JSON file. Fork benchmark results must identify the actual fork patch content through the fork revision stamp.
 
-That value changes whenever the draft viewer-entrypoint patch changes, while stock baseline results keep `fork_revision` null.
+WebGPU GPU timestamp timing is disabled in the official WebGPU suite because timestamp queries caused device loss in stress runs. WebGPU adapter/device metadata and CPU-side frame metrics remain valid.
 
-## Timing Rules
+## Official Comparison
 
-- Warmup frames are excluded from FPS and percentile metrics.
-- Startup time is measured from navigation start to the first completed render.
-- GPU timer data is recorded only when the browser exposes a reliable timer query path. WebGL2 uses `EXT_disjoint_timer_query_webgl2`; WebGPU uses Three.js timestamp-query support when the adapter exposes `timestamp-query`.
-- GPU timing is enabled by default in `run_benchmark.mjs`; pass `--disableGpuTiming` only for explicit instrumentation-overhead experiments.
-- Process RSS is measured across the launched browser process tree where the host platform exposes child process metadata.
-- `browser_binary_size_mb` is the executable size. `package_size_mb` is populated only when a staged package directory is passed to the runner. New benchmark JSON also records `generated_at` so one-hour stability evidence can be tied to the current Chromium pin refresh.
-- Benchmark results must be machine-readable JSON and accompanied by a summary report for committed comparisons.
-
-## Resource Warmup Options
-
-Resource warmup is disabled by default. Use it only as a named experiment:
+Command shape:
 
 ```powershell
-node .\scripts\run_benchmark.mjs `
-  --browser <browser.exe> `
-  --scene shader-heavy `
-  --renderer webgl2 `
-  --precompile `
-  --prerenderFrames 3 `
-  --output <result.json>
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\run_official_comparison.ps1 -BaselineBrowser .\src\out\ReleaseBaseline\content_shell.exe -ForkBrowser .\src\out\ReleaseViewerDefault\content_shell.exe -BaselineBuildArgs .\src\out\ReleaseBaseline\args.gn -ForkBuildArgs .\src\out\ReleaseViewerDefault\args.gn -BaselinePackageDir .\benchmarks\packages\baseline-content-shell -ForkPackageDir .\benchmarks\packages\viewer-default -IncludeWebGPU -IncludeAggressiveGpu -AggressiveAngleBackend d3d11 -CaptureTrace -DisableWebGpuTiming -DisableForkWebGpuTiming
 ```
 
-When enabled, result JSON includes optional fields:
+Validation gates:
 
-- `resource_warmup_enabled`
-- `resource_warmup_precompile`
-- `resource_warmup_prerender_frames`
-- `resource_warmup_ms`
-- `resource_warmup_precompile_ms`
-- `resource_warmup_prerender_ms`
+- exact expected browser executable paths
+- exact expected GN args hashes
+- exact expected Chromium revision
+- exact expected fork revision for fork variants
+- complete scene set for each renderer/variant
+- matching duration and warmup
+- hardware GPU metadata
+- software-renderer rejection
+- required raw frame-time samples
+- required browser launch flags
+- package-size evidence for packaged runs
+- strict comparison report validation
 
-These fields are not part of the required metric schema because default and warmup-enabled runs must remain comparable. Warmup claims require paired default-vs-warmup measurements on the same binary and scene.
+Official reports:
 
-## Resource Growth Counters
+- `benchmarks/reports/official-webgl2-comparison.md`
+- `benchmarks/reports/official-webgpu-comparison.md`
+- `benchmarks/reports/official-comparison-manifest.json`
 
-Benchmark JSON includes optional renderer resource counters when `renderer.info` exposes them:
+Human-readable official comparison reports summarize FPS, low-FPS, frame-time, CPU/GPU/JS/submission, memory, startup, draw/triangle/upload, shader-event, binary, viewer, and package metrics.
 
-- `renderer_memory_geometries_start`, `renderer_memory_geometries_end`, `renderer_memory_geometries_peak`, `renderer_memory_geometries_delta`
-- `renderer_memory_textures_start`, `renderer_memory_textures_end`, `renderer_memory_textures_peak`, `renderer_memory_textures_delta`
-- `renderer_programs_start`, `renderer_programs_end`, `renderer_programs_peak`, `renderer_programs_delta`
+## Trusted Experiment Matrix
 
-Use these with `process_rss_delta_mb` in long stability runs to check for unbounded geometry, texture, or program growth after warmup. `run_long_stability.ps1` calls `validate_stability_result.mjs`; for stable scenes such as `instancing`, the script default and project gate are `-MaxRssDeltaMb 128 -MaxRendererResourceDelta 0`.
+Trusted experiments are fork-only runs behind `--viewer-trusted-content`. The current matrix includes:
 
-## Automated Verification Scripts
+- default trusted profile
+- aggressive GPU profile
+- in-process GPU
+- single-process
+- force ANGLE D3D11
+- relaxed WebGL validation / pass-through command decoder
+- reserved Blink-disable gate
+- reserved direct-presentation gate
 
-- Build sanity: `.\scripts\verify_prebuild.ps1`
-- Environment manifest: `.\scripts\write_environment_manifest.ps1`
-- Patch-state audit regression: `.\scripts\test_patch_state_audit.ps1` (non-mutating; uses temporary patch-state-only audit evidence)
-- Viewer runtime surface regression: `.\scripts\test_viewer_runtime_surface.ps1`
-- Scene coverage consistency regression: `.\scripts\test_scene_coverage_consistency.ps1`
-- Runtime smoke coverage regression: `.\scripts\test_smoke_coverage.ps1`
-- Optimization tracking regression: `.\scripts\test_optimization_tracking.ps1`
-- Optimization decision audit regression: `.\scripts\test_optimization_decision_audit.ps1`
-- Documentation structure regression: `.\scripts\test_documentation_structure.ps1`
-- Runtime smoke: `node .\scripts\run_smoke_tests.mjs --browser <browser.exe> --output <smoke.json>`
-- Navigation lock smoke: `node .\scripts\run_navigation_lock_tests.mjs --browser <fork-browser.exe> --output <nav-lock.json>`
-- File navigation lock smoke: `node .\scripts\run_file_navigation_lock_tests.mjs --browser <fork-browser.exe> --output <file-nav-lock.json>`
-- Benchmark suite: `.\scripts\run_full_suite.ps1 -Browser <browser.exe> -Renderer webgl2 -Label <label>`
-- Official comparison workflow: `.\scripts\run_official_comparison.ps1 -IncludeWebGPU -IncludeAggressiveGpu`
-- Trusted experiment matrix: `.\scripts\run_trusted_experiment_matrix.ps1 -Browser <fork-browser.exe> -BuildArgs <args.gn> -IncludeAggressiveGpu -IncludeInProcessGpu`
-- Post-ATL build/benchmark pipeline: `.\scripts\run_post_atl_pipeline.ps1 -RefreshChromiumPin -IncludeWebGPU -IncludeAggressiveGpu -AggressiveAngleBackend d3d11 -CaptureTrace -RunTrustedExperimentMatrix -TrustedMatrixInProcessGpu -TrustedMatrixSingleProcess -TrustedMatrixAngleBackend d3d11 -TrustedMatrixReservedNoopGates -RunLongStability -MaxRssDeltaMb 128 -MaxRendererResourceDelta 0 -FinalGate`
-- Package staging: `.\scripts\stage_viewer_package.ps1 -ChromiumOutDir <out> -PackageDir <package> -Clean`
-- Package staging regression: `.\scripts\test_stage_viewer_package.ps1`
-- GN args profile policy regression: `.\scripts\test_gn_args_profiles.ps1`
-- Trace capture: `node .\scripts\run_trace_capture.mjs --browser <browser.exe> --scene <scene> --renderer <renderer> --output <trace.json>`
-- Trace file validation: `node .\scripts\validate_trace_file.mjs --minEvents 1 <trace.json>`
-- Trace summary: `node .\scripts\summarize_trace.mjs <trace.json> --output <trace-report.md>`
-- Trace sidecar validation: `node .\scripts\validate_trace_result.mjs --expectedBrowser <browser.exe> --expectedScene <scene> --expectedRenderer <renderer> --expectedFlagMetadata viewer_mode=true <trace.result.json>`
-- Long-run stability: `.\scripts\run_long_stability.ps1 -Browser <browser.exe> -Duration 3600 -Warmup 30 -Label <label>`
-- Official manifest required-options audit regression: `.\scripts\test_official_manifest_required_options_audit.ps1`
-- Official manifest exact-suite semantic audit regression: `.\scripts\test_official_manifest_suite_semantics_audit.ps1`
-- Trusted manifest exact-suite semantic audit regression: `.\scripts\test_trusted_manifest_suite_semantics_audit.ps1`
-- Metric validation: `node .\scripts\validate_metrics.mjs <result.json...>`
-- Benchmark metadata enrichment regression: `.\scripts\test_benchmark_metadata_enrichment.ps1`
-- Report metric coverage regression: `.\scripts\test_report_metric_coverage.ps1`
-- Benchmark suite validation: `node .\scripts\validate_benchmark_suite.mjs --renderer webgl2 --variant <label> --requireCheckout --requireBuildArgs --expectedBrowser <browser.exe> <result.json...>`
-- Smoke validation: `node .\scripts\validate_smoke_result.mjs --type runtime <smoke.json...>`
-- Patch notes consistency: `.\scripts\test_patch_notes_consistency.ps1`
-- Patch notes completion audit: `.\scripts\test_patch_notes_completion_audit.ps1`
-- Removed-subsystem completion audit: `.\scripts\test_removed_subsystems_completion_audit.ps1`
-- Documentation completion audit: `.\scripts\test_documentation_completion_audit.ps1`
-- Viewer bundle integrity: `.\scripts\test_viewer_bundle_integrity.ps1`
-- Summary report: `node .\scripts\summarize_results.mjs <result.json...> --output <report.md>`
-- Prompt-to-artifact audit: `.\scripts\audit_artifacts.ps1`
+Trusted reports:
 
-`run_smoke_tests.mjs` covers viewer launch, WebGL2 context creation, `requestAnimationFrame`, Canvas, local `fetch`, `performance.now`, basic pointer/wheel/keyboard input events, WebGPU adapter/device creation, WebGPU device-loss signaling, a real Three.js `WebGPURenderer` draw when WebGPU is available, Three.js cube rendering, local texture loading plus `createImageBitmap` availability, shader material rendering, deterministic benchmark execution, and browser crash detection before result capture. For stock baseline evidence, `run_official_comparison.ps1` validates the smoke JSON with `validate_smoke_result.mjs --expect-browser-mode --expected-browser <baseline content_shell.exe>`, which requires `viewer_mode=false`, `viewer_trusted_content=false`, no viewer app URL, and a `browser_executable` matching the manifest's baseline browser path. For fork runtime evidence, it launches the smoke page through `--viewer-app-url` with `--viewer-block-external-navigation` and `--viewer-trusted-content`, and `validate_smoke_result.mjs --expect-viewer-mode --expect-viewer-trusted-content --expected-browser <fork content_shell.exe>` requires the resulting JSON to record `viewer_mode=true`, `viewer_trusted_content=true`, a valid viewer app URL, and the fork browser path. When `-IncludeWebGPU` is set, the official workflow passes `--require-webgpu` to both runtime smoke execution and smoke validation, and completed-manifest audit replays validation with the same requirement, so WebGPU adapter/device, device-loss, and Three.js `WebGPURenderer` smoke cannot be accepted as skips. Generic runtime smoke remains valid for harness checks, but it is not accepted as official stock/fork launch-mode evidence. `validate_smoke_result.mjs` also verifies that smoke JSON has `ok: true`, required test names, no failures, only expected skips for each smoke type, non-empty and semantically valid web-platform/input details, WebGPU adapter/device feature and limit details, WebGPU device-loss details proving explicit destroy, valid Three.js WebGPU render details when present, and sane runtime benchmark details for the deterministic `many-draw-calls`/`webgl2` smoke run: scene name, renderer type, positive FPS, positive frame count, and non-negative startup time.
+- `benchmarks/reports/trusted-experiment-matrix-webgl2-summary.md`
+- `benchmarks/reports/trusted-experiment-matrix-webgl2-comparison.md`
+- `benchmarks/reports/trusted-experiment-matrix-manifest.json`
 
-For navigation smoke outputs, `validate_smoke_result.mjs --type navigation` also checks the recorded `viewer_app_url`, same-origin `/allowed.html` landing URL, blocked-origin URL non-landing result, blocked-origin hit count, a non-loopback external HTTP blocked URL, zero request hits on that external blocked target, and `window.open` page counts. `--type file-navigation` checks the recorded file viewer URL, allowed file URL, blocked outside-file URL, and file `window.open` page counts. `scripts/test_smoke_detail_validation.ps1` verifies these validators accept valid synthetic smoke results and reject synthetic artifacts that claim pass while landing on the blocked HTTP origin, landing on the external HTTP URL, dispatching a request to the external HTTP server, using a loopback URL as the external target, or landing on a blocked outside file.
+Unsafe flags are evaluated one at a time where possible, documented with risk, and not promoted to default launch policy without matching stability evidence.
 
-`run_navigation_lock_tests.mjs` covers `--viewer-app-url` startup, same-origin viewer navigation, loopback cross-origin navigation blocking, deterministic external HTTP navigation blocking through a reachable non-loopback local-interface server, and `window.open` blocking. `run_file_navigation_lock_tests.mjs` covers raw local path startup and verifies that `file://` navigation is limited to the viewer app directory. Both require a fork binary with the viewer-entrypoint patch; stock Chrome will not enforce these switches.
+## Stability
 
-`write_environment_manifest.ps1` records the host's non-loopback IPv4 addresses under `environment.navigation_external_ipv4_addresses` and emits a `navigation_external_ipv4` check. The artifact audit surfaces that check as a runtime-test prerequisite so missing external-navigation test coverage is visible before the post-ATL official comparison reaches the fork navigation smoke step.
+One-hour stability uses:
 
-`scripts/test_atl_blocker_audit.ps1` verifies the build-blocker audit row reports ATL/MFC evidence precisely. Synthetic manifests prove that current Siso build-failure logs produce a `latest ... failure` message, stale logs produce a `prior ... failure logs are older than latest GN generation` message, and prerequisite-only evidence does not invent build-failure details.
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\run_long_stability.ps1 -Browser .\src\out\ReleaseViewerDefault\content_shell.exe -Renderer webgl2 -Scene instancing -Duration 3600 -Warmup 30 -Label fork-viewer-default-long-stability -BuildArgs .\src\out\ReleaseViewerDefault\args.gn -PackageDir .\benchmarks\packages\viewer-default -ExpectedChromiumRevision 3a94d90ec3c04556622c56944796dd76753e0581 -ForkRevision 3a94d90ec3c04556622c56944796dd76753e0581+viewerpatch-cca4b9171b07 -ViewerMode -ViewerTrustedContent -MaxRssDeltaMb 128 -MaxRendererResourceDelta 0 -FriendlyWindow
+```
 
-`scripts/test_viewer_patch_navigation_lock.ps1` provides pre-build static coverage for the same patch surface. It verifies the draft patch still defines `--viewer-app-url` and `--viewer-block-external-navigation`, hides the toolbar in viewer mode, resolves URL and local path startup values, registers the navigation throttle only under the block switch, blocks non-current-tab opens, allows same-origin HTTP navigation, confines file navigation to the viewer file or directory children, and blocks disallowed navigation requests. This is not runtime evidence; the HTTP/file navigation lock smoke tests remain required after the fork binary exists.
+Stability acceptance:
 
-`scripts/test_viewer_patch_entrypoint.ps1` separately verifies the viewer-entrypoint launch precedence in the draft patch: the `--viewer-app-url` branch is present before positional command-line URL handling and before content shell's default `https://www.google.com/` fallback, the viewer app URL suppresses the content-shell toolbar, local path values are converted to `file://` URLs before generic URL parsing, and viewer navigation-lock mode prevents new tab/window `WebContents` creation. This remains static patch evidence only; the fork runtime smoke must still prove the built executable launches into the bundled viewer.
+- at least 3600 measured seconds
+- at least 30 warmup seconds
+- expected browser executable and GN args hash
+- pinned Chromium revision and fork revision where applicable
+- package-size evidence
+- hardware GPU metadata and software-renderer rejection
+- `process_rss_delta_mb <= 128`
+- zero geometry, texture, and program growth after warmup
+- no accepted JSON from early browser exit or crash
 
-`scripts/test_patch_notes_completion_audit.ps1` verifies the artifact audit does not treat draft patch notes as final fork evidence. The patch-notes row stays pending while the official comparison manifest or trusted experiment matrix manifest is missing, or while `chromium_patches/README.md` / `chromium_patches/minimal_viewer_entrypoint.md` still contain draft-only language. After post-ATL stock/fork and trusted runs complete, the patch notes must be rewritten with the final measured patch-series evidence before that row can close.
+Completed artifacts:
 
-`scripts/test_removed_subsystems_completion_audit.ps1` applies the same rule to `docs/removed_subsystems.md`. The final register row stays pending while the official comparison manifest or trusted experiment matrix manifest is missing, or while the subsystem register still contains pending-only language. This prevents the structural register from being mistaken for final removed/disabled subsystem evidence.
+- `benchmarks/raw/baseline-content-shell-long-stability-instancing-webgl2.json`
+- `benchmarks/raw/fork-viewer-default-long-stability-instancing-webgl2.json`
 
-`scripts/test_documentation_completion_audit.ps1` verifies the documentation set does not close on file existence alone. The final documentation row stays pending while official comparison, trusted experiment matrix, or one-hour stock/fork stability evidence is missing, or while required docs still describe the project in blocker/pending terms. This keeps final docs tied to measured outcomes instead of prebuild handoff notes.
+## Trace Capture
 
-`scripts/test_performance_claim_guard.ps1` verifies authored docs cannot make unguarded stock/fork performance-win claims while the official same-revision comparison manifest is missing or incomplete. Goal, pending, hypothesis, and "before claiming" language remains valid; measured claims must wait for official report artifacts.
+Official trace capture records Chrome trace JSON and benchmark sidecars for representative WebGL2 `many-draw-calls` runs. Trace sidecars are validated against browser path, scene, renderer, duration, warmup, start delay, launch flags, and embedded benchmark metadata.
 
-`scripts/test_chromium_scope_guard.ps1` keeps authored README, documentation, and patch notes inside the fork-first Chromium scope. It rejects non-Chromium alternative recommendations unless they are framed as benchmark references or explicit non-recommendations, so reproducibility docs do not drift away from the Chromium-derived runtime objective while final build evidence is pending.
+Trace summaries:
 
-`scripts/test_viewer_bundle_integrity.ps1` verifies the built Vite viewer remains a local-only bundle: `viewer/dist/index.html` uses relative `src`/`href` references that exist on disk, the checker SVG and glTF stress asset are present in `dist`, the Three.js and Vite dependencies are pinned, and viewer source uses local asset loading rather than remote imports or fetches. This is bundle integrity evidence only; runtime loading still requires stock/fork browser smoke after Chromium builds.
+- `benchmarks/reports/baseline-content-shell-many-draw-calls-webgl2-trace-summary.md`
+- `benchmarks/reports/fork-viewer-default-many-draw-calls-webgl2-trace-summary.md`
 
-`scripts/test_viewer_runtime_surface.ps1` statically verifies that the viewer source keeps the required runtime APIs for the benchmark harness: WebGL2 context creation, Three.js WebGPU renderer creation through `navigator.gpu`, `requestAnimationFrame`, `performance.now`, resize and pointer input events, fetch plus `createImageBitmap` local texture loading, `TextureLoader` fallback, `GLTFLoader`, single-line result export through `THREE_VIEWER_RESULT`, benchmark CLI/query propagation for scene/renderer/duration/warmup/output, viewer app URL handoff, and navigation-lock handoff. The CDP benchmark, smoke, and trace harnesses accept both the current single-string result line and the older two-argument console form. `scripts/test_viewer_patch_stdout_result.ps1` statically verifies the draft fork forwards only that `THREE_VIEWER_RESULT` marker to stdout in viewer mode while preserving content-shell's default console behavior for other messages. These are static pre-build checks; runtime smoke and official benchmark runs remain required.
+## Reporting Rule
 
-`scripts/test_source_investigation_paths.ps1` verifies the Chromium source-investigation map against the live checkout. It now checks that the documented last-verification SHA matches `.chromium_revision` and `src` HEAD before resolving the mapped source paths and sentinel symbols. `scripts/test_source_investigation_revision_guard.ps1` uses a synthetic stale copy to verify the check fails when the doc carries an old pin.
-
-`scripts/test_smoke_coverage.ps1` statically verifies that the runtime smoke runner and validator still cover the prompt-required launch and rendering checks: viewer launch, WebGL2 context creation, `requestAnimationFrame`, Canvas, local `fetch`, `performance.now`, basic pointer/wheel/keyboard input events, WebGPU adapter/device creation, WebGL context-loss signal, WebGPU device-loss signal, Three.js `WebGPURenderer` render smoke, Three.js cube render, texture loading plus `createImageBitmap`, shader material render, benchmark result capture, web-platform/input/WebGPU detail sanity, benchmark detail sanity, navigation/file-navigation detail sanity, browser-exit crash detection, required-pass validation, allowed-skip validation, and missing-test rejection. This is harness coverage evidence only; stock and fork runtime smoke JSON must still be produced after the Chromium binaries exist.
-
-The direct installed-Chrome smoke harness row is intentionally stricter than generic runtime smoke: `verify_prebuild.ps1` and `audit_artifacts.ps1` validate `benchmarks/raw/smoke-installed-chrome-v11-stability-smoke.json` with `--require-webgpu`, so harness evidence cannot silently degrade to skipped WebGPU adapter/device, device-loss, or Three.js `WebGPURenderer` smoke.
-
-The direct stock and fork runtime-smoke checklist rows use the same WebGPU requirement. Even outside a completed official manifest, `baseline-content-shell-runtime-smoke.json` and `fork-viewer-default-runtime-smoke.json` must pass launch-mode, expected-browser, and `--require-webgpu` validation before those rows can close.
-
-`run_official_comparison.ps1` orchestrates the required post-build comparison: stock baseline smoke, fork smoke, fork HTTP-origin navigation lock with external HTTP blocking, fork file-mode navigation lock, stock WebGL2 suite, fork default WebGL2 suite, optional trusted/aggressive WebGL2 suite, optional WebGPU stock/default/aggressive suites, optional trace capture, summaries, and side-by-side comparison reports. In real runs it preflights the supplied stock/fork browser executables and GN arg paths as non-empty files before any smoke, benchmark, trace, or report work starts. If `-BaselinePackageDir` or `-ForkPackageDir` is supplied, it also preflights the staged package directory before benchmark work starts, requires `content_shell.exe`, `viewer\index.html`, `run_viewer.ps1`, and non-zero file content, and verifies the packaged `content_shell.exe` hash matches the corresponding browser executable being benchmarked. It validates stock/fork runtime smoke JSON and fork HTTP/file navigation-lock JSON immediately after those files are written. When trace capture is enabled, it also validates each raw trace and `.result.json` sidecar immediately after capture, before writing the trace summaries. Official comparison reports are generated with `compare_results.mjs --strictOfficial`, which rejects installed-browser smoke inputs, missing build-args hashes, missing baseline/fork cases, mismatched Chromium revisions, fork variants without a `fork_revision` derived from that Chromium revision and the viewer patch hash, non-fork variants that carry fork revision metadata, mismatched baseline/fork measured or warmup seconds within a scene/renderer case, missing GPU/backend metadata, and known software-rendered GPU paths such as SwiftShader, WARP, llvmpipe, softpipe, or Microsoft Basic Render Driver. Fork suite commands include the deterministic patch-derived `fork_revision`, and suite validation checks that exact value. Validation, summaries, and comparisons use the exact expected scene output paths for the current run rather than broad globs, so older long-stability or experiment files cannot be swept into official reports. Use `-DryRun` to inspect the exact commands before binaries exist.
-
-Human-readable official comparison reports are generated from the validated JSON artifacts and include FPS, low-FPS, frame-time percentile, dropped-frame, CPU/GPU/JS/submission, compositor/presentation latency, startup, RSS, JS heap, GPU memory, upload, draw-call, triangle, shader-event, binary-size, viewer-bundle-size, and package-size columns. Summary reports include the `benchmark_variant` label so aggregated trusted experiment tables identify which row came from each flag group. The standalone artifact row for `official-webgl2-comparison.md` and `official-webgpu-comparison.md` rejects missing, placeholder, or scene-incomplete markdown before the completed manifest exists. Completed official and trusted manifests do not accept report hashes alone: artifact audit also checks that comparison/summary markdown has the expected report heading, table shape, renderer rows, strict-official validation note where applicable, manifest-declared scene names, and manifest-declared variant labels. The raw JSON remains the source of truth for exact values and any metrics that are unavailable on a given platform.
-
-`scripts/test_strict_official_rejects_software_rendering.ps1` creates synthetic official comparison inputs and verifies that strict official reporting rejects known software-rendered GPU metadata, missing GPU metadata, missing fork revisions, fork revisions not derived from the Chromium revision plus `viewerpatch` marker, fork revision metadata on baseline variants, and mismatched measured/warmup seconds while accepting hardware-like metadata. Generic smoke metrics can still record software backends for diagnostics, but those results are not accepted as official performance evidence.
-
-The official workflow writes `benchmarks/reports/official-comparison-manifest.json` after a real successful run, or `official-comparison-manifest.dry-run.json` during dry-runs. The manifest records binaries, build args, package dirs, fork revision, options, exact result files including aggressive WebGPU when WebGPU and aggressive mode are both requested, report files, trace files, and suite-validation requirements. Completed real-run manifests also include existence, size, and SHA-256 metadata for binaries, GN args, the viewer patch, result JSON, reports, smoke outputs, and traces. During artifact audit, completed official manifests verify that each metadata object points to the exact path declared by the manifest before accepting its hash, including `artifact_metadata.inputs.viewer_patch` for `chromium_patches/0001-draft-minimal-three-viewer-entrypoint.patch`, and that `suite_validation` explicitly records checkout, build-args, no-smoke, hardware GPU, software-renderer rejection, expected Chromium revision, `expected_baseline_browser`, `expected_fork_browser`, expected fork revision for fork suites, exact-scene output, expected flag-metadata gates, and `require_webgpu_runtime_smoke=true` when WebGPU suites are requested. They also re-run `validate_benchmark_suite.mjs` against every exact stock/fork/default/aggressive suite declared in `result_files`, using the manifest labels, expected stock/fork browser executable, expected duration/warmup, pinned Chromium revision, patch-derived fork revision, viewer flag metadata, GPU/software-renderer gates, and package-size gates when package dirs were supplied. They also inspect the comparison report content for the expected benchmark heading, strict official validation note, table header, renderer rows, manifest scene names, and stock/fork/aggressive labels. When trace capture is enabled, they also inspect trace summary markdown for the generated trace-summary heading, manifest trace path, classified-event table, top-duration-event table, total-events line, and caveat text. They also re-run `validate_smoke_result.mjs` against the stock runtime smoke with browser-mode and baseline-browser expectations, the fork runtime smoke with viewer-mode/trusted-content and fork-browser expectations, and the fork HTTP/file navigation-lock files with fork-browser expectations; WebGPU official manifests replay runtime smoke validation with `--require-webgpu`. Matching hashes are not enough if the benchmark, report, trace summary, or smoke details are semantically invalid, if either stock or fork smoke was launched in the wrong mode, if WebGPU-required runtime smoke was skipped, or if any smoke or benchmark artifact came from a different executable.
-
-The final artifact audit has a separate official required-options row. It keeps the official comparison incomplete unless the completed manifest records `include_webgpu=true`, `include_aggressive_gpu=true`, `capture_trace=true`, and non-empty baseline/fork package directories. This prevents a WebGL2-only or unpackaged completed manifest from satisfying the completion-oriented evidence path. `test_official_manifest_required_options_audit.ps1` verifies both missing and complete synthetic option sets.
-
-`scripts/test_dry_run_manifests.ps1` runs the official comparison and trusted experiment matrix in `-DryRun` mode and validates the generated planned manifests and command output. It checks the current patch-derived fork revision, complete required scene coverage, exact result counts, suite-validation settings, report/trace paths, experiment labels, exact trusted experiment flags, official/trusted command flag handoff, and viewer patch metadata hashes without requiring Chromium binaries. It also runs synthetic non-dry official-comparison and trusted-matrix preflights that prove empty input files and missing supplied package directories fail before benchmark work starts. It verifies that any pre-existing dry-run manifest files are restored exactly and that temporary dry-run test artifacts are removed afterward.
-
-Official suite outputs are also checked with `validate_benchmark_suite.mjs` before summaries and comparisons are generated. That validator rejects missing scenes, extra scenes, duplicate scenes, wrong renderer or variant labels, installed-browser inputs when checkout-built results are required, result JSON whose `browser_executable` does not match `--expectedBrowser`, missing build-args hashes, smoke/installed variants, Chromium revisions that do not match the pinned checkout when `--expectedChromiumRevision` is set, missing fork revisions for fork suites, fork revisions that do not match the expected patch hash, result JSON whose `measured_seconds` or `warmup_seconds` do not match the workflow invocation, missing GPU/backend metadata when `--requireGpuMetadata` is set, missing or non-positive `package_size_mb` when `--requirePackageSize` is set, and known software-rendered GPU paths when `--rejectSoftwareRendering` is set. Official comparison and trusted experiment workflows pass the explicit expected scene list and enable expected-browser, Chromium revision, duration/warmup, GPU metadata, package-size gates for packaged runs, and software-renderer gates.
-
-`scripts/test_benchmark_suite_rejects_software_rendering.ps1` verifies the suite validator rejects known software-rendered GPU metadata under `--rejectSoftwareRendering` and missing GPU metadata under `--requireGpuMetadata`, which protects trusted experiment summaries before the final report comparison layer runs.
-
-Primary launcher paths also fail closed before evidence is collected: `run_benchmark.mjs`, `run_smoke_tests.mjs`, `run_trace_capture.mjs`, and staged `run_viewer.ps1` include `--disable-software-rasterizer`. Benchmark, smoke, and trace artifacts record the effective launch argument list as `browser_flags`, with user-supplied pass-through additions preserved separately as `browser_extra_flags`, so later evidence can show the actual hardware-GPU launch policy used. Official/trusted benchmark suite validation, runtime smoke validation, trace sidecar validation, and long-stability validation require `--disable-software-rasterizer` in recorded `browser_flags` before accepting final stock/fork evidence. `scripts/test_hardware_gpu_launch_flags.ps1` statically verifies those launchers keep the flag, record the effective launch arguments, pass the required launch-flag gate through the post-ATL workflows, and that benchmark/stability validators still reject SwiftShader, WARP, llvmpipe, software rasterizer, and software renderer metadata. This does not replace GPU metadata validation; it prevents an obvious software fallback path before the post-run evidence gates run.
-
-`scripts/test_benchmark_suite_duration_validation.ps1` verifies the suite validator rejects result JSON whose `measured_seconds` or `warmup_seconds` do not match the expected official/trusted run settings. This prevents short smoke-style files with official-looking labels from being accepted as full benchmark evidence.
-
-`scripts/test_revision_validation.ps1` verifies both benchmark-suite validation and long-stability validation reject stale `chromium_revision` values when an expected pinned revision is supplied.
-
-`run_post_atl_pipeline.ps1` is the higher-level resume script for the current Windows blocker. With `-RefreshChromiumPin`, it first runs the reproducible Chromium pin refresh helper and then recomputes the Chromium and patch-derived fork revisions used by benchmark and stability validation. The refresh helper writes `benchmarks\reports\chromium-pin-refresh.json` when the pin is selected from upstream HEAD; if a later upstream probe fails or Chromium moves during the long build, benchmark, or one-hour stability loop, the artifact audit keeps freshness pending until completed official same-revision evidence exists for that refreshed pin. It then runs prebuild verification without `-AllowMissingAtl`, builds the stock baseline, applies/builds the fork, stages stock and fork package directories, runs `run_official_comparison.ps1` with both `-BaselinePackageDir` and `-ForkPackageDir`, can run the trusted experiment matrix with the fork package, can run one-hour stock/fork stability with the matching package directories, and regenerates the artifact audit. Before building the stock baseline, it verifies that the viewer patch still applies cleanly; if the patch is already applied it refuses the baseline build unless `-SkipBaselineBuild` is used with an existing unmodified baseline binary. Non-dry resume skips must prove their artifacts already exist before prebuild verification: skipped baseline/fork builds require the relevant `content_shell.exe` and `args.gn`, and skipped packaging requires both skipped builds plus staged stock/fork packages whose packaged executable hashes match the reused stock/fork browser executables whenever later official, trusted, or stability steps would consume them. Because the refresh helper refuses dirty `src` state, omit `-RefreshChromiumPin` only when intentionally resuming from an already-patched checkout with existing unmodified baseline evidence. The dry-run regression test exercises the refresh command graph, patched-source guard, skipped-artifact guards, and package hash guards with dry-run-only overrides and synthetic resume artifacts, so verifier interruptions do not leave the Chromium checkout patched. The completion-oriented post-ATL invocation should include `-RefreshChromiumPin`, `-AggressiveAngleBackend d3d11`, `-RunTrustedExperimentMatrix`, `-TrustedMatrixInProcessGpu`, `-TrustedMatrixSingleProcess`, `-TrustedMatrixAngleBackend d3d11`, `-TrustedMatrixReservedNoopGates`, `-RunLongStability`, `-MaxRssDeltaMb 128`, `-MaxRendererResourceDelta 0`, and `-FinalGate`; the trusted matrix and long-run switches remain optional only so short build-smoke iterations can avoid the long benchmark cost.
-
-`run_trusted_experiment_matrix.ps1` runs fork-only trusted-content experiments one flag group at a time, writes `trusted-experiment-matrix-manifest.json` after a successful real run or `trusted-experiment-matrix-manifest.dry-run.json` for dry-runs, and produces summary/comparison reports. It uses `fork-viewer-exp-*` labels to avoid overwriting official `fork-viewer-default-*` comparison outputs, and records the same patch-derived `fork_revision` in both the manifest and result JSON. `-BuildArgs` is required because trusted optimization evidence must include `build_args_hash`, and the completion-oriented run must pass `-PackageDir` so each experiment records `package_size_mb`. In real runs, the supplied browser executable and GN args are preflighted as non-empty files, and a supplied package directory is preflighted before benchmark work starts, must contain `content_shell.exe`, `viewer\index.html`, `run_viewer.ps1`, and non-zero file content, and must package a `content_shell.exe` whose SHA-256 matches the fork browser under test. Each experiment is validated with `validate_benchmark_suite.mjs` before summaries/comparisons are generated, using the selected scene list, expected fork browser executable, checkout/build-args requirements, smoke rejection, exact expected Chromium revision, exact expected duration/warmup, exact expected fork revision, and package-size evidence when `-PackageDir` is supplied. Summaries and comparisons use the exact files emitted for the selected scenes, not old files matching the same label prefix, and the summary table carries the experiment label in its `Variant` column. The completed manifest records planned/completed phase, exact per-experiment result files, report files, expected viewer flag metadata for each experiment, and existence/size/SHA-256 metadata for the fork binary, GN args, viewer patch, result JSON, package directory, and reports. During artifact audit, completed trusted manifests must record the required scene list plus checkout, build-args, fork-revision, no-smoke, software-renderer rejection, GPU metadata, Chromium revision, `expected_browser`, exact-scene output, and expected flag-metadata suite gates; verify that `artifact_metadata.inputs.viewer_patch` matches `chromium_patches/0001-draft-minimal-three-viewer-entrypoint.patch` on disk; inspect summary/comparison report content for expected headings, table headers, renderer rows, manifest scene names, and experiment labels in both the summary and comparison where applicable; and then re-run `validate_benchmark_suite.mjs` against each experiment's exact result files after path/hash checks pass, including the expected fork browser executable. Matching hashes are not enough if a result no longer forms the claimed validated suite or a report is not the generated trusted matrix report. Use it after the official stock/fork comparison so each risky flag can be logged with its own measured impact.
-
-`test_dry_run_manifests.ps1` validates official and trusted dry-run manifest shape with short synthetic durations, backs up/restores existing dry-run manifest files, compares restored contents when files existed before the test, and removes its temporary backup directory. This keeps regression-test plans from being mistaken for intentional operator dry-runs or real post-ATL evidence.
-
-Each raw benchmark JSON also records the requested viewer launch and trusted flags (`viewer_mode`, `viewer_block_external_navigation`, `viewer_trusted_content`, `viewer_in_process_gpu`, `viewer_single_process`, `viewer_force_angle_backend`, `requested_angle_backend`, reserved gate booleans, effective `browser_flags`, and pass-through `browser_extra_flags`) so individual per-scene files remain auditable even when copied away from the matrix manifest. `browser_flags` is the complete launch argument list assembled by the harness; `browser_extra_flags` is only the caller-provided additions from repeated `--browserFlag` values. `requested_angle_backend` is populated from either the direct harness `--angleBackend` path or the trusted viewer `--viewerForceAngleBackend` alias. Official and trusted suite validation pass `--expectedFlagMetadata` for the relevant stock/fork/trusted profile, and the final artifact audit repeats those metadata gates for its direct raw-suite rows, so a result file cannot satisfy an experiment suite if its recorded viewer flags do not match the intended launch configuration.
-
-The artifact audit also rejects completed trusted experiment matrix manifests that are still dry-run, are not `phase=completed`, have a stale Chromium revision, were generated before the current upstream-head pin refresh, have a stale patch-derived fork revision, have mismatched duration/warmup validation settings, omit required suite-validation settings, omit experiment entries, omit result files or result hashes, omit browser/build-args metadata, omit trusted matrix report files or hashes, omit the required staged package directory and metadata, have artifact metadata paths/hashes that do not match files on disk or the manifest-declared artifact paths, or do not include the expected flag mappings for the default, aggressive GPU, in-process GPU, single-process, ANGLE backend, relaxed WebGL pass-through decoder, and remaining reserved Blink/direct-presentation no-op gate experiments. `scripts/test_trusted_manifest_provenance_audit.ps1`, `scripts/test_trusted_manifest_required_options_audit.ps1`, `scripts/test_trusted_manifest_flag_audit.ps1`, and `scripts/test_manifest_artifact_path_audit.ps1` verify those guards with synthetic completed manifests.
-
-Optimization-class checklist rows are evidence-driven. `audit_artifacts.ps1` reads the `Prompt Optimization Class Decisions` table in `docs/optimization_log.md`; each prompt-required optimization class remains pending until its row has a final status (`kept`, `reverted`, `blocked`, or `not useful`), measured effect, risk, relevant evidence, and notes. `test_optimization_decision_audit.ps1` verifies pending rows fail the optimization-only final gate and synthetic completed rows pass it. The table is intentionally still pending while stock/fork binaries and benchmark evidence are missing.
-
-Manifest/report audit regression tests that need synthetic completed official or trusted manifests, synthetic official comparison report files, or synthetic documentation inputs pass test-only path overrides to `audit_artifacts.ps1` and write those synthetic artifacts under `benchmarks/tmp/<test-name>/`. Those overrides are ignored with a hard failure unless `THREE_BROWSER_ALLOW_TEST_MANIFEST_OVERRIDES=1` is also set by the regression test. They do not write to `benchmarks/reports/official-comparison-manifest.json`, `benchmarks/reports/trusted-experiment-matrix-manifest.json`, `benchmarks/reports/official-webgl2-comparison.md`, `benchmarks/reports/official-webgpu-comparison.md`, or canonical docs, so interrupted tests cannot leave fake completed evidence in the real report locations.
-
-`stage_viewer_package.ps1` creates a package directory with `content_shell.exe`, top-level runtime assets, selected runtime subdirectories, the built viewer bundle, and a `run_viewer.ps1` launcher. The launcher opens the bundled viewer directly, uses a package-local profile directory, carries the same safe low-noise/WebGPU baseline switches as the benchmark harness, includes `--disable-software-rasterizer` so packaged primary launches fail closed instead of falling back to Chromium's software rasterizer, and supports `-Benchmark`, `-Scene`, `-Renderer`, `-Duration`, `-Warmup`, `-Complexity`, resource-warmup, GPU-timing, and extra Chromium arguments by constructing the same viewer query string used by the benchmark harness. Risky trusted experiments such as in-process GPU, single-process, or ANGLE backend forcing are still explicit `-ExtraArgs` additions. Passing stock and fork package directories as `-BaselinePackageDir` and `-ForkPackageDir` lets the official benchmark runner populate `package_size_mb` for both sides of the comparison; the trusted experiment matrix uses the fork package via `-PackageDir`. `test_stage_viewer_package.ps1` exercises the staging path with a synthetic Chromium output and viewer dist, verifies `-Clean` removes stale files, checks runtime asset and viewer bundle copies, and verifies the launcher carries the package-local profile, safe baseline switches, viewer/trusted-content switches, hardware-GPU fail-closed flag, and benchmark query parameters; real packaged launch evidence still requires the fork binary. Completed official and trusted manifests are rejected if a package directory was provided but the manifest lacks non-empty package metadata, or if package path/count/size metadata does not match the manifest-declared staged directory on disk; `test_manifest_package_audit.ps1` and `test_manifest_artifact_path_audit.ps1` verify those guards with synthetic completed manifests.
-
-`run_trace_capture.mjs` captures a Chrome trace around a deterministic viewer benchmark and writes a `.result.json` sidecar with benchmark metadata. It accepts the same trusted viewer experiment flags used by benchmark and stability wrappers, including aggressive GPU, relaxed WebGL pass-through decoder, in-process GPU, single-process, ANGLE backend forcing, Blink feature gate, and direct-presentation gate, and records the requested flag metadata plus effective browser launch arguments in the sidecar. Official trace sidecar validation requires the recorded `browser_flags` to include `--disable-software-rasterizer`. `summarize_trace.mjs` groups trace events by coarse categories such as shader/pipeline, texture upload, GPU command, presentation, and JavaScript. The summary is name-based triage only; raw traces remain the evidence for any optimization claim.
-
-Trace capture passes `startDelayMs` to the viewer, defaulting to a short delay before renderer/context creation. This is mainly for fork viewer mode, where `--viewer-app-url` starts loading immediately; the delay gives CDP tracing time to attach before startup, shader compilation, and resource-upload work begins. The official comparison workflow exposes this as `-TraceStartDelayMs`, and the trace sidecar records `start_delay_ms` so trace evidence remains reproducible.
-
-Raw traces are validated with `validate_trace_file.mjs`, and trace sidecars are validated with `validate_trace_result.mjs`. The official comparison workflow invokes both validators immediately after stock and fork trace capture, using the expected browser executable, scene, renderer, duration, warmup, start delay, and launch flag metadata for each sidecar. Completed official manifests with `capture_trace=true` must have parseable stock and fork trace JSON files with named timestamped events, plus stock and fork sidecars whose browser executable, scene, renderer, trace duration, trace warmup, start delay, launch flag metadata, and embedded benchmark result metadata match the manifest. The stock trace sidecar is expected to record the baseline browser and browser mode; the fork trace sidecar is expected to record the fork browser, viewer mode, trusted content, and external-navigation blocking.
-
-`run_full_suite.ps1`, `run_long_stability.ps1`, `run_trace_capture.mjs`, and `run_official_comparison.ps1` all accept resource warmup options so default and warmup-enabled runs can be paired intentionally.
-
-`run_full_suite.ps1` fails immediately if any individual scene benchmark exits non-zero, then validates each emitted JSON with `validate_metrics.mjs`. Official comparison still performs complete-suite validation afterward so both per-result schema and suite coverage are checked.
-
-`run_benchmark.mjs --viewerFileMode` opens `viewer/dist/index.html` as a `file://` URL instead of serving it over loopback HTTP. Use it to validate package-style local asset loading. The installed-Chrome v13 smoke demonstrates that file-mode glTF loading requires the trusted file-access class of switch; fork validation is still pending.
-
-`run_long_stability.ps1` is the required one-hour loop wrapper. `run_post_atl_pipeline.ps1 -RunLongStability` passes the pinned Chromium revision to stock and fork stability validation, passes the patch-derived `fork_revision` to the fork stability run, and defaults to the same RSS/resource-growth thresholds required by the final artifact audit. It also passes expected viewer flag metadata, required browser launch flags, and the launched browser executable into `validate_stability_result.mjs`, so the stock long run must record browser-mode metadata and the stock `content_shell.exe` path, while the fork long run must record `viewer_mode=true`, `viewer_block_external_navigation=true`, `viewer_trusted_content=true`, and the fork `content_shell.exe` path. Before launching the browser, the wrapper verifies the browser path and any supplied GN args path are non-empty files. When a package directory is supplied, it also preflights the staged package shape before benchmark execution, verifies the packaged `content_shell.exe` hash matches the browser executable under test, and then requires positive `package_size_mb` in the output JSON. When the expected Chromium revision is supplied, it also requires the result `generated_at` timestamp to be after the current `chromium-pin-refresh.json` selected that revision from upstream HEAD. Short installed-Chrome runs validate the script only; a successful one-hour result from stock Chromium and the fork is still required before stability completion can be claimed. The final artifact audit validates long-stability JSON with `validate_stability_result.mjs`, requiring at least 3600 measured seconds, at least 30 warmup seconds, checkout/build metadata, the expected stock/fork browser executable, pinned Chromium revision, pin-refresh provenance, hardware GPU metadata, package-size evidence, expected viewer launch metadata, required `--disable-software-rasterizer` launch metadata, the expected stable `instancing`/`webgl2` labels, fork revision for the fork run, `process_rss_delta_mb <= 128`, and zero renderer geometry/texture/program growth for the default stable scene. The `Stability behavior documentation` row is intentionally pending until both stock and fork one-hour rows validate and `docs/stability_behavior.md` has been updated from smoke-only/pending language to actual GPU process crash/restart, WebGL context-loss, WebGPU device-loss, RSS, and renderer resource-growth behavior.
-
-`validate_metrics.mjs` checks required field presence, renderer/scene names, numeric sanity, percentile ordering, optional timing metadata, stability fields, trusted viewer flag metadata, frame-time arrays, and scene notes. `audit_artifacts.ps1` counts metric artifacts as done only when they pass this validator.
-
-`validate_benchmark_suite.mjs` wraps metric validation for complete scene-suite evidence. The artifact audit uses it for official stock/fork suite rows, including the exact expected stock or fork browser executable, the exact expected Chromium revision for all official suites, the exact expected fork revision for fork suites, package-size requirements when the completed official manifest requested package dirs, and expected trusted viewer flag metadata for profile-specific suites, so a raw glob count is not enough to satisfy official performance evidence.
-
-`audit_artifacts.ps1` generates `docs/prompt_to_artifact_checklist.md`, an evidence checklist that maps the goal requirements to concrete files, scripts, binaries, benchmark outputs, reports, and remaining gaps. Its direct stock/fork binary rows require non-empty `content_shell.exe` files and record SHA-256 evidence, so placeholder files cannot satisfy build completion. Its direct human-readable official report row validates the canonical WebGL2/WebGPU comparison files for headings, strict-official notes, renderer rows, required scene names, and stock/fork labels, then records size and SHA-256 evidence for both markdown files, so placeholder report files cannot satisfy the row. Its official suite rows call `validate_benchmark_suite.mjs` with expected-browser, GPU metadata, and software-renderer gates, package-size gates when the completed official manifest requested package dirs, and expected duration/warmup when a completed official manifest is present. Completed official manifests must be non-dry, have `phase=completed`, match the pinned Chromium revision, have been generated after the current `chromium-pin-refresh.json` selected that revision from upstream HEAD, match the current patch-derived fork revision, record matching duration/warmup validation settings, record all required suite-validation gate settings including `expected_baseline_browser` and `expected_fork_browser`, and include browser, build-args, and viewer-patch hashes. Completed trusted manifests must likewise record the `expected_browser` suite-validation field for the fork executable. They must also include hashed WebGL2 result JSON that passes exact-suite semantic validation, stock/fork runtime smoke hashes that pass `validate_smoke_result.mjs --type runtime`, fork HTTP/file navigation-lock smoke hashes that pass `--type navigation` and `--type file-navigation`, and official comparison report hashes whose markdown content matches the expected comparison structure and includes every manifest scene; when `include_aggressive_gpu` is true they must also include an explicit aggressive ANGLE backend, backend-consistent aggressive labels and expected flag metadata, and hashed aggressive/trusted WebGL2 result JSON; when `include_webgpu` is true they must also include hashed WebGPU stock/fork result JSON and the WebGPU comparison report hash; when both `include_webgpu` and `include_aggressive_gpu` are true they must also include backend-consistent aggressive WebGPU expected flag metadata and hashed aggressive WebGPU result JSON; when `capture_trace` is true they must include validated raw stock/fork trace hashes, validated trace benchmark sidecar hashes with expected browser and stock/fork launch metadata, and trace summary report hashes whose markdown content matches the generated trace-summary structure. All completed manifest file metadata must point to the exact artifact paths declared by the manifest, those files must exist on disk with matching SHA-256 and size, trusted matrix summary/comparison reports must pass the same lightweight content checks including every manifest scene, package metadata must point to the exact manifest-declared package directory with matching file count and size, and staged package `content_shell.exe` hashes must match the manifest browser hashes. Use `-FailOnIncomplete` as a final gate only when all expected stock/fork artifacts should exist. `test_audit_fail_on_incomplete.ps1` verifies that this gate currently fails while the build and official benchmark evidence is still missing, `test_binary_audit_rows.ps1` verifies that binary rows are not existence-only checks, `test_audit_official_suite_validation_gates.ps1` verifies audit suite-row strictness, `test_audit_manifest_override_guard.ps1` verifies test manifest and report path overrides cannot redirect real audits without the explicit test gate, `test_official_report_file_content_audit.ps1` verifies the standalone report row rejects missing, placeholder, and scene-incomplete official reports and records hashes for valid reports, `test_manifest_artifact_path_audit.ps1` verifies that completed manifests cannot pass with fake artifact paths/hashes including fake viewer-patch metadata, with file metadata for a different valid file, with package metadata for a different valid directory, or with a staged package executable that does not match the manifest browser hash, `test_official_manifest_suite_semantics_audit.ps1` verifies that completed official manifests cannot pass if exact benchmark result files fail suite validation, hashed report content is not a comparison report, a comparison report omits a required scene, or a hashed trace summary is not a generated trace summary, `test_trusted_manifest_suite_semantics_audit.ps1` verifies the same suite and report-content guard for trusted matrices, `test_official_manifest_provenance_audit.ps1` verifies that completed official manifests reject stale or incomplete provenance metadata and missing suite-validation settings, including `expected_baseline_browser` and `expected_fork_browser`, `test_trusted_manifest_provenance_audit.ps1` verifies trusted suite-validation setting rejection for expected scenes, `expected_browser`, and expected flag metadata, `test_official_manifest_aggressive_audit.ps1` verifies that completed aggressive official manifests reject mismatched backend labels and missing aggressive WebGL2/WebGPU result hashes, `test_official_manifest_report_audit.ps1` verifies that completed official manifests require WebGL2 and WebGPU comparison report hashes, `test_official_manifest_runtime_audit.ps1` verifies that completed official manifests reject skipped, missing, or semantically invalid runtime smoke and navigation-lock evidence, `test_official_manifest_trace_audit.ps1` verifies that completed trace manifests require valid raw trace, trace-sidecar hashes/metadata, trace-summary hashes, and valid trace-summary content with matching sidecar browser metadata and stock/fork launch flags, and `test_official_manifest_webgpu_audit.ps1` verifies that the audit rejects incomplete completed WebGPU manifest evidence. Test-only manifest/report path overrides are reserved for these regression tests; real audits still read the canonical report manifests and report files.
+Performance claims must cite the official manifest and report path. Trusted experiment claims must cite the trusted matrix manifest and raw experiment files. Stability claims must cite the one-hour stability JSON and the stability validator result.

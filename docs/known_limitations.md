@@ -1,13 +1,13 @@
 # Known Limitations
 
-- Chromium source sync and hooks now complete, and `gn gen out\ReleaseBaseline` succeeds. Baseline build is currently blocked by a host prerequisite: Visual Studio Build Tools is missing ATL/MFC headers (`atldef.h`). Installing `Microsoft.VisualStudio.Component.VC.ATLMFC` requires an elevated shell; use `.\scripts\install_vs_atl.ps1`, then rerun `.\scripts\verify_prebuild.ps1`.
-- The active Chromium pin can drift behind upstream `origin HEAD` during long-running local setup because Chromium moves continuously. `benchmarks/reports/prebuild-environment.json` records both the pinned revision and the observed upstream HEAD; `benchmarks/reports/chromium-pin-refresh.json` records when the pin was selected from upstream HEAD so later drift does not become a false final-gate blocker. The post-ATL command still uses `-RefreshChromiumPin` so final stock/fork build evidence refreshes the pin before compiling.
-- The first benchmark runner uses a local loopback static server for reproducible stock Chromium measurement. The fork should later replace this with an embedded local/bundled origin.
-- GPU frame time is available only when WebGL timer queries or WebGPU `timestamp-query` support is exposed and reliable. WebGPU timestamp results can be unavailable on browser/GPU combinations that do not expose the feature.
-- Browser process RSS sampling is currently host-side and sums the launched browser process tree. It is a snapshot at benchmark completion, not a per-frame memory trace.
-- WebGPU scene coverage now runs all seven benchmark scene names, but exact shader/effect parity still depends on the Three.js WebGPU renderer and TSL/WGSL support at the installed Three.js version.
-- The bundled `gltf-loader-stress` scene validates a deterministic `GLTFLoader` path, but it is still a compact local fixture rather than a large production glTF asset.
-- Local `file://` package launch needs Chromium's file-access relaxation for bundled modules/assets. The draft fork aliases this only for trusted local file launches; runtime validation against the fork binary is pending.
-- Installed Chrome smoke results are harness validation only. They are not accepted as baseline evidence for performance claims because the completion criteria require stock Chromium built from the same pinned revision as the fork.
-- Official comparison and trusted suite validation now reject missing GPU/backend metadata and known software-rendered GPU metadata such as SwiftShader, WARP, llvmpipe, softpipe, or Microsoft Basic Render Driver. Ambiguous hardware metadata can still require trace/system-info review in real stock/fork runs; any official result with unclear GPU acceleration should be treated as weak evidence until the primary path is confirmed GPU-accelerated.
-- `scripts/run_long_stability.ps1` has only been validated with a short installed-Chrome run. The v11 smoke validates WebGL context-loss and WebGPU device-loss signal handling in installed Chrome, but the required one-hour stock and fork stability runs are still pending the Chromium build.
+Date: 2026-05-21
+
+- The fork is an experimental content-shell-derived runtime for trusted local/bundled Three.js content. It is not a general browser.
+- Only the Windows NVIDIA ANGLE D3D11 path is measured in the current evidence set. Vulkan, GL/EGL, and Metal require separate platform runs.
+- WebGPU GPU timestamp timing is disabled in the official WebGPU suite because timestamp queries caused device loss during stress runs. WebGPU CPU-side metrics, adapter/device metadata, and scene coverage remain recorded.
+- The default fork improves package size and WebGL2 p99/startup, but it does not improve average WebGL2 FPS in the official default profile and it regresses average WebGPU FPS in this evidence set.
+- In-process GPU and single-process experiments show very large WebGL2 FPS gains in the trusted matrix, but they reduce crash isolation and can saturate the desktop. They remain explicit trusted-only experiments.
+- Direct GPU presentation and Blink-disable gates are reserved switches only in this revision. Their measured rows are treated as no-op or negative evidence, not retained source optimizations.
+- The one-hour fork stability run uses a smaller friendly window to avoid desktop saturation while still requiring NVIDIA ANGLE D3D11 metadata and rejecting software-rendered evidence. Do not compare its FPS against full-size official scene-suite runs.
+- The viewer keeps Blink core DOM/layout/event loop, V8, Canvas, WebGL, WebGPU/Dawn, ANGLE, Viz, image decode, `createImageBitmap`, local fetch, and CDP automation because they are required by the benchmark viewer and test harness.
+- Official WebGPU shader/postprocessing parity is practical rather than byte-identical to WebGL2 shader source. See `docs/webgpu_scene_coverage.md`.

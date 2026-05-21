@@ -315,6 +315,86 @@ function Add-BinaryFileRow {
   Add-AuditRow $Area $Requirement "pending" "$PathValue exists but is not a non-empty executable file" $Remaining
 }
 
+function Add-BuildProvenanceRow {
+  param(
+    [string]$Requirement,
+    [string]$ProvenancePath,
+    [string]$BrowserPath,
+    [string]$BuildArgsPath,
+    [string]$SourceArgsPath,
+    [switch]$ExpectViewerPatchApplied
+  )
+
+  if (-not (Test-RepoPath $ProvenancePath)) {
+    Add-AuditRow "Build" $Requirement "missing" "Missing: $ProvenancePath" "Build through scripts/build_chromium.ps1 so the output directory records revision, hash, args, and patch-state provenance."
+    return
+  }
+  if (-not (Test-RepoPath $BrowserPath)) {
+    Add-AuditRow "Build" $Requirement "missing" "Browser missing: $BrowserPath" "Rebuild the matching Chromium output."
+    return
+  }
+  if (-not (Test-RepoPath $BuildArgsPath)) {
+    Add-AuditRow "Build" $Requirement "missing" "Generated GN args missing: $BuildArgsPath" "Regenerate the matching Chromium output."
+    return
+  }
+  if (-not (Test-RepoPath $SourceArgsPath)) {
+    Add-AuditRow "Build" $Requirement "missing" "Source GN args missing: $SourceArgsPath" "Restore the checked-in GN args template."
+    return
+  }
+
+  try {
+    $Provenance = Get-Content -LiteralPath (Resolve-RepoPath $ProvenancePath) -Raw | ConvertFrom-Json
+  } catch {
+    Add-AuditRow "Build" $Requirement "pending" "$ProvenancePath is not valid JSON" "Rebuild through scripts/build_chromium.ps1."
+    return
+  }
+
+  if ($Provenance.chromium_revision -ne $ExpectedChromiumRevision) {
+    Add-AuditRow "Build" $Requirement "pending" "$ProvenancePath chromium_revision=$($Provenance.chromium_revision) expected=$ExpectedChromiumRevision" "Rebuild after the current Chromium pin refresh."
+    return
+  }
+  if ($Provenance.target -ne "content_shell") {
+    Add-AuditRow "Build" $Requirement "pending" "$ProvenancePath target=$($Provenance.target) expected=content_shell" "Rebuild the expected target."
+    return
+  }
+
+  $BrowserHash = Get-FileHashString $BrowserPath
+  if ([string]$Provenance.target_artifact_sha256 -ne $BrowserHash) {
+    Add-AuditRow "Build" $Requirement "pending" "$ProvenancePath executable hash does not match $BrowserPath" "Rebuild or discard stale binary/provenance files."
+    return
+  }
+
+  $BuildArgsHash = Get-FileHashString $BuildArgsPath
+  if ([string]$Provenance.args_gn_sha256 -ne $BuildArgsHash) {
+    Add-AuditRow "Build" $Requirement "pending" "$ProvenancePath args.gn hash does not match $BuildArgsPath" "Regenerate or rebuild the matching output."
+    return
+  }
+
+  $SourceArgsHash = Get-FileHashString $SourceArgsPath
+  if ([string]$Provenance.source_args_sha256 -ne $SourceArgsHash) {
+    Add-AuditRow "Build" $Requirement "pending" "$ProvenancePath source args hash does not match $SourceArgsPath" "Rebuild with the checked-in GN args template."
+    return
+  }
+
+  if ($ExpectViewerPatchApplied) {
+    if ($Provenance.viewer_patch_already_applied -ne $true) {
+      Add-AuditRow "Build" $Requirement "pending" "$ProvenancePath does not show the viewer patch applied" "Rebuild the fork through scripts/build_viewer_fork.ps1 -ApplyPatch."
+      return
+    }
+  } else {
+    if ($Provenance.viewer_patch_already_applied -eq $true) {
+      Add-AuditRow "Build" $Requirement "pending" "$ProvenancePath shows the viewer patch applied" "Rebuild the stock baseline from an unmodified checkout."
+      return
+    }
+    if ($Provenance.viewer_patch_applies_cleanly -ne $true) {
+      Add-AuditRow "Build" $Requirement "pending" "$ProvenancePath does not show the viewer patch applying cleanly to the baseline checkout" "Rebuild the stock baseline from an unmodified checkout."
+      return
+    }
+  }
+
+  Add-AuditRow "Build" $Requirement "done" "$ProvenancePath revision=$($Provenance.chromium_revision) target_sha256=$BrowserHash args_sha256=$BuildArgsHash source_args_sha256=$SourceArgsHash viewer_patch_already_applied=$($Provenance.viewer_patch_already_applied)" "Keep this tied to the binary used for official/trusted/stability evidence."
+}
+
 function Add-GnArgsMatchRow {
   param(
     [string]$Requirement,
@@ -488,6 +568,7 @@ function Invoke-StabilityValidator {
     [switch]$RequirePackageSize,
     [string]$ExpectedChromiumRevision = "",
     [string]$ExpectedBrowser = "",
+    [string]$ExpectedBuildArgsHash = "",
     [string]$ExpectedForkRevision = "",
     [string[]]$ExpectedFlagMetadata = @(),
     [string[]]$RequiredBrowserFlags = @()
@@ -519,6 +600,9 @@ function Invoke-StabilityValidator {
   )
   if ($ExpectedBrowser) {
     $Args += @("--expectedBrowser", $ExpectedBrowser)
+  }
+  if ($ExpectedBuildArgsHash) {
+    $Args += @("--expectedBuildArgsHash", $ExpectedBuildArgsHash)
   }
   $Args += @("--pinRefreshManifest", (Resolve-RepoPath "benchmarks\reports\chromium-pin-refresh.json"))
   if ($RequireForkRevision) {
@@ -558,6 +642,7 @@ function Get-StabilityResultEvidence {
     [switch]$RequirePackageSize,
     [string]$ExpectedChromiumRevision = "",
     [string]$ExpectedBrowser = "",
+    [string]$ExpectedBuildArgsHash = "",
     [string]$ExpectedForkRevision = "",
     [string[]]$ExpectedFlagMetadata = @(),
     [string[]]$RequiredBrowserFlags = @()
@@ -579,6 +664,7 @@ function Get-StabilityResultEvidence {
       -RequirePackageSize:$RequirePackageSize `
       -ExpectedChromiumRevision $ExpectedChromiumRevision `
       -ExpectedBrowser $ExpectedBrowser `
+      -ExpectedBuildArgsHash $ExpectedBuildArgsHash `
       -ExpectedForkRevision $ExpectedForkRevision `
       -ExpectedFlagMetadata $ExpectedFlagMetadata `
       -RequiredBrowserFlags $RequiredBrowserFlags
@@ -589,7 +675,7 @@ function Get-StabilityResultEvidence {
     }
   }
 
-  $Evidence = "$Pattern count=$($Files.Count) valid=$Valid expected>=1 with one-hour duration, checkout/build metadata, pinned Chromium revision, expected browser executable, hardware GPU metadata, package-size evidence, viewer flag metadata, required browser flags, RSS delta <= $DefaultStabilityMaxRssDeltaMb MB, and renderer resource delta <= $DefaultStabilityMaxRendererResourceDelta"
+  $Evidence = "$Pattern count=$($Files.Count) valid=$Valid expected>=1 with one-hour duration, checkout/build metadata, expected build-args hash, pinned Chromium revision, expected browser executable, hardware GPU metadata, package-size evidence, viewer flag metadata, required browser flags, RSS delta <= $DefaultStabilityMaxRssDeltaMb MB, and renderer resource delta <= $DefaultStabilityMaxRendererResourceDelta"
   if ($LastOutput) {
     $Evidence = "$Evidence; last validation: $LastOutput"
   }
@@ -612,6 +698,7 @@ function Add-StabilityResultRow {
     [switch]$RequirePackageSize,
     [string]$ExpectedChromiumRevision = "",
     [string]$ExpectedBrowser = "",
+    [string]$ExpectedBuildArgsHash = "",
     [string]$ExpectedForkRevision = "",
     [string[]]$ExpectedFlagMetadata = @(),
     [string[]]$RequiredBrowserFlags = @(),
@@ -625,6 +712,7 @@ function Add-StabilityResultRow {
     -RequirePackageSize:$RequirePackageSize `
     -ExpectedChromiumRevision $ExpectedChromiumRevision `
     -ExpectedBrowser $ExpectedBrowser `
+    -ExpectedBuildArgsHash $ExpectedBuildArgsHash `
     -ExpectedForkRevision $ExpectedForkRevision `
     -ExpectedFlagMetadata $ExpectedFlagMetadata `
     -RequiredBrowserFlags $RequiredBrowserFlags
@@ -640,6 +728,8 @@ function Add-StabilityBehaviorDocumentationRow {
   param(
     [string[]]$BaselineStabilityFlags,
     [string[]]$ForkStabilityFlags,
+    [string]$BaselineBuildArgsHash,
+    [string]$ForkBuildArgsHash,
     [string]$ExpectedForkRevision
   )
 
@@ -671,6 +761,7 @@ function Add-StabilityBehaviorDocumentationRow {
     -RequirePackageSize `
     -ExpectedChromiumRevision $ExpectedChromiumRevision `
     -ExpectedBrowser (Resolve-RepoPath "src\out\ReleaseBaseline\content_shell.exe") `
+    -ExpectedBuildArgsHash $BaselineBuildArgsHash `
     -ExpectedFlagMetadata $BaselineStabilityFlags `
     -RequiredBrowserFlags $RequiredBrowserFlags
   $ForkEvidence = Get-StabilityResultEvidence `
@@ -680,6 +771,7 @@ function Add-StabilityBehaviorDocumentationRow {
     -RequirePackageSize `
     -ExpectedChromiumRevision $ExpectedChromiumRevision `
     -ExpectedBrowser (Resolve-RepoPath "src\out\ReleaseViewerDefault\content_shell.exe") `
+    -ExpectedBuildArgsHash $ForkBuildArgsHash `
     -ExpectedForkRevision $ExpectedForkRevision `
     -ExpectedFlagMetadata $ForkStabilityFlags `
     -RequiredBrowserFlags $RequiredBrowserFlags
@@ -704,6 +796,7 @@ function Invoke-BenchmarkSuiteValidator {
     [string]$Variant = "",
     [switch]$RequireCheckout,
     [switch]$RequireBuildArgs,
+    [string]$ExpectedBuildArgsHash = "",
     [string]$ExpectedChromiumRevision = "",
     [string]$ExpectedBrowser = "",
     [switch]$RequireForkRevision,
@@ -712,6 +805,7 @@ function Invoke-BenchmarkSuiteValidator {
     [switch]$RejectSoftwareRendering,
     [switch]$RequireGpuMetadata,
     [switch]$RequirePackageSize,
+    [switch]$RequireFrameTimes,
     [double]$ExpectedMeasuredSeconds = -1,
     [double]$ExpectedWarmupSeconds = -1,
     [string[]]$ExpectedFlagMetadata = @(),
@@ -740,6 +834,9 @@ function Invoke-BenchmarkSuiteValidator {
   if ($RequireBuildArgs) {
     $Args += "--requireBuildArgs"
   }
+  if ($ExpectedBuildArgsHash) {
+    $Args += @("--expectedBuildArgsHash", $ExpectedBuildArgsHash)
+  }
   if ($ExpectedChromiumRevision) {
     $Args += @("--expectedChromiumRevision", $ExpectedChromiumRevision)
   }
@@ -763,6 +860,9 @@ function Invoke-BenchmarkSuiteValidator {
   }
   if ($RequirePackageSize) {
     $Args += "--requirePackageSize"
+  }
+  if ($RequireFrameTimes) {
+    $Args += "--requireFrameTimes"
   }
   if ($ExpectedMeasuredSeconds -ge 0) {
     $Args += @("--expectedMeasuredSeconds", [string]$ExpectedMeasuredSeconds)
@@ -802,17 +902,32 @@ function Add-BenchmarkSuiteRow {
     [switch]$RequireForkRevision,
     [string]$ExpectedChromiumRevision = "",
     [string]$ExpectedBrowser = "",
+    [string]$ExpectedBuildArgsHash = "",
     [string]$ExpectedForkRevision = "",
     [switch]$RejectSoftwareRendering,
     [switch]$RequireGpuMetadata,
     [switch]$RequirePackageSize,
+    [switch]$RequireFrameTimes,
     [double]$ExpectedMeasuredSeconds = -1,
     [double]$ExpectedWarmupSeconds = -1,
     [string[]]$ExpectedFlagMetadata = @(),
     [string[]]$RequiredBrowserFlags = @()
   )
 
-  $Files = @(Get-ChildItem -Path (Resolve-RepoPath $Pattern) -File -ErrorAction SilentlyContinue)
+  $AllFiles = @(Get-ChildItem -Path (Resolve-RepoPath $Pattern) -File -ErrorAction SilentlyContinue)
+  $Files = @()
+  foreach ($File in $AllFiles) {
+    try {
+      $Json = Get-Content $File.FullName -Raw | ConvertFrom-Json
+      $BenchmarkVariant = if ($Json.benchmark_variant) { [string]$Json.benchmark_variant } else { "unknown" }
+      if ($BenchmarkVariant -eq $Variant) {
+        $Files += $File
+      }
+    } catch {
+      continue
+    }
+  }
+  $IgnoredCount = $AllFiles.Count - $Files.Count
   if ($Files.Count -eq 0) {
     Add-AuditRow $Area $Requirement "pending" "$Pattern count=0 expected=$($RequiredScenes.Count)" $Remaining
     return
@@ -824,6 +939,7 @@ function Add-BenchmarkSuiteRow {
     -Variant $Variant `
     -RequireCheckout `
     -RequireBuildArgs `
+    -ExpectedBuildArgsHash $ExpectedBuildArgsHash `
     -ExpectedChromiumRevision $ExpectedChromiumRevision `
     -ExpectedBrowser $ExpectedBrowser `
     -ForbidSmoke `
@@ -832,6 +948,7 @@ function Add-BenchmarkSuiteRow {
     -RejectSoftwareRendering:$RejectSoftwareRendering `
     -RequireGpuMetadata:$RequireGpuMetadata `
     -RequirePackageSize:$RequirePackageSize `
+    -RequireFrameTimes:$RequireFrameTimes `
     -ExpectedMeasuredSeconds $ExpectedMeasuredSeconds `
     -ExpectedWarmupSeconds $ExpectedWarmupSeconds `
     -ExpectedFlagMetadata $ExpectedFlagMetadata `
@@ -839,9 +956,9 @@ function Add-BenchmarkSuiteRow {
     -ExpectedScenes $RequiredScenes
 
   if ($Result.Ok) {
-    Add-AuditRow $Area $Requirement "done" "$Pattern count=$($Files.Count); $($Result.Output)" $Remaining
+    Add-AuditRow $Area $Requirement "done" "$Pattern variant=$Variant count=$($Files.Count) ignored_nonmatching=$IgnoredCount; $($Result.Output)" $Remaining
   } else {
-    Add-AuditRow $Area $Requirement "pending" "$Pattern count=$($Files.Count); validation failed: $($Result.Output)" $Remaining
+    Add-AuditRow $Area $Requirement "pending" "$Pattern variant=$Variant count=$($Files.Count) ignored_nonmatching=$IgnoredCount; validation failed: $($Result.Output)" $Remaining
   }
 }
 
@@ -855,10 +972,12 @@ function Add-AnyVariantBenchmarkSuiteRow {
     [switch]$RequireForkRevision,
     [string]$ExpectedChromiumRevision = "",
     [string]$ExpectedBrowser = "",
+    [string]$ExpectedBuildArgsHash = "",
     [string]$ExpectedForkRevision = "",
     [switch]$RejectSoftwareRendering,
     [switch]$RequireGpuMetadata,
     [switch]$RequirePackageSize,
+    [switch]$RequireFrameTimes,
     [double]$ExpectedMeasuredSeconds = -1,
     [double]$ExpectedWarmupSeconds = -1,
     [string[]]$ExpectedFlagMetadata = @(),
@@ -892,6 +1011,7 @@ function Add-AnyVariantBenchmarkSuiteRow {
       -Variant $Variant `
       -RequireCheckout `
       -RequireBuildArgs `
+      -ExpectedBuildArgsHash $ExpectedBuildArgsHash `
       -ExpectedChromiumRevision $ExpectedChromiumRevision `
       -ExpectedBrowser $ExpectedBrowser `
       -ForbidSmoke `
@@ -900,6 +1020,7 @@ function Add-AnyVariantBenchmarkSuiteRow {
       -RejectSoftwareRendering:$RejectSoftwareRendering `
       -RequireGpuMetadata:$RequireGpuMetadata `
       -RequirePackageSize:$RequirePackageSize `
+      -RequireFrameTimes:$RequireFrameTimes `
       -ExpectedMeasuredSeconds $ExpectedMeasuredSeconds `
       -ExpectedWarmupSeconds $ExpectedWarmupSeconds `
       -ExpectedFlagMetadata $ExpectedFlagMetadata `
@@ -1463,7 +1584,7 @@ function Add-TrustedMatrixManifestRow {
     } elseif ($Manifest.suite_validation.expected_measured_seconds -ne $Manifest.options.duration -or $Manifest.suite_validation.expected_warmup_seconds -ne $Manifest.options.warmup) {
       Add-AuditRow "Official performance" "Trusted experiment matrix manifest" "pending" "$PathValue does not record suite duration/warmup validation matching options" "Regenerate with current run_trusted_experiment_matrix.ps1 so trusted results enforce measured_seconds and warmup_seconds."
     } elseif ($TrustedSuiteSettingIssues.Count -gt 0) {
-      Add-AuditRow "Official performance" "Trusted experiment matrix manifest" "pending" "$PathValue suite validation settings mismatch: $($TrustedSuiteSettingIssues -join '; ')" "Regenerate with current run_trusted_experiment_matrix.ps1 so the matrix manifest records checkout, build-args, revision, GPU, exact-scene, no-smoke, and flag-metadata gates."
+      Add-AuditRow "Official performance" "Trusted experiment matrix manifest" "pending" "$PathValue suite validation settings mismatch: $($TrustedSuiteSettingIssues -join '; ')" "Regenerate with current run_trusted_experiment_matrix.ps1 so the matrix manifest records checkout, build-args, revision, GPU, raw frame-time, exact-scene, no-smoke, and flag-metadata gates."
     } elseif ($ExperimentCount -lt 1) {
       Add-AuditRow "Official performance" "Trusted experiment matrix manifest" "pending" "$PathValue records no experiments" "Run at least one trusted experiment variant."
     } elseif ($MissingFlagEvidence.Count -gt 0) {
@@ -1832,7 +1953,7 @@ function Add-OfficialComparisonReportFilesRow {
       $Item = Get-Item -LiteralPath $Resolved
       "$_ size_bytes=$($Item.Length) sha256=$(Get-FileHashString $_)"
     })
-  Add-AuditRow "Official performance" "Human-readable official comparison reports" "done" "$($ReportEvidence -join ', ') include comparison headings, strict validation notes, table headers, renderer rows, required scenes, and stock/fork labels" "Keep with official stock/fork result JSON and manifest."
+  Add-AuditRow "Official performance" "Human-readable official comparison reports" "done" "$($ReportEvidence -join ', ') include comparison headings, strict validation notes, metric-rich table headers, renderer rows, required scenes, and stock/fork labels" "Keep with official stock/fork result JSON and manifest."
 }
 
 function Get-OfficialManifestSuiteValidationIssues {
@@ -1842,12 +1963,25 @@ function Get-OfficialManifestSuiteValidationIssues {
   )
 
   $Issues = [System.Collections.Generic.List[string]]::new()
+  $ExpectedBaselineBuildArgsHash = if ($Manifest.artifact_metadata.inputs.baseline_build_args.sha256) {
+    ([string]$Manifest.artifact_metadata.inputs.baseline_build_args.sha256).ToLowerInvariant()
+  } else {
+    ""
+  }
+  $ExpectedForkBuildArgsHash = if ($Manifest.artifact_metadata.inputs.fork_build_args.sha256) {
+    ([string]$Manifest.artifact_metadata.inputs.fork_build_args.sha256).ToLowerInvariant()
+  } else {
+    ""
+  }
   $ExpectedSettings = @(
     [pscustomobject]@{ Name = "require_checkout"; Expected = $true },
     [pscustomobject]@{ Name = "require_build_args"; Expected = $true },
+    [pscustomobject]@{ Name = "expected_baseline_build_args_hash"; Expected = $ExpectedBaselineBuildArgsHash },
+    [pscustomobject]@{ Name = "expected_fork_build_args_hash"; Expected = $ExpectedForkBuildArgsHash },
     [pscustomobject]@{ Name = "forbid_smoke"; Expected = $true },
     [pscustomobject]@{ Name = "reject_software_rendering"; Expected = $true },
     [pscustomobject]@{ Name = "require_gpu_metadata"; Expected = $true },
+    [pscustomobject]@{ Name = "require_frame_times"; Expected = $true },
     [pscustomobject]@{ Name = "expected_chromium_revision"; Expected = $ExpectedChromiumRevision },
     [pscustomobject]@{ Name = "expected_baseline_browser"; Expected = [string]$Manifest.browsers.baseline },
     [pscustomobject]@{ Name = "expected_fork_browser"; Expected = [string]$Manifest.browsers.fork },
@@ -1889,15 +2023,22 @@ function Get-TrustedMatrixManifestSuiteValidationIssues {
     [string]$ExpectedForkRevision
   )
 
+  $ExpectedBuildArgsHash = if ($Manifest.artifact_metadata.inputs.build_args.sha256) {
+    ([string]$Manifest.artifact_metadata.inputs.build_args.sha256).ToLowerInvariant()
+  } else {
+    ""
+  }
   $ExpectedSettings = @(
     [pscustomobject]@{ Name = "expected_scenes"; Expected = $RequiredScenes },
     [pscustomobject]@{ Name = "require_checkout"; Expected = $true },
     [pscustomobject]@{ Name = "require_build_args"; Expected = $true },
+    [pscustomobject]@{ Name = "expected_build_args_hash"; Expected = $ExpectedBuildArgsHash },
     [pscustomobject]@{ Name = "require_fork_revision"; Expected = $true },
     [pscustomobject]@{ Name = "expected_fork_revision"; Expected = $ExpectedForkRevision },
     [pscustomobject]@{ Name = "forbid_smoke"; Expected = $true },
     [pscustomobject]@{ Name = "reject_software_rendering"; Expected = $true },
     [pscustomobject]@{ Name = "require_gpu_metadata"; Expected = $true },
+    [pscustomobject]@{ Name = "require_frame_times"; Expected = $true },
     [pscustomobject]@{ Name = "expected_chromium_revision"; Expected = $ExpectedChromiumRevision },
     [pscustomobject]@{ Name = "expected_browser"; Expected = [string]$Manifest.browser },
     [pscustomobject]@{ Name = "exact_scene_output_files"; Expected = $true },
@@ -1934,6 +2075,11 @@ function Invoke-TrustedMatrixBenchmarkSuiteValidation {
   }
   $ExpectedMeasuredSeconds = if ($null -ne $Manifest.options.duration) { [double]$Manifest.options.duration } else { -1 }
   $ExpectedWarmupSeconds = if ($null -ne $Manifest.options.warmup) { [double]$Manifest.options.warmup } else { -1 }
+  $ExpectedBuildArgsHash = if ($Manifest.artifact_metadata.inputs.build_args.sha256) {
+    ([string]$Manifest.artifact_metadata.inputs.build_args.sha256).ToLowerInvariant()
+  } else {
+    ""
+  }
   $Ok = $true
   $Outputs = [System.Collections.Generic.List[string]]::new()
 
@@ -1964,6 +2110,7 @@ function Invoke-TrustedMatrixBenchmarkSuiteValidation {
       -Variant $Label `
       -RequireCheckout `
       -RequireBuildArgs `
+      -ExpectedBuildArgsHash $ExpectedBuildArgsHash `
       -ExpectedChromiumRevision $ExpectedChromiumRevision `
       -ExpectedBrowser ([string]$Manifest.browser) `
       -ForbidSmoke `
@@ -1971,6 +2118,7 @@ function Invoke-TrustedMatrixBenchmarkSuiteValidation {
       -ExpectedForkRevision $ExpectedForkRevision `
       -RejectSoftwareRendering `
       -RequireGpuMetadata `
+      -RequireFrameTimes `
       -RequirePackageSize:$RequirePackageSize `
       -ExpectedMeasuredSeconds $ExpectedMeasuredSeconds `
       -ExpectedWarmupSeconds $ExpectedWarmupSeconds `
@@ -2011,6 +2159,16 @@ function Invoke-OfficialManifestBenchmarkSuiteValidation {
 
   $ExpectedMeasuredSeconds = if ($null -ne $Manifest.options.duration) { [double]$Manifest.options.duration } else { -1 }
   $ExpectedWarmupSeconds = if ($null -ne $Manifest.options.warmup) { [double]$Manifest.options.warmup } else { -1 }
+  $ExpectedBaselineBuildArgsHash = if ($Manifest.artifact_metadata.inputs.baseline_build_args.sha256) {
+    ([string]$Manifest.artifact_metadata.inputs.baseline_build_args.sha256).ToLowerInvariant()
+  } else {
+    ""
+  }
+  $ExpectedForkBuildArgsHash = if ($Manifest.artifact_metadata.inputs.fork_build_args.sha256) {
+    ([string]$Manifest.artifact_metadata.inputs.fork_build_args.sha256).ToLowerInvariant()
+  } else {
+    ""
+  }
   $BaselineLabel = Get-OfficialManifestLabel -Manifest $Manifest -Name "baseline" -Fallback "baseline-content-shell"
   $ForkDefaultLabel = Get-OfficialManifestLabel -Manifest $Manifest -Name "fork_default" -Fallback "fork-viewer-default"
   $AggressiveLabelFallback = if ([string]$Manifest.options.aggressive_angle_backend) {
@@ -2029,6 +2187,7 @@ function Invoke-OfficialManifestBenchmarkSuiteValidation {
       RequireForkRevision = $false
       RequirePackageSize = [bool]$BaselinePackageRequired
       ExpectedBrowser = [string]$Manifest.browsers.baseline
+      ExpectedBuildArgsHash = $ExpectedBaselineBuildArgsHash
       ExpectedFlagMetadata = @(Get-OfficialManifestExpectedFlagMetadata -Manifest $Manifest -Name "baseline")
     }) | Out-Null
   $Cases.Add([pscustomobject]@{
@@ -2039,6 +2198,7 @@ function Invoke-OfficialManifestBenchmarkSuiteValidation {
       RequireForkRevision = $true
       RequirePackageSize = [bool]$ForkPackageRequired
       ExpectedBrowser = [string]$Manifest.browsers.fork
+      ExpectedBuildArgsHash = $ExpectedForkBuildArgsHash
       ExpectedFlagMetadata = @(Get-OfficialManifestExpectedFlagMetadata -Manifest $Manifest -Name "fork_default")
     }) | Out-Null
 
@@ -2051,6 +2211,7 @@ function Invoke-OfficialManifestBenchmarkSuiteValidation {
         RequireForkRevision = $true
         RequirePackageSize = [bool]$ForkPackageRequired
         ExpectedBrowser = [string]$Manifest.browsers.fork
+        ExpectedBuildArgsHash = $ExpectedForkBuildArgsHash
         ExpectedFlagMetadata = @(Get-OfficialManifestExpectedFlagMetadata -Manifest $Manifest -Name "aggressive")
       }) | Out-Null
   }
@@ -2064,6 +2225,7 @@ function Invoke-OfficialManifestBenchmarkSuiteValidation {
         RequireForkRevision = $false
         RequirePackageSize = [bool]$BaselinePackageRequired
         ExpectedBrowser = [string]$Manifest.browsers.baseline
+        ExpectedBuildArgsHash = $ExpectedBaselineBuildArgsHash
         ExpectedFlagMetadata = @(Get-OfficialManifestExpectedFlagMetadata -Manifest $Manifest -Name "baseline_webgpu")
       }) | Out-Null
     $Cases.Add([pscustomobject]@{
@@ -2074,6 +2236,7 @@ function Invoke-OfficialManifestBenchmarkSuiteValidation {
         RequireForkRevision = $true
         RequirePackageSize = [bool]$ForkPackageRequired
         ExpectedBrowser = [string]$Manifest.browsers.fork
+        ExpectedBuildArgsHash = $ExpectedForkBuildArgsHash
         ExpectedFlagMetadata = @(Get-OfficialManifestExpectedFlagMetadata -Manifest $Manifest -Name "fork_default_webgpu")
       }) | Out-Null
     if ($Manifest.options.include_aggressive_gpu) {
@@ -2085,6 +2248,7 @@ function Invoke-OfficialManifestBenchmarkSuiteValidation {
           RequireForkRevision = $true
           RequirePackageSize = [bool]$ForkPackageRequired
           ExpectedBrowser = [string]$Manifest.browsers.fork
+          ExpectedBuildArgsHash = $ExpectedForkBuildArgsHash
           ExpectedFlagMetadata = @(Get-OfficialManifestExpectedFlagMetadata -Manifest $Manifest -Name "aggressive_webgpu")
         }) | Out-Null
     }
@@ -2112,6 +2276,7 @@ function Invoke-OfficialManifestBenchmarkSuiteValidation {
       -Variant $Case.Variant `
       -RequireCheckout `
       -RequireBuildArgs `
+      -ExpectedBuildArgsHash $Case.ExpectedBuildArgsHash `
       -ExpectedChromiumRevision $ExpectedChromiumRevision `
       -ExpectedBrowser $Case.ExpectedBrowser `
       -ForbidSmoke `
@@ -2119,6 +2284,7 @@ function Invoke-OfficialManifestBenchmarkSuiteValidation {
       -ExpectedForkRevision $(if ($Case.RequireForkRevision) { $ExpectedForkRevision } else { "" }) `
       -RejectSoftwareRendering `
       -RequireGpuMetadata `
+      -RequireFrameTimes `
       -RequirePackageSize:([bool]$Case.RequirePackageSize) `
       -ExpectedMeasuredSeconds $ExpectedMeasuredSeconds `
       -ExpectedWarmupSeconds $ExpectedWarmupSeconds `
@@ -2510,7 +2676,7 @@ function Add-OfficialComparisonManifestRow {
     } elseif ($Manifest.suite_validation.expected_measured_seconds -ne $Manifest.options.duration -or $Manifest.suite_validation.expected_warmup_seconds -ne $Manifest.options.warmup) {
       Add-AuditRow "Official performance" "Official comparison manifest" "pending" "$PathValue does not record suite duration/warmup validation matching options" "Regenerate with current run_official_comparison.ps1 so official results enforce measured_seconds and warmup_seconds."
     } elseif ($OfficialSuiteSettingIssues.Count -gt 0) {
-      Add-AuditRow "Official performance" "Official comparison manifest" "pending" "$PathValue suite validation settings mismatch: $($OfficialSuiteSettingIssues -join '; ')" "Regenerate with current run_official_comparison.ps1 so the official manifest records checkout, build-args, revision, GPU, exact-scene, no-smoke, and flag-metadata gates."
+      Add-AuditRow "Official performance" "Official comparison manifest" "pending" "$PathValue suite validation settings mismatch: $($OfficialSuiteSettingIssues -join '; ')" "Regenerate with current run_official_comparison.ps1 so the official manifest records checkout, build-args, revision, GPU, raw frame-time, exact-scene, no-smoke, and flag-metadata gates."
     } elseif (-not $AggressiveBackendConsistencyOk) {
       Add-AuditRow "Official performance" "Official comparison manifest" "pending" "$PathValue aggressive backend metadata mismatch: $AggressiveBackendConsistencyOutput" "Regenerate with -IncludeAggressiveGpu -AggressiveAngleBackend d3d11 so aggressive result labels and expected flag metadata match the requested backend."
     } elseif ($BaselineCount -ne $RequiredScenes.Count -or $ForkCount -ne $RequiredScenes.Count) {
@@ -2748,6 +2914,7 @@ function Add-ChromiumRows {
       }
       $AtlCheck = @($EnvManifest.checks | Where-Object { $_.name -eq "visual_studio_atl" } | Select-Object -First 1)
       $AtlComponentCheck = @($EnvManifest.checks | Where-Object { $_.name -eq "visual_studio_atl_component" } | Select-Object -First 1)
+      $CodeIntegrityCheck = @($EnvManifest.checks | Where-Object { $_.name -eq "windows_code_integrity_chromium_rust" } | Select-Object -First 1)
       $NavigationExternalCheck = @($EnvManifest.checks | Where-Object { $_.name -eq "navigation_external_ipv4" } | Select-Object -First 1)
       if ($AtlCheck.Count -gt 0 -and $AtlCheck[0].ok) {
         $AtlEvidence = $AtlCheck[0].detail
@@ -2794,6 +2961,14 @@ function Add-ChromiumRows {
         Add-AuditRow "Build" "Host prerequisite: Visual Studio ATL/MFC" "pending" "$EnvManifestPath has no visual_studio_atl check" "Regenerate with scripts/write_environment_manifest.ps1."
       }
 
+      if ($CodeIntegrityCheck.Count -gt 0 -and $CodeIntegrityCheck[0].ok) {
+        Add-AuditRow "Build" "Host prerequisite: Windows Code Integrity allows Chromium Rust build DLLs" "done" $CodeIntegrityCheck[0].detail "Keep prebuild-environment.json current after toolchain or Windows security-policy changes."
+      } elseif ($CodeIntegrityCheck.Count -gt 0) {
+        Add-AuditRow "Build" "Host prerequisite: Windows Code Integrity allows Chromium Rust build DLLs" "blocked" $CodeIntegrityCheck[0].detail "Allow generated Chromium Rust proc-macro DLLs through WDAC/Smart App Control, then rerun scripts/check_prereqs.ps1 and resume the fork build."
+      } else {
+        Add-AuditRow "Build" "Host prerequisite: Windows Code Integrity allows Chromium Rust build DLLs" "pending" "$EnvManifestPath has no windows_code_integrity_chromium_rust check" "Regenerate with scripts/write_environment_manifest.ps1."
+      }
+
       if ($NavigationExternalCheck.Count -gt 0 -and $NavigationExternalCheck[0].ok) {
         Add-AuditRow "Runtime tests" "Host prerequisite: external navigation test interface" "done" $NavigationExternalCheck[0].detail "Keep this current before running fork navigation-lock smoke; it needs a non-loopback IPv4 interface."
       } elseif ($NavigationExternalCheck.Count -gt 0) {
@@ -2803,10 +2978,12 @@ function Add-ChromiumRows {
       }
     } catch {
       Add-AuditRow "Build" "Host prerequisite: Visual Studio ATL/MFC" "pending" "$EnvManifestPath is invalid JSON" "Regenerate with scripts/write_environment_manifest.ps1."
+      Add-AuditRow "Build" "Host prerequisite: Windows Code Integrity allows Chromium Rust build DLLs" "pending" "$EnvManifestPath is invalid JSON" "Regenerate with scripts/write_environment_manifest.ps1."
       Add-AuditRow "Runtime tests" "Host prerequisite: external navigation test interface" "pending" "$EnvManifestPath is invalid JSON" "Regenerate with scripts/write_environment_manifest.ps1."
     }
   } else {
     Add-AuditRow "Build" "Host prerequisite: Visual Studio ATL/MFC" "pending" "$EnvManifestPath missing" "Run scripts/verify_prebuild.ps1 or scripts/write_environment_manifest.ps1."
+    Add-AuditRow "Build" "Host prerequisite: Windows Code Integrity allows Chromium Rust build DLLs" "pending" "$EnvManifestPath missing" "Run scripts/verify_prebuild.ps1 or scripts/write_environment_manifest.ps1."
     Add-AuditRow "Runtime tests" "Host prerequisite: external navigation test interface" "pending" "$EnvManifestPath missing" "Run scripts/verify_prebuild.ps1 or scripts/write_environment_manifest.ps1."
   }
 
@@ -2833,6 +3010,8 @@ function Add-ChromiumRows {
   Add-GnArgsMatchRow "Generated fork trusted/aggressive args.gn matches template" "src\out\ReleaseViewerTrustedAggressive\args.gn" "build\gn_args\fork_trusted_aggressive.gn" "Run scripts/build_chromium.ps1 -GenOnly to refresh trusted/aggressive GN metadata; runtime trusted flags still require the built fork binary."
   Add-BinaryFileRow "Build" "Stock baseline content_shell binary" "src\out\ReleaseBaseline\content_shell.exe" "Build stock content_shell from the pinned revision."
   Add-BinaryFileRow "Build" "Fork default content_shell binary" "src\out\ReleaseViewerDefault\content_shell.exe" "Apply viewer patch after baseline capture and build fork output."
+  Add-BuildProvenanceRow "Stock baseline build provenance" "src\out\ReleaseBaseline\three_browser_build_provenance.json" "src\out\ReleaseBaseline\content_shell.exe" "src\out\ReleaseBaseline\args.gn" "build\gn_args\baseline_content_shell.gn"
+  Add-BuildProvenanceRow "Fork default build provenance" "src\out\ReleaseViewerDefault\three_browser_build_provenance.json" "src\out\ReleaseViewerDefault\content_shell.exe" "src\out\ReleaseViewerDefault\args.gn" "build\gn_args\fork_safe_content_shell.gn" -ExpectViewerPatchApplied
 }
 
 function Add-PatchRows {
@@ -2981,7 +3160,7 @@ function Add-PrebuildEnvironmentManifestRow {
       } else {
         "no Siso failure logs recorded"
       }
-      Add-AuditRow "Automation" "Prebuild environment manifest" "done" "$EnvManifest records pinned revision, $UpstreamEvidence, $PatchState, and $FailureEvidence" "ATL/MFC may still be recorded as a failing host prerequisite until installed."
+      Add-AuditRow "Automation" "Prebuild environment manifest" "done" "$EnvManifest records pinned revision, $UpstreamEvidence, $PatchState, and $FailureEvidence" "Regenerate after prerequisite, source, or build-output state changes."
     } else {
       Add-AuditRow "Automation" "Prebuild environment manifest" "pending" "$EnvManifest exists but does not record the expected revision and patch state" "Regenerate with scripts/write_environment_manifest.ps1."
     }
@@ -3210,8 +3389,8 @@ function Add-ScriptRows {
   }
 
   $SuiteText = if (Test-RepoPath "scripts\validate_benchmark_suite.mjs") { Get-Content (Resolve-RepoPath "scripts\validate_benchmark_suite.mjs") -Raw } else { "" }
-  if ($SuiteText -match "--requireCheckout" -and $SuiteText -match "--requireBuildArgs" -and $SuiteText -match "--expectedChromiumRevision" -and $SuiteText -match "--expectedBrowser" -and $SuiteText -match "--expectedForkRevision" -and $SuiteText -match "--rejectSoftwareRendering" -and $SuiteText -match "--requireGpuMetadata" -and $SuiteText -match "--requirePackageSize" -and $SuiteText -match "--expectedMeasuredSeconds" -and $SuiteText -match "--expectedWarmupSeconds" -and $SuiteText -match "--expectedFlagMetadata" -and $SuiteText -match "--requiredBrowserFlag" -and $OfficialText -match "validate_benchmark_suite\.mjs" -and $OfficialText -match "--expectedScenes" -and $OfficialText -match "ExpectedChromiumRevision" -and $OfficialText -match "ExpectedBrowser" -and $OfficialText -match "ExpectedForkRevision" -and $OfficialText -match "RequirePackageSize" -and $OfficialText -match "--rejectSoftwareRendering" -and $OfficialText -match "--requireGpuMetadata" -and $OfficialText -match "--expectedMeasuredSeconds" -and $OfficialText -match "--expectedWarmupSeconds" -and $OfficialText -match "ExpectedFlagMetadata" -and $OfficialText -match "RequiredBrowserFlags") {
-    Add-AuditRow "Automation" "Official scene-suite validation" "done" "validate_benchmark_suite.mjs is wired into run_official_comparison.ps1 with expected scene list, expected Chromium revision, expected browser executable, expected fork-revision checks, exact scene output files, software-renderer rejection, required GPU metadata, package-size enforcement for packaged runs, expected duration/warmup checks, expected viewer-flag metadata, and required effective browser launch flags" "Official suite artifacts are still pending the stock/fork Chromium builds."
+  if ($SuiteText -match "--requireCheckout" -and $SuiteText -match "--requireBuildArgs" -and $SuiteText -match "--expectedBuildArgsHash" -and $SuiteText -match "--expectedChromiumRevision" -and $SuiteText -match "--expectedBrowser" -and $SuiteText -match "--expectedForkRevision" -and $SuiteText -match "--rejectSoftwareRendering" -and $SuiteText -match "--requireGpuMetadata" -and $SuiteText -match "--requirePackageSize" -and $SuiteText -match "--requireFrameTimes" -and $SuiteText -match "--expectedMeasuredSeconds" -and $SuiteText -match "--expectedWarmupSeconds" -and $SuiteText -match "--expectedFlagMetadata" -and $SuiteText -match "--requiredBrowserFlag" -and $OfficialText -match "validate_benchmark_suite\.mjs" -and $OfficialText -match "--expectedScenes" -and $OfficialText -match "ExpectedChromiumRevision" -and $OfficialText -match "ExpectedBrowser" -and $OfficialText -match "ExpectedBuildArgsHash" -and $OfficialText -match "ExpectedForkRevision" -and $OfficialText -match "RequirePackageSize" -and $OfficialText -match "--rejectSoftwareRendering" -and $OfficialText -match "--requireGpuMetadata" -and $OfficialText -match "--requireFrameTimes" -and $OfficialText -match "--expectedMeasuredSeconds" -and $OfficialText -match "--expectedWarmupSeconds" -and $OfficialText -match "ExpectedFlagMetadata" -and $OfficialText -match "RequiredBrowserFlags") {
+    Add-AuditRow "Automation" "Official scene-suite validation" "done" "validate_benchmark_suite.mjs is wired into run_official_comparison.ps1 with expected scene list, expected Chromium revision, expected browser executable, expected build-args hash, expected fork-revision checks, exact scene output files, software-renderer rejection, required GPU metadata, required raw frame-time samples, package-size enforcement for packaged runs, expected duration/warmup checks, expected viewer-flag metadata, and required effective browser launch flags" "Official suite artifacts are still pending the stock/fork Chromium builds."
   } else {
     Add-AuditRow "Automation" "Official scene-suite validation" "pending" "Suite validation is not fully wired" "Ensure official runs reject missing scenes, duplicate scenes, wrong renderer labels, and installed-browser inputs."
   }
@@ -3277,8 +3456,8 @@ function Add-ScriptRows {
   }
 
   $TrustedText = if (Test-RepoPath "scripts\run_trusted_experiment_matrix.ps1") { Get-Content (Resolve-RepoPath "scripts\run_trusted_experiment_matrix.ps1") -Raw } else { "" }
-  if ($TrustedText -match "validate_benchmark_suite\.mjs" -and $TrustedText -match "--expectedScenes" -and $TrustedText -match "--expectedChromiumRevision" -and $TrustedText -match "--expectedBrowser" -and $TrustedText -match "--expectedForkRevision" -and $TrustedText -match "--rejectSoftwareRendering" -and $TrustedText -match "--requireGpuMetadata" -and $TrustedText -match "--requirePackageSize" -and $TrustedText -match "--expectedMeasuredSeconds" -and $TrustedText -match "--expectedWarmupSeconds" -and $TrustedText -match "--expectedFlagMetadata" -and $TrustedText -match "--requiredBrowserFlag" -and $TrustedText -match "Get-ExperimentExpectedFlagMetadata" -and $TrustedText -match "BuildArgs is required" -and $TrustedText -match "ResultFiles") {
-    Add-AuditRow "Automation" "Trusted experiment suite validation" "done" "run_trusted_experiment_matrix.ps1 validates each experiment suite with expected scenes, build args, Chromium revision, expected browser executable, fork revision, exact current-run files, software-renderer rejection, required GPU metadata, package-size enforcement for packaged runs, expected duration/warmup checks, expected trusted viewer flag metadata, and required effective browser launch flags" "Measured trusted experiment artifacts are still pending the fork build."
+  if ($TrustedText -match "validate_benchmark_suite\.mjs" -and $TrustedText -match "--expectedScenes" -and $TrustedText -match "--expectedChromiumRevision" -and $TrustedText -match "--expectedBrowser" -and $TrustedText -match "--expectedBuildArgsHash" -and $TrustedText -match "--expectedForkRevision" -and $TrustedText -match "--rejectSoftwareRendering" -and $TrustedText -match "--requireGpuMetadata" -and $TrustedText -match "--requirePackageSize" -and $TrustedText -match "--requireFrameTimes" -and $TrustedText -match "--expectedMeasuredSeconds" -and $TrustedText -match "--expectedWarmupSeconds" -and $TrustedText -match "--expectedFlagMetadata" -and $TrustedText -match "--requiredBrowserFlag" -and $TrustedText -match "Get-ExperimentExpectedFlagMetadata" -and $TrustedText -match "BuildArgs is required" -and $TrustedText -match "ResultFiles") {
+    Add-AuditRow "Automation" "Trusted experiment suite validation" "done" "run_trusted_experiment_matrix.ps1 validates each experiment suite with expected scenes, build args, expected build-args hash, Chromium revision, expected browser executable, fork revision, exact current-run files, software-renderer rejection, required GPU metadata, required raw frame-time samples, package-size enforcement for packaged runs, expected duration/warmup checks, expected trusted viewer flag metadata, and required effective browser launch flags" "Measured trusted experiment artifacts are still pending the fork build."
   } else {
     Add-AuditRow "Automation" "Trusted experiment suite validation" "pending" "Trusted experiment matrix does not fully validate per-experiment suites" "Wire validate_benchmark_suite.mjs into trusted experiment reporting."
   }
@@ -3950,13 +4129,15 @@ function Add-OfficialBenchmarkRows {
     $ForkAggressiveCommonFlags += $ForkAggressiveBackendFlag
     $ForkAggressiveCommonFlags += $ForkAggressiveRequestedBackendFlag
   }
+  $BaselineBuildArgsHash = Get-FileHashString "src\out\ReleaseBaseline\args.gn"
+  $ForkBuildArgsHash = Get-FileHashString "src\out\ReleaseViewerDefault\args.gn"
 
-  Add-BenchmarkSuiteRow "Official performance" "Stock WebGL2 scene suite results" "benchmarks\raw\baseline-content-shell-*-webgl2.json" "webgl2" "baseline-content-shell" "Run scripts/run_official_comparison.ps1 after baseline build." -ExpectedChromiumRevision $ExpectedChromiumRevision -ExpectedBrowser (Resolve-RepoPath "src\out\ReleaseBaseline\content_shell.exe") -RejectSoftwareRendering -RequireGpuMetadata -RequirePackageSize:$BaselinePackageRequired -ExpectedMeasuredSeconds $ExpectedMeasuredSeconds -ExpectedWarmupSeconds $ExpectedWarmupSeconds -ExpectedFlagMetadata $BrowserModeFlags -RequiredBrowserFlags $RequiredBrowserFlags
-  Add-BenchmarkSuiteRow "Official performance" "Fork default WebGL2 scene suite results" "benchmarks\raw\fork-viewer-default-*-webgl2.json" "webgl2" "fork-viewer-default" "Run scripts/run_official_comparison.ps1 after fork build." -RequireForkRevision -ExpectedChromiumRevision $ExpectedChromiumRevision -ExpectedBrowser (Resolve-RepoPath "src\out\ReleaseViewerDefault\content_shell.exe") -ExpectedForkRevision $ExpectedForkRevision -RejectSoftwareRendering -RequireGpuMetadata -RequirePackageSize:$ForkPackageRequired -ExpectedMeasuredSeconds $ExpectedMeasuredSeconds -ExpectedWarmupSeconds $ExpectedWarmupSeconds -ExpectedFlagMetadata $ForkDefaultFlags -RequiredBrowserFlags $RequiredBrowserFlags
-  Add-AnyVariantBenchmarkSuiteRow "Official performance" "Fork trusted/aggressive WebGL2 scene suite results" "benchmarks\raw\fork-viewer-aggressive-gpu*-*-webgl2.json" "webgl2" "Run with -IncludeAggressiveGpu and document each flag effect." -RequireForkRevision -ExpectedChromiumRevision $ExpectedChromiumRevision -ExpectedBrowser (Resolve-RepoPath "src\out\ReleaseViewerDefault\content_shell.exe") -ExpectedForkRevision $ExpectedForkRevision -RejectSoftwareRendering -RequireGpuMetadata -RequirePackageSize:$ForkPackageRequired -ExpectedMeasuredSeconds $ExpectedMeasuredSeconds -ExpectedWarmupSeconds $ExpectedWarmupSeconds -ExpectedFlagMetadata $ForkAggressiveCommonFlags -RequiredBrowserFlags $RequiredBrowserFlags
-  Add-BenchmarkSuiteRow "Official performance" "Stock WebGPU scene suite results" "benchmarks\raw\baseline-content-shell-webgpu-*-webgpu.json" "webgpu" "baseline-content-shell-webgpu" "Run with -IncludeWebGPU." -ExpectedChromiumRevision $ExpectedChromiumRevision -ExpectedBrowser (Resolve-RepoPath "src\out\ReleaseBaseline\content_shell.exe") -RejectSoftwareRendering -RequireGpuMetadata -RequirePackageSize:$BaselinePackageRequired -ExpectedMeasuredSeconds $ExpectedMeasuredSeconds -ExpectedWarmupSeconds $ExpectedWarmupSeconds -ExpectedFlagMetadata $BrowserModeFlags -RequiredBrowserFlags $RequiredBrowserFlags
-  Add-BenchmarkSuiteRow "Official performance" "Fork WebGPU scene suite results" "benchmarks\raw\fork-viewer-default-webgpu-*-webgpu.json" "webgpu" "fork-viewer-default-webgpu" "Run with -IncludeWebGPU." -RequireForkRevision -ExpectedChromiumRevision $ExpectedChromiumRevision -ExpectedBrowser (Resolve-RepoPath "src\out\ReleaseViewerDefault\content_shell.exe") -ExpectedForkRevision $ExpectedForkRevision -RejectSoftwareRendering -RequireGpuMetadata -RequirePackageSize:$ForkPackageRequired -ExpectedMeasuredSeconds $ExpectedMeasuredSeconds -ExpectedWarmupSeconds $ExpectedWarmupSeconds -ExpectedFlagMetadata $ForkDefaultFlags -RequiredBrowserFlags $RequiredBrowserFlags
-  Add-AnyVariantBenchmarkSuiteRow "Official performance" "Fork trusted/aggressive WebGPU scene suite results" "benchmarks\raw\fork-viewer-aggressive-gpu*-webgpu-*-webgpu.json" "webgpu" "Run with -IncludeWebGPU -IncludeAggressiveGpu and document each flag effect." -RequireForkRevision -ExpectedChromiumRevision $ExpectedChromiumRevision -ExpectedBrowser (Resolve-RepoPath "src\out\ReleaseViewerDefault\content_shell.exe") -ExpectedForkRevision $ExpectedForkRevision -RejectSoftwareRendering -RequireGpuMetadata -RequirePackageSize:$ForkPackageRequired -ExpectedMeasuredSeconds $ExpectedMeasuredSeconds -ExpectedWarmupSeconds $ExpectedWarmupSeconds -ExpectedFlagMetadata $ForkAggressiveCommonFlags -RequiredBrowserFlags $RequiredBrowserFlags
+  Add-BenchmarkSuiteRow "Official performance" "Stock WebGL2 scene suite results" "benchmarks\raw\baseline-content-shell-*-webgl2.json" "webgl2" "baseline-content-shell" "Run scripts/run_official_comparison.ps1 after baseline build." -ExpectedChromiumRevision $ExpectedChromiumRevision -ExpectedBrowser (Resolve-RepoPath "src\out\ReleaseBaseline\content_shell.exe") -ExpectedBuildArgsHash $BaselineBuildArgsHash -RejectSoftwareRendering -RequireGpuMetadata -RequireFrameTimes -RequirePackageSize:$BaselinePackageRequired -ExpectedMeasuredSeconds $ExpectedMeasuredSeconds -ExpectedWarmupSeconds $ExpectedWarmupSeconds -ExpectedFlagMetadata $BrowserModeFlags -RequiredBrowserFlags $RequiredBrowserFlags
+  Add-BenchmarkSuiteRow "Official performance" "Fork default WebGL2 scene suite results" "benchmarks\raw\fork-viewer-default-*-webgl2.json" "webgl2" "fork-viewer-default" "Run scripts/run_official_comparison.ps1 after fork build." -RequireForkRevision -ExpectedChromiumRevision $ExpectedChromiumRevision -ExpectedBrowser (Resolve-RepoPath "src\out\ReleaseViewerDefault\content_shell.exe") -ExpectedBuildArgsHash $ForkBuildArgsHash -ExpectedForkRevision $ExpectedForkRevision -RejectSoftwareRendering -RequireGpuMetadata -RequireFrameTimes -RequirePackageSize:$ForkPackageRequired -ExpectedMeasuredSeconds $ExpectedMeasuredSeconds -ExpectedWarmupSeconds $ExpectedWarmupSeconds -ExpectedFlagMetadata $ForkDefaultFlags -RequiredBrowserFlags $RequiredBrowserFlags
+  Add-AnyVariantBenchmarkSuiteRow "Official performance" "Fork trusted/aggressive WebGL2 scene suite results" "benchmarks\raw\fork-viewer-aggressive-gpu*-*-webgl2.json" "webgl2" "Run with -IncludeAggressiveGpu and document each flag effect." -RequireForkRevision -ExpectedChromiumRevision $ExpectedChromiumRevision -ExpectedBrowser (Resolve-RepoPath "src\out\ReleaseViewerDefault\content_shell.exe") -ExpectedBuildArgsHash $ForkBuildArgsHash -ExpectedForkRevision $ExpectedForkRevision -RejectSoftwareRendering -RequireGpuMetadata -RequireFrameTimes -RequirePackageSize:$ForkPackageRequired -ExpectedMeasuredSeconds $ExpectedMeasuredSeconds -ExpectedWarmupSeconds $ExpectedWarmupSeconds -ExpectedFlagMetadata $ForkAggressiveCommonFlags -RequiredBrowserFlags $RequiredBrowserFlags
+  Add-BenchmarkSuiteRow "Official performance" "Stock WebGPU scene suite results" "benchmarks\raw\baseline-content-shell-webgpu-*-webgpu.json" "webgpu" "baseline-content-shell-webgpu" "Run with -IncludeWebGPU." -ExpectedChromiumRevision $ExpectedChromiumRevision -ExpectedBrowser (Resolve-RepoPath "src\out\ReleaseBaseline\content_shell.exe") -ExpectedBuildArgsHash $BaselineBuildArgsHash -RejectSoftwareRendering -RequireGpuMetadata -RequireFrameTimes -RequirePackageSize:$BaselinePackageRequired -ExpectedMeasuredSeconds $ExpectedMeasuredSeconds -ExpectedWarmupSeconds $ExpectedWarmupSeconds -ExpectedFlagMetadata $BrowserModeFlags -RequiredBrowserFlags $RequiredBrowserFlags
+  Add-BenchmarkSuiteRow "Official performance" "Fork WebGPU scene suite results" "benchmarks\raw\fork-viewer-default-webgpu-*-webgpu.json" "webgpu" "fork-viewer-default-webgpu" "Run with -IncludeWebGPU." -RequireForkRevision -ExpectedChromiumRevision $ExpectedChromiumRevision -ExpectedBrowser (Resolve-RepoPath "src\out\ReleaseViewerDefault\content_shell.exe") -ExpectedBuildArgsHash $ForkBuildArgsHash -ExpectedForkRevision $ExpectedForkRevision -RejectSoftwareRendering -RequireGpuMetadata -RequireFrameTimes -RequirePackageSize:$ForkPackageRequired -ExpectedMeasuredSeconds $ExpectedMeasuredSeconds -ExpectedWarmupSeconds $ExpectedWarmupSeconds -ExpectedFlagMetadata $ForkDefaultFlags -RequiredBrowserFlags $RequiredBrowserFlags
+  Add-AnyVariantBenchmarkSuiteRow "Official performance" "Fork trusted/aggressive WebGPU scene suite results" "benchmarks\raw\fork-viewer-aggressive-gpu*-webgpu-*-webgpu.json" "webgpu" "Run with -IncludeWebGPU -IncludeAggressiveGpu and document each flag effect." -RequireForkRevision -ExpectedChromiumRevision $ExpectedChromiumRevision -ExpectedBrowser (Resolve-RepoPath "src\out\ReleaseViewerDefault\content_shell.exe") -ExpectedBuildArgsHash $ForkBuildArgsHash -ExpectedForkRevision $ExpectedForkRevision -RejectSoftwareRendering -RequireGpuMetadata -RequireFrameTimes -RequirePackageSize:$ForkPackageRequired -ExpectedMeasuredSeconds $ExpectedMeasuredSeconds -ExpectedWarmupSeconds $ExpectedWarmupSeconds -ExpectedFlagMetadata $ForkAggressiveCommonFlags -RequiredBrowserFlags $RequiredBrowserFlags
   Add-OfficialComparisonReportFilesRow
   Add-OfficialRequiredOptionsRow
   Add-OfficialComparisonManifestRow
@@ -3965,6 +4146,8 @@ function Add-OfficialBenchmarkRows {
 
 function Add-StabilityRows {
   $ExpectedForkRevision = Get-ExpectedViewerForkRevision
+  $BaselineBuildArgsHash = Get-FileHashString "src\out\ReleaseBaseline\args.gn"
+  $ForkBuildArgsHash = Get-FileHashString "src\out\ReleaseViewerDefault\args.gn"
   $BaselineStabilityFlags = @(
     "viewer_mode=false",
     "viewer_block_external_navigation=false",
@@ -3998,9 +4181,10 @@ function Add-StabilityRows {
     -RequirePackageSize `
     -ExpectedChromiumRevision $ExpectedChromiumRevision `
     -ExpectedBrowser (Resolve-RepoPath "src\out\ReleaseBaseline\content_shell.exe") `
+    -ExpectedBuildArgsHash $BaselineBuildArgsHash `
     -ExpectedFlagMetadata $BaselineStabilityFlags `
     -RequiredBrowserFlags $RequiredBrowserFlags `
-    -Remaining "Run scripts/run_long_stability.ps1 -Duration 3600 -MaxRssDeltaMb $DefaultStabilityMaxRssDeltaMb -MaxRendererResourceDelta $DefaultStabilityMaxRendererResourceDelta for a stable scene."
+    -Remaining "Run scripts/run_long_stability.ps1 -Browser src\out\ReleaseBaseline\content_shell.exe -BuildArgs src\out\ReleaseBaseline\args.gn -ExpectedChromiumRevision $ExpectedChromiumRevision -Duration 3600 -MaxRssDeltaMb $DefaultStabilityMaxRssDeltaMb -MaxRendererResourceDelta $DefaultStabilityMaxRendererResourceDelta for a stable scene."
   Add-StabilityResultRow `
     -Requirement "One-hour fork stability result" `
     -Pattern "benchmarks\raw\fork-viewer-default*long-stability*.json" `
@@ -4009,13 +4193,16 @@ function Add-StabilityRows {
     -RequirePackageSize `
     -ExpectedChromiumRevision $ExpectedChromiumRevision `
     -ExpectedBrowser (Resolve-RepoPath "src\out\ReleaseViewerDefault\content_shell.exe") `
+    -ExpectedBuildArgsHash $ForkBuildArgsHash `
     -ExpectedForkRevision $ExpectedForkRevision `
     -ExpectedFlagMetadata $ForkStabilityFlags `
     -RequiredBrowserFlags $RequiredBrowserFlags `
-    -Remaining "Run scripts/run_long_stability.ps1 -Duration 3600 -ViewerMode -ViewerTrustedContent -MaxRssDeltaMb $DefaultStabilityMaxRssDeltaMb -MaxRendererResourceDelta $DefaultStabilityMaxRendererResourceDelta for a stable scene."
+    -Remaining "Run scripts/run_long_stability.ps1 -Browser src\out\ReleaseViewerDefault\content_shell.exe -BuildArgs src\out\ReleaseViewerDefault\args.gn -ExpectedChromiumRevision $ExpectedChromiumRevision -ForkRevision $ExpectedForkRevision -Duration 3600 -ViewerMode -ViewerTrustedContent -MaxRssDeltaMb $DefaultStabilityMaxRssDeltaMb -MaxRendererResourceDelta $DefaultStabilityMaxRendererResourceDelta for a stable scene."
   Add-StabilityBehaviorDocumentationRow `
     -BaselineStabilityFlags $BaselineStabilityFlags `
     -ForkStabilityFlags $ForkStabilityFlags `
+    -BaselineBuildArgsHash $BaselineBuildArgsHash `
+    -ForkBuildArgsHash $ForkBuildArgsHash `
     -ExpectedForkRevision $ExpectedForkRevision
 }
 
@@ -4489,9 +4676,7 @@ function Add-DocumentationFinalizationRow {
 
   $PendingPatterns = @(
     "Status: not complete",
-    "Blocked",
-    "Pending",
-    "Partial",
+    "Current Hard Blocker",
     "ATL/MFC",
     "missing ATL",
     "No stock/fork binaries",
@@ -4518,6 +4703,8 @@ function Add-DocumentationFinalizationRow {
   }
 
   $ExpectedForkRevision = Get-ExpectedViewerForkRevision
+  $BaselineBuildArgsHash = Get-FileHashString "src\out\ReleaseBaseline\args.gn"
+  $ForkBuildArgsHash = Get-FileHashString "src\out\ReleaseViewerDefault\args.gn"
   $BaselineStabilityFlags = @(
     "viewer_mode=false",
     "viewer_block_external_navigation=false",
@@ -4542,6 +4729,7 @@ function Add-DocumentationFinalizationRow {
     -RequirePackageSize `
     -ExpectedChromiumRevision $ExpectedChromiumRevision `
     -ExpectedBrowser (Resolve-RepoPath "src\out\ReleaseBaseline\content_shell.exe") `
+    -ExpectedBuildArgsHash $BaselineBuildArgsHash `
     -ExpectedFlagMetadata $BaselineStabilityFlags
   $ForkEvidence = Get-StabilityResultEvidence `
     -Pattern "benchmarks\raw\fork-viewer-default*long-stability*.json" `
@@ -4550,6 +4738,7 @@ function Add-DocumentationFinalizationRow {
     -RequirePackageSize `
     -ExpectedChromiumRevision $ExpectedChromiumRevision `
     -ExpectedBrowser (Resolve-RepoPath "src\out\ReleaseViewerDefault\content_shell.exe") `
+    -ExpectedBuildArgsHash $ForkBuildArgsHash `
     -ExpectedForkRevision $ExpectedForkRevision `
     -ExpectedFlagMetadata $ForkStabilityFlags
   if (-not $BaselineEvidence.Ok -or -not $ForkEvidence.Ok) {

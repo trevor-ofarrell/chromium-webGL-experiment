@@ -38,6 +38,14 @@ function Get-ShortSha256 {
   return (Get-FileHash -Algorithm SHA256 -LiteralPath $PathValue).Hash.Substring(0, 12).ToLowerInvariant()
 }
 
+function Get-Sha256IfExists {
+  param([string]$PathValue)
+  if (-not (Test-Path $PathValue)) {
+    return ""
+  }
+  return (Get-FileHash -Algorithm SHA256 -LiteralPath $PathValue).Hash.ToLowerInvariant()
+}
+
 function Assert-True {
   param(
     [bool]$Condition,
@@ -210,6 +218,8 @@ try {
   $PatchPath = Join-Path $Root "chromium_patches\0001-draft-minimal-three-viewer-entrypoint.patch"
   $PatchHash = Get-ShortSha256 $PatchPath
   $ExpectedForkRevision = "$ChromiumRevision+viewerpatch-$PatchHash"
+  $ExpectedBaselineBuildArgsHash = Get-Sha256IfExists (Join-Path $Root "src\out\ReleaseBaseline\args.gn")
+  $ExpectedForkBuildArgsHash = Get-Sha256IfExists (Join-Path $Root "src\out\ReleaseViewerDefault\args.gn")
 
   $OfficialOutput = & (Join-Path $Root "scripts\run_official_comparison.ps1") `
     -Duration 1 `
@@ -242,6 +252,14 @@ try {
   Assert-Matches $OfficialText "validate_benchmark_suite\.mjs\b.*--variant\s+baseline-content-shell\b.*--requirePackageSize\b" "official baseline suite validation requires package size when package dir is provided"
   Assert-Matches $OfficialText "validate_benchmark_suite\.mjs\b.*--variant\s+fork-viewer-default\b.*--requirePackageSize\b" "official fork default suite validation requires package size when package dir is provided"
   Assert-Matches $OfficialText "validate_benchmark_suite\.mjs\b.*--variant\s+fork-viewer-aggressive-gpu-d3d11\b.*--requirePackageSize\b" "official aggressive suite validation requires package size when package dir is provided"
+  Assert-Matches $OfficialText "validate_benchmark_suite\.mjs\b.*--variant\s+baseline-content-shell\b.*--requireFrameTimes\b" "official suite validation requires raw frame-time samples"
+  if ($ExpectedBaselineBuildArgsHash) {
+    Assert-Matches $OfficialText "validate_benchmark_suite\.mjs\b.*--variant\s+baseline-content-shell\b.*--expectedBuildArgsHash\s+$ExpectedBaselineBuildArgsHash\b" "official baseline suite validation binds result metadata to baseline GN args hash"
+  }
+  if ($ExpectedForkBuildArgsHash) {
+    Assert-Matches $OfficialText "validate_benchmark_suite\.mjs\b.*--variant\s+fork-viewer-default\b.*--expectedBuildArgsHash\s+$ExpectedForkBuildArgsHash\b" "official fork suite validation binds result metadata to fork GN args hash"
+    Assert-Matches $OfficialText "validate_benchmark_suite\.mjs\b.*--variant\s+fork-viewer-aggressive-gpu-d3d11\b.*--expectedBuildArgsHash\s+$ExpectedForkBuildArgsHash\b" "official aggressive suite validation binds result metadata to fork GN args hash"
+  }
   Assert-Matches $OfficialText "validate_benchmark_suite\.mjs\b.*--variant\s+fork-viewer-default\b.*--expectedFlagMetadata\s+viewer_mode=true\b.*--expectedFlagMetadata\s+viewer_block_external_navigation=true\b.*--expectedFlagMetadata\s+viewer_trusted_content=true\b" "official fork default suite validation checks viewer trusted navigation-lock flag metadata"
   Assert-Matches $OfficialText "validate_benchmark_suite\.mjs\b.*--variant\s+fork-viewer-aggressive-gpu-d3d11\b.*--expectedFlagMetadata\s+viewer_aggressive_gpu=true\b.*--expectedFlagMetadata\s+viewer_force_angle_backend=d3d11\b.*--expectedFlagMetadata\s+requested_angle_backend=d3d11\b" "official aggressive suite validation checks aggressive flag metadata"
   Assert-Matches $OfficialText "run_smoke_tests\.mjs\b.*--browser\b.*ReleaseViewerDefault.*--viewerMode\b.*--viewerTrustedContent\b.*fork-viewer-default-runtime-smoke\.json" "official fork runtime smoke launches through viewer mode"
@@ -343,9 +361,12 @@ Assert-True ([bool]$Official.trace_result_files.baseline) "official baseline tra
 Assert-True ([bool]$Official.trace_result_files.fork) "official fork trace result sidecar path exists in manifest"
 Assert-Equal $Official.suite_validation.expected_fork_revision $ExpectedForkRevision "official suite expected fork revision"
 Assert-Equal $Official.suite_validation.expected_chromium_revision $ChromiumRevision "official suite expected Chromium revision"
+Assert-Equal $Official.suite_validation.expected_baseline_build_args_hash $ExpectedBaselineBuildArgsHash "official suite expected baseline GN args hash"
+Assert-Equal $Official.suite_validation.expected_fork_build_args_hash $ExpectedForkBuildArgsHash "official suite expected fork GN args hash"
 Assert-Equal $Official.suite_validation.exact_scene_output_files $true "official exact scene output validation"
 Assert-Equal $Official.suite_validation.reject_software_rendering $true "official software-renderer rejection validation"
 Assert-Equal $Official.suite_validation.require_gpu_metadata $true "official GPU metadata validation"
+Assert-Equal $Official.suite_validation.require_frame_times $true "official raw frame-time sample validation"
 Assert-Equal $Official.suite_validation.require_webgpu_runtime_smoke $true "official WebGPU runtime smoke validation"
 Assert-True (@($Official.suite_validation.required_browser_flags) -contains "--disable-software-rasterizer") "official required browser launch flag validation"
 Assert-Equal $Official.suite_validation.expected_measured_seconds 1 "official expected measured seconds validation"
@@ -392,7 +413,11 @@ Assert-Matches $TrustedText "--viewerTrustedContent\b.*--viewerRelaxedWebglValid
 Assert-Matches $TrustedText "--viewerTrustedContent\b.*--viewerDisableUnneededBlinkFeatures\b" "trusted reserved Blink command uses trusted gate"
 Assert-Matches $TrustedText "--viewerTrustedContent\b.*--viewerDirectGpuPresentation\b" "trusted reserved direct presentation command uses trusted gate"
 Assert-Matches $TrustedText "validate_benchmark_suite\.mjs\b.*--variant\s+fork-viewer-exp-default\b.*--requirePackageSize\b" "trusted suite validation requires package size when package dir is provided"
+Assert-Matches $TrustedText "validate_benchmark_suite\.mjs\b.*--variant\s+fork-viewer-exp-default\b.*--requireFrameTimes\b" "trusted suite validation requires raw frame-time samples"
 Assert-Matches $TrustedText "validate_benchmark_suite\.mjs\b.*--variant\s+fork-viewer-exp-default\b.*--expectedChromiumRevision\s+$([regex]::Escape($ChromiumRevision))\b" "trusted suite validation requires expected Chromium revision"
+if ($ExpectedForkBuildArgsHash) {
+  Assert-Matches $TrustedText "validate_benchmark_suite\.mjs\b.*--variant\s+fork-viewer-exp-default\b.*--expectedBuildArgsHash\s+$ExpectedForkBuildArgsHash\b" "trusted suite validation binds result metadata to GN args hash"
+}
 Assert-Matches $TrustedText "validate_benchmark_suite\.mjs\b.*--variant\s+fork-viewer-exp-default\b.*--expectedFlagMetadata\s+viewer_block_external_navigation=true\b" "trusted default suite validation checks navigation-lock flag metadata"
 Assert-Matches $TrustedText "validate_benchmark_suite\.mjs\b.*--variant\s+fork-viewer-exp-in-process-gpu\b.*--expectedFlagMetadata\s+viewer_in_process_gpu=true\b" "trusted in-process suite validation checks in-process flag metadata"
 Assert-Matches $TrustedText "validate_benchmark_suite\.mjs\b.*--variant\s+fork-viewer-exp-angle-d3d11\b.*--expectedFlagMetadata\s+viewer_force_angle_backend=d3d11\b.*--expectedFlagMetadata\s+requested_angle_backend=d3d11\b" "trusted ANGLE suite validation checks ANGLE flag metadata"
@@ -462,9 +487,11 @@ Assert-Equal $Trusted.options.precompile $true "trusted precompile"
 Assert-Equal $Trusted.options.prerender_frames 2 "trusted prerender_frames"
 Assert-Equal $Trusted.suite_validation.expected_fork_revision $ExpectedForkRevision "trusted suite expected fork revision"
 Assert-Equal $Trusted.suite_validation.expected_chromium_revision $ChromiumRevision "trusted suite expected Chromium revision"
+Assert-Equal $Trusted.suite_validation.expected_build_args_hash $ExpectedForkBuildArgsHash "trusted suite expected GN args hash"
 Assert-Equal $Trusted.suite_validation.exact_scene_output_files $true "trusted exact scene output validation"
 Assert-Equal $Trusted.suite_validation.reject_software_rendering $true "trusted software-renderer rejection validation"
 Assert-Equal $Trusted.suite_validation.require_gpu_metadata $true "trusted GPU metadata validation"
+Assert-Equal $Trusted.suite_validation.require_frame_times $true "trusted raw frame-time sample validation"
 Assert-True (@($Trusted.suite_validation.required_browser_flags) -contains "--disable-software-rasterizer") "trusted required browser launch flag validation"
 Assert-Equal $Trusted.suite_validation.expected_measured_seconds 1 "trusted expected measured seconds validation"
 Assert-Equal $Trusted.suite_validation.expected_warmup_seconds 1 "trusted expected warmup seconds validation"

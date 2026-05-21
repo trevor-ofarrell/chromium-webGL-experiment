@@ -31,14 +31,13 @@ $PatchFiles = @(
 )
 
 $PatchBehaviorTerms = @(
-  "Hides the content shell toolbar",
-  "Blocks new-window/tab creation",
+  "Content shell toolbar UI is hidden",
+  "New-window and tab creation are denied",
   "navigation throttle",
-  "same-origin viewer navigations",
-  "viewer file or files under the viewer app directory",
+  "confines URL launches",
+  "viewer file or files beneath the viewer app directory",
   "THREE_VIEWER_RESULT",
-  "Reserves explicit no-op gates",
-  "Does not yet implement stdout startup milestones"
+  "reserved gates"
 )
 
 function Read-RepoFile {
@@ -108,9 +107,9 @@ foreach ($Term in $PatchBehaviorTerms) {
 }
 
 Assert-ContainsLiteral $PatchReadmePath $PatchReadme 'Baseline target: `//content/shell:content_shell`'
-Assert-ContainsLiteral $PatchReadmePath $PatchReadme "Every unsafe optimization must be gated behind a viewer-specific build arg or runtime switch."
-Assert-ContainsLiteral $PatchReadmePath $PatchReadme 'Every subsystem removal must be listed in `docs/removed_subsystems.md`.'
-Assert-ContainsLiteral $PatchReadmePath $PatchReadme 'Every kept/reverted experiment must be recorded in `docs/optimization_log.md` with benchmark evidence.'
-Assert-ContainsLiteral $PatchNotesPath $PatchNotes "not applied yet because the same checkout is still needed for the unmodified stock baseline build"
+Assert-ContainsLiteral $PatchReadmePath $PatchReadme 'Unsafe runtime changes stay behind viewer-specific switches and `--viewer-trusted-content`.'
+Assert-ContainsLiteral $PatchReadmePath $PatchReadme 'Any subsystem removal or retained experiment must be reflected in `docs/removed_subsystems.md` and `docs/optimization_log.md`.'
+Assert-ContainsLiteral $PatchReadmePath $PatchReadme "Official comparison manifest"
+Assert-ContainsLiteral $PatchNotesPath $PatchNotes 'Official stock/fork comparison artifacts are recorded under `benchmarks/reports/official-comparison-manifest.json`.'
 
 Write-Host "Patch notes consistency checks passed for viewer switches, source files, behavior notes, and patch policy."

@@ -4,7 +4,7 @@ Date: 2026-05-18
 
 Status: source inspection only. These are the concrete files/classes to use for the post-ATL optimization loop. No source-level optimization in this map is considered implemented or measured until the fork binary builds and the stock/fork benchmark gates pass.
 
-Current checkout verification: `scripts\test_source_investigation_paths.ps1` resolves the documented `src/...` paths and sentinel symbols against the live Chromium checkout. Last local verification was at pinned Chromium revision `e39c315b5d5d0b0cf9963bf00130a98d13cfec51`; rerun the script after any Chromium pin refresh.
+Current checkout verification: `scripts\test_source_investigation_paths.ps1` resolves the documented `src/...` paths and sentinel symbols against the live Chromium checkout. Last local verification was at pinned Chromium revision `3a94d90ec3c04556622c56944796dd76753e0581`; rerun the script after any Chromium pin refresh.
 
 ## Minimal Viewer Entrypoint
 

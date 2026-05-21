@@ -5,6 +5,8 @@ $ErrorActionPreference = "Stop"
 $Root = Resolve-Path (Join-Path $PSScriptRoot "..")
 $TempDir = Join-Path $Root "benchmarks\tmp\official-manifest-suite-semantics-audit"
 $ManifestPath = Join-Path $TempDir "official-comparison-manifest.json"
+$PinRefreshPath = Join-Path $Root "benchmarks\reports\chromium-pin-refresh.json"
+$PinRefreshBackupPath = Join-Path $TempDir "chromium-pin-refresh.official-suite-semantics-audit.backup.json"
 $TempOutput = Join-Path $TempDir "official-manifest-suite-semantics-audit.md"
 $RequiredScenes = @(
   "many-draw-calls",
@@ -54,6 +56,11 @@ function Get-GitRevision {
 function Get-ShortSha256 {
   param([string]$PathValue)
   return (Get-FileHash -Algorithm SHA256 -LiteralPath $PathValue).Hash.Substring(0, 12).ToLowerInvariant()
+}
+
+function Get-Sha256 {
+  param([string]$PathValue)
+  return (Get-FileHash -Algorithm SHA256 -LiteralPath $PathValue).Hash.ToLowerInvariant()
 }
 
 function Write-Json {
@@ -155,6 +162,7 @@ function New-Result {
     [string]$Variant,
     [string]$ChromiumRevision,
     [AllowNull()][string]$ForkRevision,
+    [string]$BuildArgsHash,
     [string]$BrowserExecutable,
     [bool]$ViewerMode,
     [bool]$ViewerBlockExternalNavigation,
@@ -165,7 +173,7 @@ function New-Result {
     generated_at = "2026-05-16T00:00:00.000Z"
     chromium_revision = $ChromiumRevision
     fork_revision = $ForkRevision
-    build_args_hash = "synthetic-build-args-hash"
+    build_args_hash = $BuildArgsHash
     platform = "test-platform"
     gpu_name = "NVIDIA GeForce RTX Test"
     driver_version = "test-driver"
@@ -178,6 +186,7 @@ function New-Result {
     p50_frame_ms = 16
     p95_frame_ms = 17
     p99_frame_ms = 18
+    frame_times_ms = @(16, 16.5, 17, 18)
     one_percent_low_fps = 55
     point_one_percent_low_fps = 50
     avg_cpu_frame_ms = 1
@@ -224,6 +233,7 @@ function Write-ResultSuite {
     [string]$Variant,
     [string]$ChromiumRevision,
     [AllowNull()][string]$ForkRevision,
+    [string]$BuildArgsHash,
     [string]$BrowserExecutable,
     [bool]$ViewerMode,
     [bool]$ViewerBlockExternalNavigation,
@@ -236,6 +246,7 @@ function Write-ResultSuite {
         -Variant $Variant `
         -ChromiumRevision $ChromiumRevision `
         -ForkRevision $ForkRevision `
+        -BuildArgsHash $BuildArgsHash `
         -BrowserExecutable $BrowserExecutable `
         -ViewerMode $ViewerMode `
         -ViewerBlockExternalNavigation $ViewerBlockExternalNavigation `
@@ -416,6 +427,8 @@ function New-OfficialManifest {
     [string[]]$NavigationLock
   )
 
+  $BaselineBuildArgsHash = Get-Sha256 $BaselineBuildArgs
+  $ForkBuildArgsHash = Get-Sha256 $ForkBuildArgs
   [pscustomobject]@{
     generated_at = (Get-Date).ToUniversalTime().ToString("o")
     dry_run = $false
@@ -458,9 +471,12 @@ function New-OfficialManifest {
     suite_validation = [pscustomobject]@{
       require_checkout = $true
       require_build_args = $true
+      expected_baseline_build_args_hash = $BaselineBuildArgsHash
+      expected_fork_build_args_hash = $ForkBuildArgsHash
       forbid_smoke = $true
       reject_software_rendering = $true
       require_gpu_metadata = $true
+      require_frame_times = $true
       expected_measured_seconds = 120
       expected_warmup_seconds = 20
       expected_chromium_revision = $ChromiumRevision
@@ -543,8 +559,10 @@ function New-OfficialManifest {
 function Invoke-AuditAndReadChecklist {
   $OldAllowManifestOverrides = $env:THREE_BROWSER_ALLOW_TEST_MANIFEST_OVERRIDES
   $OldOfficialManifestPath = $env:THREE_BROWSER_TEST_OFFICIAL_COMPARISON_MANIFEST
+  $OldTrustedManifestPath = $env:THREE_BROWSER_TEST_TRUSTED_EXPERIMENT_MATRIX_MANIFEST
   $env:THREE_BROWSER_ALLOW_TEST_MANIFEST_OVERRIDES = "1"
   $env:THREE_BROWSER_TEST_OFFICIAL_COMPARISON_MANIFEST = $ManifestPath
+  Remove-Item Env:\THREE_BROWSER_TEST_TRUSTED_EXPERIMENT_MATRIX_MANIFEST -ErrorAction SilentlyContinue
   try {
     $null = & (Join-Path $Root "scripts\audit_artifacts.ps1") -Output $TempOutput -ManifestAuditOnly *>&1
   } finally {
@@ -557,6 +575,11 @@ function Invoke-AuditAndReadChecklist {
       Remove-Item Env:\THREE_BROWSER_TEST_OFFICIAL_COMPARISON_MANIFEST -ErrorAction SilentlyContinue
     } else {
       $env:THREE_BROWSER_TEST_OFFICIAL_COMPARISON_MANIFEST = $OldOfficialManifestPath
+    }
+    if ($null -eq $OldTrustedManifestPath) {
+      Remove-Item Env:\THREE_BROWSER_TEST_TRUSTED_EXPERIMENT_MATRIX_MANIFEST -ErrorAction SilentlyContinue
+    } else {
+      $env:THREE_BROWSER_TEST_TRUSTED_EXPERIMENT_MATRIX_MANIFEST = $OldTrustedManifestPath
     }
   }
 
@@ -577,15 +600,36 @@ function Assert-UnderDirectory {
 }
 
 New-Item -ItemType Directory -Path $TempDir -Force | Out-Null
+$HadPinRefresh = Test-Path -LiteralPath $PinRefreshPath
+if ($HadPinRefresh) {
+  Copy-Item -LiteralPath $PinRefreshPath -Destination $PinRefreshBackupPath -Force
+}
 
 try {
   $ChromiumRevision = Get-GitRevision (Join-Path $Root "src")
+  $PinSelectedAt = (Get-Date).ToUniversalTime().AddMinutes(-1).ToString("o")
+  $SyntheticPinRefresh = [pscustomobject]@{
+    generated_at = (Get-Date).ToUniversalTime().ToString("o")
+    target_revision = $ChromiumRevision
+    previous_revision = $ChromiumRevision
+    selected_from_upstream_head = $true
+    selected_at = $PinSelectedAt
+    source = "synthetic official suite semantics audit test"
+    skip_sync = $true
+    skip_hooks = $true
+    skip_gn_gen = $true
+  }
+  New-Item -ItemType Directory -Path (Split-Path $PinRefreshPath -Parent) -Force | Out-Null
+  Write-Json $PinRefreshPath $SyntheticPinRefresh
+
   $PatchHash = Get-ShortSha256 (Join-Path $Root "chromium_patches\0001-draft-minimal-three-viewer-entrypoint.patch")
   $ForkRevision = "$ChromiumRevision+viewerpatch-$PatchHash"
   $BaselineBrowser = Write-ArtifactFile (Join-Path $TempDir "baseline.exe") "baseline-browser"
   $ForkBrowser = Write-ArtifactFile (Join-Path $TempDir "fork.exe") "fork-browser"
   $BaselineBuildArgs = Write-ArtifactFile (Join-Path $TempDir "baseline-args.gn") "is_debug=false"
   $ForkBuildArgs = Write-ArtifactFile (Join-Path $TempDir "fork-args.gn") "is_debug=false"
+  $BaselineBuildArgsHash = Get-Sha256 $BaselineBuildArgs
+  $ForkBuildArgsHash = Get-Sha256 $ForkBuildArgs
   $OfficialReport = Write-ArtifactFile (Join-Path $TempDir "official-webgl2-comparison.md") (New-OfficialComparisonReportContent)
   $BaselineWebGl = New-TempResultFiles "baseline-content-shell" "webgl2"
   $ForkWebGl = New-TempResultFiles "fork-viewer-default" "webgl2"
@@ -598,8 +642,8 @@ try {
     (Join-Path $TempDir "fork-viewer-default-file-navigation-lock.json")
   )
 
-  Write-ResultSuite -Paths $BaselineWebGl -Variant "baseline-content-shell" -ChromiumRevision $ChromiumRevision -ForkRevision $null -BrowserExecutable $BaselineBrowser -ViewerMode $false -ViewerBlockExternalNavigation $false -ViewerTrustedContent $false
-  Write-ResultSuite -Paths $ForkWebGl -Variant "fork-viewer-default" -ChromiumRevision $ChromiumRevision -ForkRevision $ForkRevision -BrowserExecutable $ForkBrowser -ViewerMode $true -ViewerBlockExternalNavigation $true -ViewerTrustedContent $true
+  Write-ResultSuite -Paths $BaselineWebGl -Variant "baseline-content-shell" -ChromiumRevision $ChromiumRevision -ForkRevision $null -BuildArgsHash $BaselineBuildArgsHash -BrowserExecutable $BaselineBrowser -ViewerMode $false -ViewerBlockExternalNavigation $false -ViewerTrustedContent $false
+  Write-ResultSuite -Paths $ForkWebGl -Variant "fork-viewer-default" -ChromiumRevision $ChromiumRevision -ForkRevision $ForkRevision -BuildArgsHash $ForkBuildArgsHash -BrowserExecutable $ForkBrowser -ViewerMode $true -ViewerBlockExternalNavigation $true -ViewerTrustedContent $true
   Write-ValidSmokeFiles -RuntimeSmoke $RuntimeSmoke -NavigationLock $NavigationLock -BaselineBrowser $BaselineBrowser -ForkBrowser $ForkBrowser
 
   $Manifest = New-OfficialManifest `
@@ -723,6 +767,11 @@ try {
     throw "Artifact audit accepted or misreported a completed official manifest whose exact result file fails benchmark suite validation. Checklist: $BadChecklist"
   }
 } finally {
+  if ($HadPinRefresh) {
+    Copy-Item -LiteralPath $PinRefreshBackupPath -Destination $PinRefreshPath -Force
+  } elseif (Test-Path -LiteralPath $PinRefreshPath) {
+    Remove-Item -LiteralPath $PinRefreshPath -Force
+  }
   if (Test-Path -LiteralPath $TempDir) {
     Assert-UnderDirectory $TempDir (Join-Path $Root "benchmarks\tmp")
     Remove-Item -LiteralPath $TempDir -Recurse -Force

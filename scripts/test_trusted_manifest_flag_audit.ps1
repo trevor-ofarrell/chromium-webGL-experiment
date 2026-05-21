@@ -98,11 +98,13 @@ try {
       expected_scenes = $RequiredScenes
       require_checkout = $true
       require_build_args = $true
+      expected_build_args_hash = "0123456789abcdef"
       require_fork_revision = $true
       expected_fork_revision = $ForkRevision
       forbid_smoke = $true
       reject_software_rendering = $true
       require_gpu_metadata = $true
+      require_frame_times = $true
       expected_chromium_revision = $ChromiumRevision
       expected_browser = "fork.exe"
       expected_measured_seconds = 60

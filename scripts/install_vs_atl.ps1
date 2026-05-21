@@ -63,15 +63,25 @@ if (-not $IsAdmin) {
   throw "This script must be run from an elevated PowerShell because Visual Studio Installer requires elevation for --quiet modify operations. Open PowerShell as Administrator, cd to this repository, then run .\scripts\install_vs_atl.ps1."
 }
 
-& $Installer modify `
-  --installPath $VsInstallPath `
-  --add $AtlComponentId `
-  --quiet `
-  --norestart `
-  --force
+$InstallerArguments = @(
+  "modify",
+  "--installPath",
+  "`"$VsInstallPath`"",
+  "--add",
+  $AtlComponentId,
+  "--quiet",
+  "--norestart",
+  "--force"
+)
 
-if ($LASTEXITCODE -ne 0) {
-  throw "Visual Studio Installer exited with code $LASTEXITCODE"
+$InstallerProcess = Start-Process -FilePath $Installer -ArgumentList $InstallerArguments -Wait -PassThru
+$InstallerExitCode = $InstallerProcess.ExitCode
+$AcceptedInstallerExitCodes = @(0, 3010)
+$InstallerProblem = $null
+if ($null -eq $InstallerExitCode) {
+  Write-Warning "Visual Studio Installer did not report an exit code; using post-install ATL/MFC verification as the source of truth."
+} elseif ($AcceptedInstallerExitCodes -notcontains $InstallerExitCode) {
+  $InstallerProblem = "Visual Studio Installer exited with code $InstallerExitCode"
 }
 
 $Atldef = Get-AtlHeaderPath -InstallPath $VsInstallPath
@@ -84,7 +94,19 @@ if (-not $AtlComponentRegistered) {
   $VerificationProblems += "vswhere does not report $AtlComponentId for $VsInstallPath"
 }
 if ($VerificationProblems.Count -gt 0) {
-  throw "ATL/MFC post-install verification failed: $($VerificationProblems -join '; ')"
+  $VerificationFailure = "ATL/MFC post-install verification failed: $($VerificationProblems -join '; ')"
+  if ($InstallerProblem) {
+    throw "$InstallerProblem; $VerificationFailure"
+  }
+  throw $VerificationFailure
+}
+
+if ($InstallerProblem) {
+  Write-Warning "$InstallerProblem, but ATL/MFC post-install verification succeeded; continuing because the Chromium prerequisite is present."
+}
+
+if ($InstallerExitCode -eq 3010) {
+  Write-Warning "Visual Studio Installer requested a restart. ATL/MFC verification succeeded, so Chromium builds can continue unless later toolchain steps fail."
 }
 
 Write-Host "ATL/MFC component install completed: $AtlComponentId"

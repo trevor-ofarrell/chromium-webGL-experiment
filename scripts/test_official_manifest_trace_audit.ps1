@@ -31,6 +31,11 @@ function Get-ShortSha256 {
   return (Get-FileHash -Algorithm SHA256 -LiteralPath $PathValue).Hash.Substring(0, 12).ToLowerInvariant()
 }
 
+function Get-Sha256 {
+  param([string]$PathValue)
+  return (Get-FileHash -Algorithm SHA256 -LiteralPath $PathValue).Hash.ToLowerInvariant()
+}
+
 function New-FileMetadata {
   param([string]$PathValue)
   if (Test-Path -LiteralPath $PathValue -PathType Leaf) {
@@ -289,6 +294,7 @@ function New-BenchmarkResult {
     [string]$Variant,
     [string]$ChromiumRevision,
     [AllowNull()][string]$ForkRevision,
+    [string]$BuildArgsHash,
     [string]$BrowserExecutable,
     [bool]$ViewerMode,
     [bool]$ViewerBlockExternalNavigation,
@@ -299,7 +305,7 @@ function New-BenchmarkResult {
     generated_at = "2026-05-16T00:00:00.000Z"
     chromium_revision = $ChromiumRevision
     fork_revision = $ForkRevision
-    build_args_hash = "synthetic-build-args-hash"
+    build_args_hash = $BuildArgsHash
     platform = "test-platform"
     gpu_name = "NVIDIA GeForce RTX Test"
     driver_version = "test-driver"
@@ -312,6 +318,7 @@ function New-BenchmarkResult {
     p50_frame_ms = 16
     p95_frame_ms = 17
     p99_frame_ms = 18
+    frame_times_ms = @(16, 16.5, 17, 18)
     one_percent_low_fps = 55
     point_one_percent_low_fps = 50
     avg_cpu_frame_ms = 1
@@ -358,6 +365,7 @@ function Write-BenchmarkResultSuite {
     [string]$Variant,
     [string]$ChromiumRevision,
     [AllowNull()][string]$ForkRevision,
+    [string]$BuildArgsHash,
     [string]$BrowserExecutable,
     [bool]$ViewerMode,
     [bool]$ViewerBlockExternalNavigation,
@@ -370,6 +378,7 @@ function Write-BenchmarkResultSuite {
         -Variant $Variant `
         -ChromiumRevision $ChromiumRevision `
         -ForkRevision $ForkRevision `
+        -BuildArgsHash $BuildArgsHash `
         -BrowserExecutable $BrowserExecutable `
         -ViewerMode $ViewerMode `
         -ViewerBlockExternalNavigation $ViewerBlockExternalNavigation `
@@ -531,9 +540,12 @@ try {
     suite_validation = [pscustomobject]@{
       require_checkout = $true
       require_build_args = $true
+      expected_baseline_build_args_hash = "0123456789abcdef"
+      expected_fork_build_args_hash = "0123456789abcdef"
       forbid_smoke = $true
       reject_software_rendering = $true
       require_gpu_metadata = $true
+      require_frame_times = $true
       expected_measured_seconds = 120
       expected_warmup_seconds = 20
       expected_chromium_revision = $ChromiumRevision
@@ -650,6 +662,8 @@ try {
   $ActualForkBrowser = Write-ArtifactFile (Join-Path $TempDir "actual-fork.exe") "fork browser"
   $ActualBaselineArgs = Write-ArtifactFile (Join-Path $TempDir "actual-baseline-args.gn") "is_debug=false"
   $ActualForkArgs = Write-ArtifactFile (Join-Path $TempDir "actual-fork-args.gn") "is_debug=false"
+  $ActualBaselineArgsHash = Get-Sha256 $ActualBaselineArgs
+  $ActualForkArgsHash = Get-Sha256 $ActualForkArgs
   $ActualOfficialReport = Write-ArtifactFile (Join-Path $TempDir "official-webgl2-comparison.md") (New-OfficialComparisonReportContent)
   $ActualBaselineTraceSummary = Write-ArtifactFile (Join-Path $TempDir "baseline-trace-summary.md") (New-TraceSummaryReportContent -TracePath $BaselineTrace)
   $ActualForkTraceSummary = Write-ArtifactFile (Join-Path $TempDir "fork-trace-summary.md") (New-TraceSummaryReportContent -TracePath $ForkTrace)
@@ -669,6 +683,7 @@ try {
     -Variant "baseline-content-shell" `
     -ChromiumRevision $ChromiumRevision `
     -ForkRevision $null `
+    -BuildArgsHash $ActualBaselineArgsHash `
     -BrowserExecutable $ActualBaselineBrowser `
     -ViewerMode $false `
     -ViewerBlockExternalNavigation $false `
@@ -678,6 +693,7 @@ try {
     -Variant "fork-viewer-default" `
     -ChromiumRevision $ChromiumRevision `
     -ForkRevision $ForkRevision `
+    -BuildArgsHash $ActualForkArgsHash `
     -BrowserExecutable $ActualForkBrowser `
     -ViewerMode $true `
     -ViewerBlockExternalNavigation $true `
@@ -696,6 +712,8 @@ try {
   $Manifest.suite_validation.expected_fork_browser = $ActualForkBrowser
   $Manifest.build_args.baseline = $ActualBaselineArgs
   $Manifest.build_args.fork = $ActualForkArgs
+  $Manifest.suite_validation.expected_baseline_build_args_hash = $ActualBaselineArgsHash
+  $Manifest.suite_validation.expected_fork_build_args_hash = $ActualForkArgsHash
   $Manifest.result_files.baseline_webgl2 = $ActualBaselineWebGl
   $Manifest.result_files.fork_default_webgl2 = $ActualForkWebGl
   $Manifest.result_files.runtime_smoke = $ActualRuntimeSmoke

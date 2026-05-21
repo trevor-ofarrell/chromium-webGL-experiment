@@ -215,9 +215,12 @@ function New-OfficialManifest {
     suite_validation = [pscustomobject]@{
       require_checkout = $true
       require_build_args = $true
+      expected_baseline_build_args_hash = "0123456789abcdef"
+      expected_fork_build_args_hash = "0123456789abcdef"
       forbid_smoke = $true
       reject_software_rendering = $true
       require_gpu_metadata = $true
+      require_frame_times = $true
       require_webgpu_runtime_smoke = [bool]$IncludeWebGPU
       expected_measured_seconds = 120
       expected_warmup_seconds = 20

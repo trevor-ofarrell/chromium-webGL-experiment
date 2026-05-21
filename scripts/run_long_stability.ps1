@@ -26,6 +26,7 @@ param(
   [double]$Complexity = 1.0,
   [double]$MaxRssDeltaMb = 128,
   [double]$MaxRendererResourceDelta = 0,
+  [switch]$FriendlyWindow,
   [string[]]$BrowserFlag = @()
 )
 
@@ -106,6 +107,11 @@ function Require-InputFile {
   return $Resolved
 }
 
+function Get-Sha256 {
+  param([string]$PathValue)
+  return (Get-FileHash -Algorithm SHA256 -LiteralPath $PathValue).Hash.ToLowerInvariant()
+}
+
 function Convert-MetadataValue {
   param([AllowNull()][object]$Value)
   if ($null -eq $Value) {
@@ -138,10 +144,29 @@ function Get-ExpectedFlagMetadata {
 }
 
 $Browser = Require-InputFile $Browser "Browser executable"
+$BuildArgsHash = ""
+if ($ExpectedChromiumRevision -and -not $BuildArgs) {
+  throw "Build args is required when ExpectedChromiumRevision is supplied."
+}
 if ($BuildArgs) {
   $BuildArgs = Require-InputFile $BuildArgs "Build args"
+  $BuildArgsHash = Get-Sha256 $BuildArgs
 }
 $PackageDir = Require-PackageDirectory $PackageDir "Long-stability package directory" $Browser
+
+$EffectiveBrowserFlags = @($BrowserFlag)
+$FriendlyWindowFlags = @(
+  "--window-size=640,480",
+  "--window-position=40,40",
+  "--force-device-scale-factor=1"
+)
+if ($FriendlyWindow) {
+  foreach ($Flag in $FriendlyWindowFlags) {
+    if ($EffectiveBrowserFlags -notcontains $Flag) {
+      $EffectiveBrowserFlags += $Flag
+    }
+  }
+}
 
 $Command = @(
   (Join-Path $Root "scripts\run_benchmark.mjs"),
@@ -197,7 +222,7 @@ if ($Precompile) {
 if ($PrerenderFrames -gt 0) {
   $Command += @("--prerenderFrames", [string]$PrerenderFrames)
 }
-foreach ($Flag in $BrowserFlag) {
+foreach ($Flag in $EffectiveBrowserFlags) {
   $Command += @("--browser-flag", $Flag)
 }
 
@@ -225,8 +250,18 @@ if ($ExpectedChromiumRevision) {
   $StabilityValidation += @("--expectedChromiumRevision", $ExpectedChromiumRevision)
   $StabilityValidation += @("--pinRefreshManifest", (Join-Path $Root "benchmarks\reports\chromium-pin-refresh.json"))
 }
+if ($BuildArgsHash) {
+  $StabilityValidation += @("--requireBuildArgs", "--expectedBuildArgsHash", $BuildArgsHash)
+}
 $StabilityValidation += @("--expectedBrowser", $Browser)
+$StabilityValidation += "--requireGpuMetadata"
+$StabilityValidation += "--rejectSoftwareRendering"
 $StabilityValidation += @("--requiredBrowserFlag", "--disable-software-rasterizer")
+if ($FriendlyWindow) {
+  foreach ($Flag in $FriendlyWindowFlags) {
+    $StabilityValidation += @("--requiredBrowserFlag", $Flag)
+  }
+}
 if ($PackageDir) {
   $StabilityValidation += "--requirePackageSize"
 }

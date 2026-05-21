@@ -48,6 +48,8 @@ function commandText(command, args, options = {}) {
     cwd: options.cwd || rootDir,
     encoding: 'utf8',
     shell: false,
+    timeout: options.timeoutMs || 5000,
+    windowsHide: true,
   });
   if (result.status !== 0) return '';
   return result.stdout.trim();
@@ -61,15 +63,16 @@ function getBrowserVersion(browser) {
       '-Command',
       `(Get-Item -LiteralPath '${literalPath}').VersionInfo.ProductVersion`,
     ]);
-    if (out) return out;
+    return out || null;
   }
-  return commandText(browser, ['--version']) || null;
+  return commandText(browser, ['--version'], { timeoutMs: 5000 }) || null;
 }
 
 function killProcessTree(child) {
   if (!child || child.killed) return;
   if (process.platform === 'win32') {
-    spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
+    child.kill('SIGTERM');
+    spawnSync('taskkill', ['/pid', String(child.pid), '/F'], { stdio: 'ignore', timeout: 5000 });
   } else {
     child.kill('SIGTERM');
   }
@@ -107,13 +110,18 @@ async function waitForJson(url, timeoutMs) {
 
 async function waitForPageTarget(debugPort, timeoutMs) {
   const start = Date.now();
+  let lastError = null;
   while (Date.now() - start < timeoutMs) {
-    const targets = await waitForJson(`http://127.0.0.1:${debugPort}/json/list`, 5000);
-    const pageTarget = targets.find((target) => target.type === 'page' && target.webSocketDebuggerUrl);
-    if (pageTarget) return pageTarget;
+    try {
+      const targets = await waitForJson(`http://127.0.0.1:${debugPort}/json/list`, 5000);
+      const pageTarget = targets.find((target) => target.type === 'page' && target.webSocketDebuggerUrl);
+      if (pageTarget) return pageTarget;
+    } catch (error) {
+      lastError = error;
+    }
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
-  throw new Error('Timed out waiting for a debuggable page target.');
+  throw lastError || new Error('Timed out waiting for a debuggable page target.');
 }
 
 class CdpClient {
@@ -136,6 +144,18 @@ class CdpClient {
         else resolve(message.result || {});
       }
     });
+    this.socket.addEventListener('close', () => {
+      for (const { reject } of this.pending.values()) {
+        reject(new Error('CDP socket closed before the command completed.'));
+      }
+      this.pending.clear();
+    });
+    this.socket.addEventListener('error', () => {
+      for (const { reject } of this.pending.values()) {
+        reject(new Error('CDP socket errored before the command completed.'));
+      }
+      this.pending.clear();
+    });
 
     await new Promise((resolve, reject) => {
       this.socket.addEventListener('open', resolve, { once: true });
@@ -144,6 +164,9 @@ class CdpClient {
   }
 
   send(method, params = {}) {
+    if (!this.socket || this.socket.readyState !== 1) {
+      return Promise.reject(new Error(`CDP socket is not open for ${method}.`));
+    }
     const id = this.nextId++;
     const promise = new Promise((resolve, reject) => {
       this.pending.set(id, { resolve, reject });

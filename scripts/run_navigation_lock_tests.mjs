@@ -48,6 +48,8 @@ function commandText(command, args, options = {}) {
     cwd: options.cwd || rootDir,
     encoding: 'utf8',
     shell: false,
+    timeout: options.timeoutMs || 5000,
+    windowsHide: true,
   });
   if (result.status !== 0) return '';
   return result.stdout.trim();
@@ -61,9 +63,9 @@ function getBrowserVersion(browser) {
       '-Command',
       `(Get-Item -LiteralPath '${literalPath}').VersionInfo.ProductVersion`,
     ]);
-    if (out) return out;
+    return out || null;
   }
-  return commandText(browser, ['--version']) || null;
+  return commandText(browser, ['--version'], { timeoutMs: 5000 }) || null;
 }
 
 function killProcessTree(child) {
@@ -147,13 +149,18 @@ async function waitForJson(url, timeoutMs) {
 
 async function waitForPageTarget(debugPort, timeoutMs) {
   const start = Date.now();
+  let lastError = null;
   while (Date.now() - start < timeoutMs) {
-    const targets = await waitForJson(`http://127.0.0.1:${debugPort}/json/list`, 5000);
-    const pageTarget = targets.find((target) => target.type === 'page' && target.webSocketDebuggerUrl);
-    if (pageTarget) return pageTarget;
+    try {
+      const targets = await waitForJson(`http://127.0.0.1:${debugPort}/json/list`, 5000);
+      const pageTarget = targets.find((target) => target.type === 'page' && target.webSocketDebuggerUrl);
+      if (pageTarget) return pageTarget;
+    } catch (error) {
+      lastError = error;
+    }
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
-  throw new Error('Timed out waiting for a debuggable page target.');
+  throw lastError || new Error('Timed out waiting for a debuggable page target.');
 }
 
 class CdpClient {

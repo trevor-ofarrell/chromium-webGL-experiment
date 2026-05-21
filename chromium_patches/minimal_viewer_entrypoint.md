@@ -1,45 +1,12 @@
-# Minimal Viewer Entrypoint Plan
+# Minimal Viewer Entrypoint Patch
 
-Status: draft patch created and `git apply --check` passes against the synced `src` checkout. It is not applied yet because the same checkout is still needed for the unmodified stock baseline build.
+The minimal viewer entrypoint patch turns Chromium content shell into a single-purpose local Three.js viewer runtime while preserving Blink, V8, Canvas, WebGL2, WebGPU/Dawn, ANGLE, GPU process infrastructure, Viz/compositor plumbing, native window creation, and CDP automation support.
 
-Use Chromium's content shell as the first fork base because it already preserves Blink, V8, Canvas, WebGL, WebGPU/Dawn, ANGLE, the GPU process, Viz/compositor plumbing, and native window creation without Chrome's browser product UI.
-
-Candidate source areas to inspect after checkout:
-
-- `content/shell/BUILD.gn`
-- `content/shell/app/`
-- `content/shell/browser/shell.cc`
-- `content/shell/browser/shell_browser_main_parts.*`
-- `content/shell/browser/shell_content_browser_client.*`
-- `content/shell/common/shell_switches.*`
-- `content/public/browser/navigation_throttle.*`
-- `content/public/browser/content_browser_client.*`
-
-First fork entrypoint behavior:
-
-1. Add viewer switches:
-   - `--viewer-app-url=<file-or-local-url>`
-   - `--viewer-trusted-content`
-   - `--viewer-block-external-navigation`
-   - `--viewer-force-angle-backend=<default|d3d11|vulkan|gl|metal>`
-   - `--viewer-aggressive-gpu`
-   - `--viewer-in-process-gpu`
-   - `--viewer-single-process`
-   - `--viewer-relaxed-webgl-validation`
-   - `--viewer-disable-unneeded-blink-features`
-   - `--viewer-direct-gpu-presentation`
-2. On startup, create exactly one shell/window and load `--viewer-app-url`.
-3. Suppress URL entry, new-window affordances, and any debug UI not explicitly requested.
-4. Add a navigation throttle that allows only the configured local trusted origin and blocks everything else.
-5. Preserve DevTools remote debugging only for benchmark automation.
-6. Forward the viewer benchmark completion marker to stdout so packaged/manual launches can surface results without CDP.
-7. Emit startup milestone timing to stdout where possible.
-
-Draft patch:
+Patch file:
 
 - `chromium_patches/0001-draft-minimal-three-viewer-entrypoint.patch`
 
-Patch source files:
+Touched Chromium source files:
 
 - `content/shell/app/shell_main_delegate.cc`
 - `content/shell/browser/shell.cc`
@@ -47,21 +14,47 @@ Patch source files:
 - `content/shell/browser/shell_content_browser_client.cc`
 - `content/shell/common/shell_switches.h`
 
-Patch behavior:
+Viewer switches:
 
-- Adds `--viewer-app-url`.
-- Hides the content shell toolbar automatically when `--viewer-app-url` is present.
-- Adds `--viewer-block-external-navigation`.
-- Blocks new-window/tab creation in viewer navigation lock mode.
-- Adds a navigation throttle that allows same-origin viewer navigations for URL launch, allows only the viewer file or files under the viewer app directory for file launch, and blocks external top-level navigations.
-- Adds viewer-mode trusted-only aliases for `--viewer-force-angle-backend`, `--viewer-relaxed-webgl-validation`, `--viewer-aggressive-gpu`, `--viewer-in-process-gpu`, and `--viewer-single-process`; the aliases require both `--viewer-app-url` and `--viewer-trusted-content`.
-- Normalizes absolute local paths passed to `--viewer-app-url` with `GetSwitchValuePath` before generic `GURL` handling so Windows paths such as `C:\...\viewer\index.html` are treated as `file://` viewer launches.
-- In viewer mode, forwards console messages beginning with `THREE_VIEWER_RESULT` to stdout and leaves other console messages on content shell's default path.
-- Reserves explicit no-op gates for Blink feature disabling and direct GPU presentation. The relaxed WebGL validation gate now maps to Chromium's existing pass-through command decoder switch and still requires measurement before it can be kept.
-- Does not yet implement stdout startup milestones; those remain separate experiments after the baseline/fork comparison is working.
+- `--viewer-app-url=<file-or-local-url>`
+- `--viewer-trusted-content`
+- `--viewer-block-external-navigation`
+- `--viewer-force-angle-backend=<default|d3d11|vulkan|gl|metal>`
+- `--viewer-aggressive-gpu`
+- `--viewer-in-process-gpu`
+- `--viewer-single-process`
+- `--viewer-relaxed-webgl-validation`
+- `--viewer-disable-unneeded-blink-features`
+- `--viewer-direct-gpu-presentation`
 
-Risk notes:
+Implemented behavior:
 
-- Content shell changes are less invasive than editing Chrome browser code, but still depend on content shell internals that can shift during upstream rebases.
-- Blocking navigation in `WebContentsDelegate` alone is insufficient because renderer-initiated and redirect navigations need throttling before commit.
-- WebGPU availability still depends on Chromium feature flags, platform GPU blocklists, Dawn backend support, and OS/driver state.
+1. `--viewer-app-url` has launch precedence over positional URLs and the content shell default startup URL.
+2. Absolute local paths supplied to `--viewer-app-url` are normalized as `file://` viewer launches before generic `GURL` handling, which covers Windows paths such as `C:\...\viewer\index.html`.
+3. Content shell toolbar UI is hidden when viewer mode is active.
+4. `--viewer-block-external-navigation` installs a navigation throttle that confines URL launches to the configured origin and file launches to the viewer file or files beneath the viewer app directory.
+5. New-window and tab creation are denied in viewer navigation-lock mode.
+6. Viewer-mode console messages beginning with `THREE_VIEWER_RESULT` are forwarded to stdout for packaged/manual launch evidence.
+7. Trusted aliases are applied only when `--viewer-app-url` and `--viewer-trusted-content` are both present.
+
+Trusted aliases and risk:
+
+- `--viewer-force-angle-backend` maps to Chromium/ANGLE backend selection. Windows D3D11 is the measured useful backend in the trusted WebGL2 matrix.
+- `--viewer-relaxed-webgl-validation` maps to Chromium pass-through command decoder behavior. The trusted matrix shows WebGL2 gains, but this is unsafe for arbitrary web content.
+- `--viewer-aggressive-gpu`, `--viewer-in-process-gpu`, and `--viewer-single-process` are trusted-only process/GPU experiments. In-process and single-process modes show large WebGL2 FPS gains and high crash-isolation risk, so they are not default launch policy.
+- `--viewer-disable-unneeded-blink-features` and `--viewer-direct-gpu-presentation` are reserved gates. Their current measured matrix rows are treated as no-op or negative-evidence rows, not retained source optimizations.
+
+Evidence:
+
+- Static patch tests cover switch definitions, launch precedence, toolbar suppression, navigation lock wiring, file confinement, stdout result forwarding, and trusted gate requirements.
+- Runtime artifacts include `fork-viewer-default-runtime-smoke.json`, `fork-viewer-default-navigation-lock.json`, and `fork-viewer-default-file-navigation-lock.json`.
+- Official stock/fork comparison artifacts are recorded under `benchmarks/reports/official-comparison-manifest.json`.
+- Trusted experiment artifacts are recorded under `benchmarks/reports/trusted-experiment-matrix-manifest.json`.
+- Subsystem decisions and risk are tracked in `docs/removed_subsystems.md`.
+- Final optimization outcomes are tracked in `docs/optimization_log.md`.
+
+Rebase notes:
+
+- Keep the patch scoped to `content/shell` unless source evidence proves a deeper Chromium change is worth the maintenance cost.
+- Re-run `scripts/test_viewer_patch_entrypoint.ps1`, `scripts/test_viewer_patch_navigation_lock.ps1`, `scripts/test_viewer_patch_stdout_result.ps1`, and `scripts/test_viewer_patch_trusted_gates.ps1` after each patch refresh.
+- Rebuild stock and fork outputs from the same Chromium revision before claiming performance effects.

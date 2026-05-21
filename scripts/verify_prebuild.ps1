@@ -414,7 +414,10 @@ try {
 
 Write-Host "Validating current-schema benchmark JSON artifacts..."
 $JsonFiles = Get-ChildItem (Join-Path $Root "benchmarks\raw") -Filter "*.json" -ErrorAction SilentlyContinue |
-  Where-Object { $_.Name -match "-v6-|-v7-webgpu-|-v10-resource-warmup-|-v11-stability-fields-|-v12-gltf-|-v13-file-gltf-.*allow-file-access|-v14-webgpu-timestamp-|-v15-webgpu-postprocessing-|-v16-webgpu-shader-heavy-|-v17-webgpu-current-|-v18-renderer-resource-counters-|^baseline-|^fork-" -and $_.Name -notmatch "runtime-smoke" }
+  Where-Object {
+    $_.Name -match "-v6-|-v7-webgpu-|-v10-resource-warmup-|-v11-stability-fields-|-v12-gltf-|-v13-file-gltf-.*allow-file-access|-v14-webgpu-timestamp-|-v15-webgpu-postprocessing-|-v16-webgpu-shader-heavy-|-v17-webgpu-current-|-v18-renderer-resource-counters-|^baseline-|^fork-" -and
+    $_.Name -notmatch "runtime-smoke|navigation-lock"
+  }
 foreach ($File in $JsonFiles) {
   node (Join-Path $Root "scripts\validate_metrics.mjs") $File.FullName
 }
@@ -423,6 +426,18 @@ Write-Host "Validating current smoke JSON artifacts..."
 $SmokeFile = Join-Path $Root "benchmarks\raw\smoke-installed-chrome-v11-stability-smoke.json"
 if (Test-Path $SmokeFile) {
   node (Join-Path $Root "scripts\validate_smoke_result.mjs") --type runtime --require-webgpu $SmokeFile
+}
+
+$NavigationSmokeFile = Join-Path $Root "benchmarks\raw\fork-viewer-default-navigation-lock.json"
+$FileNavigationSmokeFile = Join-Path $Root "benchmarks\raw\fork-viewer-default-file-navigation-lock.json"
+$HasNavigationSmoke = Test-Path $NavigationSmokeFile
+$HasFileNavigationSmoke = Test-Path $FileNavigationSmokeFile
+if ($HasNavigationSmoke -or $HasFileNavigationSmoke) {
+  if (-not ($HasNavigationSmoke -and $HasFileNavigationSmoke)) {
+    throw "Current navigation-lock smoke artifacts are incomplete; expected both $NavigationSmokeFile and $FileNavigationSmokeFile."
+  }
+  node (Join-Path $Root "scripts\validate_smoke_result.mjs") --type navigation $NavigationSmokeFile
+  node (Join-Path $Root "scripts\validate_smoke_result.mjs") --type file-navigation $FileNavigationSmokeFile
 }
 
 Write-Host "Validating current installed-Chrome WebGPU suite artifact coverage..."

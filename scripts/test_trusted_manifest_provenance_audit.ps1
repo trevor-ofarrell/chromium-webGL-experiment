@@ -6,6 +6,8 @@ $Root = Resolve-Path (Join-Path $PSScriptRoot "..")
 $TempDir = Join-Path $Root "benchmarks\tmp\trusted-manifest-provenance-audit"
 $ManifestPath = Join-Path $TempDir "trusted-experiment-matrix-manifest.json"
 $BackupPath = Join-Path $TempDir "trusted-experiment-matrix-manifest.provenance-audit.backup.json"
+$PinRefreshPath = Join-Path $Root "benchmarks\reports\chromium-pin-refresh.json"
+$PinRefreshBackupPath = Join-Path $TempDir "chromium-pin-refresh.trusted-provenance-audit.backup.json"
 $TempOutput = Join-Path $TempDir "trusted-manifest-provenance-audit.md"
 $RequiredScenes = @(
   "many-draw-calls",
@@ -106,11 +108,13 @@ function New-ValidTrustedManifest {
       expected_scenes = $RequiredScenes
       require_checkout = $true
       require_build_args = $true
+      expected_build_args_hash = "0123456789abcdef"
       require_fork_revision = $true
       expected_fork_revision = $ForkRevision
       forbid_smoke = $true
       reject_software_rendering = $true
       require_gpu_metadata = $true
+      require_frame_times = $true
       expected_chromium_revision = $ChromiumRevision
       expected_browser = "fork.exe"
       expected_measured_seconds = 60
@@ -205,11 +209,31 @@ function Assert-AuditRejects {
 
 New-Item -ItemType Directory -Path $TempDir -Force | Out-Null
 $HadManifest = Test-Path -LiteralPath $ManifestPath
+$HadPinRefresh = Test-Path -LiteralPath $PinRefreshPath
 if ($HadManifest) {
   Copy-Item -LiteralPath $ManifestPath -Destination $BackupPath -Force
 }
+if ($HadPinRefresh) {
+  Copy-Item -LiteralPath $PinRefreshPath -Destination $PinRefreshBackupPath -Force
+}
 
 try {
+  $ChromiumRevision = Get-GitRevision (Join-Path $Root "src")
+  $PinSelectedAt = (Get-Date).ToUniversalTime().AddMinutes(-1).ToString("o")
+  $SyntheticPinRefresh = [pscustomobject]@{
+    generated_at = (Get-Date).ToUniversalTime().ToString("o")
+    target_revision = $ChromiumRevision
+    previous_revision = $ChromiumRevision
+    selected_from_upstream_head = $true
+    selected_at = $PinSelectedAt
+    source = "synthetic trusted provenance audit test"
+    skip_sync = $true
+    skip_hooks = $true
+    skip_gn_gen = $true
+  }
+  New-Item -ItemType Directory -Path (Split-Path $PinRefreshPath -Parent) -Force | Out-Null
+  $SyntheticPinRefresh | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $PinRefreshPath -Encoding UTF8
+
   Assert-AuditRejects { param($Manifest) $Manifest.dry_run = $true } "Trusted experiment matrix manifest.*pending.*dry-run manifest" "dry_run=true"
   Assert-AuditRejects { param($Manifest) $Manifest.phase = "planned" } "Trusted experiment matrix manifest.*pending.*phase=planned" "phase other than completed"
   Assert-AuditRejects { param($Manifest) $Manifest.chromium_revision = "stale-chromium-revision" } "Trusted experiment matrix manifest.*pending.*chromium_revision=stale-chromium-revision" "stale Chromium revision"
@@ -217,12 +241,18 @@ try {
   Assert-AuditRejects { param($Manifest) $Manifest.fork_revision = "stale-fork-revision" } "Trusted experiment matrix manifest.*pending.*fork_revision=stale-fork-revision" "stale fork revision"
   Assert-AuditRejects { param($Manifest) $Manifest.suite_validation.expected_measured_seconds = 1 } "Trusted experiment matrix manifest.*pending.*duration/warmup validation" "mismatched duration validation"
   Assert-AuditRejects { param($Manifest) $Manifest.suite_validation.expected_scenes = @($RequiredScenes | Select-Object -Skip 1) } "Trusted experiment matrix manifest.*pending.*suite validation settings mismatch.*expected_scenes" "incomplete expected scenes suite validation setting"
+  Assert-AuditRejects { param($Manifest) $Manifest.suite_validation.require_frame_times = $false } "Trusted experiment matrix manifest.*pending.*suite validation settings mismatch.*require_frame_times" "missing raw frame-time suite validation setting"
+  Assert-AuditRejects { param($Manifest) $Manifest.suite_validation.expected_build_args_hash = "wrong-hash" } "Trusted experiment matrix manifest.*pending.*suite validation settings mismatch.*expected_build_args_hash" "mismatched expected build args hash setting"
   Assert-AuditRejects { param($Manifest) $Manifest.suite_validation.expected_browser = "" } "Trusted experiment matrix manifest.*pending.*suite validation settings mismatch.*expected_browser" "missing expected browser suite validation setting"
   Assert-AuditRejects { param($Manifest) $Manifest.suite_validation.expected_flag_metadata = $false } "Trusted experiment matrix manifest.*pending.*suite validation settings mismatch.*expected_flag_metadata" "disabled expected flag metadata suite validation setting"
   Assert-AuditRejects { param($Manifest) $Manifest.experiments = @(); $Manifest.result_files.all = @(); $Manifest.artifact_metadata.results.all = @() } "Trusted experiment matrix manifest.*pending.*records no experiments" "no experiments"
   Assert-AuditRejects { param($Manifest) $Manifest.result_files.all = @($Manifest.result_files.all | Select-Object -Skip 1) } "Trusted experiment matrix manifest.*pending.*result file count" "missing result file"
   Assert-AuditRejects { param($Manifest) $Manifest.artifact_metadata.inputs.browser.exists = $false } "Trusted experiment matrix manifest.*pending.*fork browser binary" "missing browser metadata"
-  Assert-AuditRejects { param($Manifest) $Manifest.artifact_metadata.inputs.build_args.sha256 = $null } "Trusted experiment matrix manifest.*pending.*build-args hash" "missing build-args hash"
+  Assert-AuditRejects {
+    param($Manifest)
+    $Manifest.artifact_metadata.inputs.build_args.sha256 = $null
+    $Manifest.suite_validation.expected_build_args_hash = ""
+  } "Trusted experiment matrix manifest.*pending.*build-args hash" "missing build-args hash"
   Assert-AuditRejects { param($Manifest) $Manifest.artifact_metadata.results.all = @() } "Trusted experiment matrix manifest.*pending.*hashed result count" "missing result hashes"
   Assert-AuditRejects { param($Manifest) $Manifest.artifact_metadata.reports.summary.exists = $false } "Trusted experiment matrix manifest.*pending.*trusted matrix report hashes" "missing summary report metadata"
   Assert-AuditRejects { param($Manifest) $Manifest.artifact_metadata.reports.summary.sha256 = $null } "Trusted experiment matrix manifest.*pending.*trusted matrix report hashes" "missing summary report hash"
@@ -233,7 +263,12 @@ try {
   } elseif (Test-Path -LiteralPath $ManifestPath) {
     Remove-Item -LiteralPath $ManifestPath -Force
   }
-  foreach ($PathValue in @($BackupPath, $TempOutput)) {
+  if ($HadPinRefresh) {
+    Copy-Item -LiteralPath $PinRefreshBackupPath -Destination $PinRefreshPath -Force
+  } elseif (Test-Path -LiteralPath $PinRefreshPath) {
+    Remove-Item -LiteralPath $PinRefreshPath -Force
+  }
+  foreach ($PathValue in @($BackupPath, $PinRefreshBackupPath, $TempOutput)) {
     if (Test-Path -LiteralPath $PathValue) {
       Remove-Item -LiteralPath $PathValue -Force
     }

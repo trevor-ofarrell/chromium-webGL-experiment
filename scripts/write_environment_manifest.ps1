@@ -221,6 +221,107 @@ function Add-Check {
   }) | Out-Null
 }
 
+function Get-CodeIntegrityChromiumRustBlock {
+  if (-not ([System.Management.Automation.PSTypeName]"ThreeBrowserCodeIntegrityProbe").Type) {
+    Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+public static class ThreeBrowserCodeIntegrityProbe {
+  [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+  public static extern IntPtr LoadLibraryEx(string lpFileName, IntPtr hReservedNull, uint dwFlags);
+  [DllImport("kernel32.dll", SetLastError = true)]
+  public static extern bool FreeLibrary(IntPtr hModule);
+}
+"@
+  }
+
+  $ActivePolicyDir = "C:\Windows\System32\CodeIntegrity\CiPolicies\Active"
+  $Result = [ordered]@{
+    active_policy_ids = @()
+    verified_and_reputable_policy_state = $null
+    sac_previous_state = $null
+    sac_enforcement_reason = $null
+    sample_dlls = @()
+    blocked_sample_dll_count = 0
+    recent_block_count = 0
+    recent_active_policy_block_count = 0
+    recent_policy_ids = @()
+    recent_first_message = $null
+    query_error = $null
+  }
+
+  try {
+    $PolicyState = Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\CI\Policy" -ErrorAction SilentlyContinue
+    if ($PolicyState) {
+      $Result.verified_and_reputable_policy_state = $PolicyState.VerifiedAndReputablePolicyState
+      $Result.sac_previous_state = $PolicyState.SAC_PreviousState
+      $Result.sac_enforcement_reason = $PolicyState.SAC_EnforcementReason
+    }
+  } catch {
+  }
+
+  if (Test-Path $ActivePolicyDir) {
+    $Result.active_policy_ids = @(Get-ChildItem $ActivePolicyDir -Filter "*.cip" -ErrorAction SilentlyContinue |
+      ForEach-Object { $_.BaseName.Trim("{}").ToUpperInvariant() })
+  }
+
+  $OutRoot = Join-Path $Src "out"
+  if (Test-Path $OutRoot) {
+    $SampleDlls = @(Get-ChildItem $OutRoot -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+        Join-Path $_.FullName "win_clang_x64_for_rust_host_build_tools\parsing_attribute_34eeb95b.dll"
+      } | Where-Object { Test-Path $_ })
+    $Result.sample_dlls = @($SampleDlls | ForEach-Object {
+        $Handle = [ThreeBrowserCodeIntegrityProbe]::LoadLibraryEx($_, [IntPtr]::Zero, 0)
+        if ($Handle -eq [IntPtr]::Zero) {
+          $LastError = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
+          [pscustomobject]@{
+            path = $_
+            loaded = $false
+            last_error = $LastError
+            blocked_by_code_integrity = ($LastError -eq 4551 -or $LastError -eq 577)
+          }
+        } else {
+          [void][ThreeBrowserCodeIntegrityProbe]::FreeLibrary($Handle)
+          [pscustomobject]@{
+            path = $_
+            loaded = $true
+            last_error = 0
+            blocked_by_code_integrity = $false
+          }
+        }
+      })
+    $Result.blocked_sample_dll_count = @($Result.sample_dlls | Where-Object { $_.blocked_by_code_integrity }).Count
+  }
+
+  try {
+    $StartTime = (Get-Date).AddDays(-7)
+    $Events = @(Get-WinEvent -FilterHashtable @{ LogName = "Microsoft-Windows-CodeIntegrity/Operational"; StartTime = $StartTime } -ErrorAction Stop |
+      Where-Object {
+        $_.Message -match "rustc\.exe" -and
+        $_.Message -match "three-browser" -and
+        $_.Message -match "Application Control policy|Enterprise signing level|did not meet"
+      })
+    $Result.recent_block_count = $Events.Count
+    $PolicyIds = @()
+    foreach ($Event in $Events) {
+      if (-not $Result.recent_first_message) {
+        $Result.recent_first_message = (($Event.Message -split "`r?`n") -join " ")
+      }
+      if ($Event.Message -match "Policy ID:\{([^}]+)\}") {
+        $PolicyIds += $Matches[1].ToUpperInvariant()
+      }
+    }
+    $Result.recent_policy_ids = @($PolicyIds | Sort-Object -Unique)
+    $Result.recent_active_policy_block_count = @($Result.recent_policy_ids | Where-Object {
+        $Result.active_policy_ids -contains $_
+      }).Count
+  } catch {
+    $Result.query_error = $_.Exception.Message
+  }
+
+  [pscustomobject]$Result
+}
+
 function Get-NonLoopbackIPv4Addresses {
   $Results = @()
   foreach ($Interface in [System.Net.NetworkInformation.NetworkInterface]::GetAllNetworkInterfaces()) {
@@ -360,6 +461,7 @@ $Identity = [Security.Principal.WindowsIdentity]::GetCurrent()
 $Principal = [Security.Principal.WindowsPrincipal]::new($Identity)
 $IsAdmin = $Principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 $NonLoopbackIPv4Addresses = @(Get-NonLoopbackIPv4Addresses)
+$CodeIntegrityBlock = Get-CodeIntegrityChromiumRustBlock
 
 $PatchPath = Resolve-RepoPath "chromium_patches\0001-draft-minimal-three-viewer-entrypoint.patch"
 $PatchApplies = $false
@@ -384,6 +486,7 @@ Add-Check $Checks "vs2022_install" (Test-Path $VsPath) $VsPath
 Add-Check $Checks "visual_studio_atl" ($null -ne $Atldef) ($(if ($Atldef) { $Atldef.FullName } else { "missing atldef.h" }))
 Add-Check $Checks "visual_studio_atl_component" ($VsAtlInstances.Count -gt 0) ($(if ($VsAtlInstances.Count -gt 0) { "vswhere reports $AtlComponentId in $($VsAtlInstances[0].installationPath)" } else { "vswhere does not report component $AtlComponentId" }))
 Add-Check $Checks "windows_sdk_debuggers" (Test-Path "C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\dbghelp.dll") "C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\dbghelp.dll"
+Add-Check $Checks "windows_code_integrity_chromium_rust" ($CodeIntegrityBlock.blocked_sample_dll_count -eq 0) ($(if ($CodeIntegrityBlock.blocked_sample_dll_count -eq 0) { "no current Code Integrity block when probing existing Chromium Rust proc-macro DLLs; active_policies=$(@($CodeIntegrityBlock.active_policy_ids).Count); recent_block_events=$($CodeIntegrityBlock.recent_block_count); verified_and_reputable_policy_state=$($CodeIntegrityBlock.verified_and_reputable_policy_state)" } else { "current Code Integrity block for Chromium Rust proc-macro DLLs; blocked_samples=$($CodeIntegrityBlock.blocked_sample_dll_count); policy_ids=$(@($CodeIntegrityBlock.recent_policy_ids) -join ','); unblock WDAC/Smart App Control for generated Chromium build DLLs, then rerun the failed build" }))
 Add-Check $Checks "viewer_dist" (Test-Path (Resolve-RepoPath "viewer\dist\index.html")) (Resolve-RepoPath "viewer\dist\index.html")
 Add-Check $Checks "viewer_patch_available" (Test-Path $PatchPath) $PatchPath
 Add-Check $Checks "viewer_patch_state" ($PatchApplies -or $PatchAlreadyApplied) ($(if ($PatchApplies) { "applies cleanly" } elseif ($PatchAlreadyApplied) { "already applied" } else { "not applicable" }))
@@ -464,6 +567,7 @@ $Manifest = [pscustomobject]@{
     }
     atl_component_reported_by_vswhere = ($VsAtlInstances.Count -gt 0)
     navigation_external_ipv4_addresses = $NonLoopbackIPv4Addresses
+    windows_code_integrity = $CodeIntegrityBlock
     test_assumed_viewer_patch_already_applied = [bool]$TestAssumeViewerPatchAlreadyApplied
   }
   patch = [pscustomobject]@{

@@ -1,32 +1,25 @@
 # WebGPU Scene Coverage
 
-Date: 2026-05-16
+Date: 2026-05-21
 
-Current WebGPU smoke evidence is from installed Chrome only:
+The official WebGPU suite runs the same seven scene names as WebGL2 through Three.js `WebGPURenderer` where supported by the current Three.js path.
 
-- Current raw JSON: `benchmarks/raw/smoke-installed-chrome-v17-webgpu-current-*-webgpu.json`
-- Current summary: `benchmarks/reports/smoke-installed-chrome-v17-webgpu-current-summary.md`
-- Earlier scene-name smoke: `benchmarks/raw/smoke-installed-chrome-v7-webgpu-*.json`
-- Timestamp smoke: `benchmarks/raw/smoke-installed-chrome-v14-webgpu-timestamp-instancing-webgpu.json`
-- Render-target postprocessing smoke: `benchmarks/raw/smoke-installed-chrome-v15-webgpu-postprocessing-render-target-webgpu.json`
-- WGSL shader-heavy smoke: `benchmarks/raw/smoke-installed-chrome-v16-webgpu-shader-heavy-wgsl-webgpu.json`
+Official artifacts:
 
-These results validate that the harness can drive all scene names through `renderer=webgpu`. They are not same-revision stock/fork performance evidence.
+- `benchmarks/reports/official-webgpu-comparison.md`
+- `benchmarks/reports/official-comparison-manifest.json`
+- `benchmarks/raw/baseline-content-shell-webgpu-*-webgpu.json`
+- `benchmarks/raw/fork-viewer-default-webgpu-*-webgpu.json`
+- `benchmarks/raw/fork-viewer-aggressive-gpu-d3d11-webgpu-*-webgpu.json`
 
-| Scene | WebGPU status | Notes |
+| Scene | WebGPU coverage | Notes |
 | --- | --- | --- |
-| `many-draw-calls` | Supported smoke path | Uses the same object layout and material family through Three.js WebGPU support. Draw-call counts reported by Three.js WebGPU are not directly equivalent to WebGL renderer counters. |
-| `instancing` | Supported smoke path | Uses `InstancedMesh` through Three.js WebGPU. |
-| `shader-heavy` | Supported smoke path, partial shader parity | Uses a Three.js WebGPU node material with a WGSL function and the same loop count as the WebGL GLSL scene. It is not byte-identical shader code. |
-| `texture-streaming` | Supported smoke path | Uses `CanvasTexture`/texture updates through Three.js WebGPU. Further validation should inspect upload path and memory growth under longer duration. |
-| `postprocessing` | Supported smoke path, partial effect parity | Uses a WebGPU-compatible `RenderTarget` plus full-screen `MeshBasicMaterial` pass. It now exercises render-target and presentation flow, but does not yet match the WebGL custom blur/scanline shader. |
-| `large-static` | Supported smoke path | Uses the same generated large indexed geometry through Three.js WebGPU. |
-| `gltf-loader-stress` | Supported smoke path | Uses `GLTFLoader` to load the bundled glTF asset, then renders many `Mesh` nodes through Three.js WebGPU-compatible material paths. Installed-Chrome v12 smoke validates the path; same-revision stock/fork evidence is pending. |
+| `many-draw-calls` | Supported | Uses many mesh submissions through WebGPU-compatible material paths. |
+| `instancing` | Supported | Uses instanced geometry and records draw/triangle counts. |
+| `shader-heavy` | Supported with approximate shader parity | Uses a Three.js WebGPU node material with a WGSL function and the same loop count as the WebGL GLSL scene. |
+| `texture-streaming` | Supported | Exercises texture upload/streaming counters and frame-time variance. |
+| `postprocessing` | Supported with approximate effect parity | Uses a WebGPU-compatible `RenderTarget` plus full-screen pass to exercise render-target and presentation flow. |
+| `large-static` | Supported | Exercises large static geometry and memory footprint. |
+| `gltf-loader-stress` | Supported | Uses `GLTFLoader` to load the bundled glTF asset, then renders many mesh nodes through WebGPU-compatible material paths. |
 
-## Required Follow-Up
-
-Before claiming WebGPU performance parity or improvement:
-
-1. Replace the WebGPU postprocessing copy pass with a custom WGSL/TSL effect shader if exact effect parity is needed.
-2. Decide whether WebGL and WebGPU draw-call counters should be reported in separate fields or normalized through an explicit renderer-specific interpretation.
-3. Re-run this suite against stock Chromium and the fork from the same pinned revision.
+WebGPU GPU timestamp timing is disabled in official stress runs because timestamp queries caused device loss during earlier stress cases. The official WebGPU artifacts still record adapter/device metadata, CPU frame time, JS time, render submission time, frame-time percentiles, draw calls, triangles, memory fields, startup, package size, and launch metadata.

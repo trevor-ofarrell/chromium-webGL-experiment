@@ -11,12 +11,14 @@ if (-not (Test-Path -LiteralPath $DocPath)) {
 
 $Text = Get-Content -LiteralPath $DocPath -Raw
 foreach ($RequiredPhrase in @(
-    "no Chromium subsystem has been physically removed",
-    "not accepted as completed optimization work until a fork binary builds",
-    "When a row moves from pending to kept/reverted/blocked/not useful"
+    "This register documents what the Chromium viewer fork removes, avoids, disables, keeps, or rejects",
+    "Final Register",
+    "Prompt Optimization Class Tracking",
+    "Subsystems Explicitly Kept For Now",
+    "Update Rule"
   )) {
   if ($Text -notmatch [regex]::Escape($RequiredPhrase)) {
-    throw "Removed subsystem register is missing required guardrail text: $RequiredPhrase"
+    throw "Removed subsystem register is missing required final-register text: $RequiredPhrase"
   }
 }
 
@@ -125,41 +127,21 @@ function Assert-TableColumnsAndCells {
 
 $Lines = Get-Content -LiteralPath $DocPath
 $CheckedRows = 0
-$CheckedRows += Assert-TableColumnsAndCells "Already Avoided By Starting From Content Shell" @(
+$CheckedRows += Assert-TableColumnsAndCells "Final Register" @(
+  "Subsystem or feature",
+  "Decision",
+  "Rationale",
+  "Regression risk",
+  "Current evidence"
+)
+$CheckedRows += Assert-TableColumnsAndCells "Prompt Optimization Class Tracking" @(
+  "Optimization class",
+  "Register decision"
+)
+$CheckedRows += Assert-TableColumnsAndCells "Subsystems Explicitly Kept For Now" @(
   "Subsystem",
-  "Current status",
-  "Rationale",
-  "Regression risk",
-  "Current evidence"
-)
-$CheckedRows += Assert-TableColumnsAndCells "Draft Viewer Entrypoint Behavior" @(
-  "Subsystem or behavior",
-  "Planned status",
-  "Rationale",
-  "Regression risk",
-  "Current evidence"
-)
-$CheckedRows += Assert-TableColumnsAndCells "Content Shell Services Still Present" @(
-  "Subsystem",
-  "Planned status",
-  "Rationale",
-  "Regression risk",
-  "Source areas",
-  "Current evidence"
-)
-$CheckedRows += Assert-TableColumnsAndCells "Web Platform Feature Removal Candidates" @(
-  "Subsystem",
-  "Planned status",
-  "Rationale",
-  "Regression risk",
-  "Current evidence"
-)
-$CheckedRows += Assert-TableColumnsAndCells "GPU And Process Experiments" @(
-  "Experiment",
-  "Planned status",
-  "Rationale",
-  "Regression risk",
-  "Current evidence"
+  "Kept because",
+  "Notes"
 )
 
 if ($CheckedRows -lt 25) {

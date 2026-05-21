@@ -182,6 +182,7 @@ $OfficialSuccess = Invoke-StabilityValidation `
     "--expectedVariant", "baseline-content-shell-long-stability",
     "--requireCheckout",
     "--requireBuildArgs",
+    "--expectedBuildArgsHash", "test-build-args-hash",
     "--requireGpuMetadata",
     "--requirePackageSize",
     "--rejectSoftwareRendering",
@@ -193,6 +194,20 @@ $OfficialSuccess = Invoke-StabilityValidation `
   )
 if ($OfficialSuccess.ExitCode -ne 0) {
   throw "Stability validator rejected official one-hour provenance gates. Output: $($OfficialSuccess.Output)"
+}
+
+$WrongBuildArgsPath = Join-Path $TempDir "wrong-build-args-long-stability.json"
+$WrongBuildArgs = Get-Content $OfficialPath -Raw | ConvertFrom-Json
+$WrongBuildArgs.build_args_hash = "different-build-args-hash"
+Write-StabilityJson $WrongBuildArgsPath $WrongBuildArgs
+$WrongBuildArgsFailure = Invoke-StabilityValidation `
+  $WrongBuildArgsPath `
+  -ExtraArgs @("--expectedBuildArgsHash", "test-build-args-hash")
+if ($WrongBuildArgsFailure.ExitCode -eq 0) {
+  throw "Stability validator accepted a result from the wrong GN args hash."
+}
+if ($WrongBuildArgsFailure.Output -notmatch "build_args_hash") {
+  throw "Stability validator did not explain build args hash mismatch. Output: $($WrongBuildArgsFailure.Output)"
 }
 
 $WrongBrowserPath = Join-Path $TempDir "wrong-browser-long-stability.json"
@@ -329,6 +344,12 @@ if ($AuditText -notmatch '--requirePackageSize' -or
     $AuditText -notmatch '-RequirePackageSize') {
   throw "Artifact audit does not require package-size evidence for final one-hour stability rows."
 }
+if ($AuditText -notmatch '--expectedBuildArgsHash' -or
+    $AuditText -notmatch 'ExpectedBuildArgsHash' -or
+    $AuditText -notmatch 'src\\out\\ReleaseBaseline\\args\.gn' -or
+    $AuditText -notmatch 'src\\out\\ReleaseViewerDefault\\args\.gn') {
+  throw "Artifact audit does not bind final one-hour stability rows to expected stock/fork GN args hashes."
+}
 if ($AuditText -notmatch '--pinRefreshManifest') {
   throw "Artifact audit does not require final one-hour stability rows to follow the current Chromium pin refresh."
 }
@@ -367,9 +388,10 @@ try {
     throw "Stability-only artifact audit failed unexpectedly. Output: $(($AuditOutputText | ForEach-Object { [string]$_ }) -join ' ')"
   }
   $StabilityAuditText = Get-Content $StabilityOnlyAuditOutput -Raw
-  if ($StabilityAuditText -notmatch "One-hour stock stability result.*pending" -or
+  if ($StabilityAuditText -notmatch "One-hour stock stability result.*done" -or
+      $StabilityAuditText -notmatch "count=2 valid=1" -or
       $StabilityAuditText -notmatch "browser_executable") {
-    throw "Stability-only artifact audit did not reject wrong-browser long-stability JSON. Output: $StabilityAuditText"
+    throw "Stability-only artifact audit did not reject the wrong-browser long-stability JSON while accepting the valid official artifact. Output: $StabilityAuditText"
   }
 } finally {
   if (Test-Path $CanonicalWrongBrowserAuditPath) {
@@ -377,9 +399,9 @@ try {
   }
 }
 if ($AuditText -notmatch 'Add-StabilityBehaviorDocumentationRow' -or
-    $AuditText -notmatch 'official one-hour stability evidence is incomplete' -or
+    $AuditText -notmatch 'validated stock/fork one-hour stability labels' -or
     $AuditText -notmatch 'GPU process crash/restart') {
-  throw "Artifact audit does not keep stability behavior documentation pending until stock/fork one-hour evidence is available."
+  throw "Artifact audit does not gate stability behavior documentation on stock/fork one-hour evidence and GPU process crash/restart documentation."
 }
 foreach ($RequiredTerm in @(
     "GPU process crash/restart",
@@ -416,6 +438,11 @@ if ($LongStabilityText -notmatch '--pinRefreshManifest') {
 if ($LongStabilityText -notmatch '--expectedBrowser') {
   throw "run_long_stability.ps1 does not validate that stability output came from the launched browser executable."
 }
+if ($LongStabilityText -notmatch 'Get-Sha256' -or
+    $LongStabilityText -notmatch '--requireBuildArgs' -or
+    $LongStabilityText -notmatch '--expectedBuildArgsHash') {
+  throw "run_long_stability.ps1 does not validate stability output against the exact supplied build args hash."
+}
 if ($LongStabilityText -notmatch '--requiredBrowserFlag') {
   throw "run_long_stability.ps1 does not validate required effective browser launch flags."
 }
@@ -428,6 +455,20 @@ $SyntheticBrowser = Join-Path $TempDir "synthetic-browser.exe"
 $SyntheticBuildArgs = Join-Path $TempDir "synthetic-args.gn"
 Set-Content -LiteralPath $SyntheticBrowser -Value "synthetic" -Encoding ASCII
 Set-Content -LiteralPath $SyntheticBuildArgs -Value "synthetic" -Encoding ASCII
+
+$MissingExpectedRevisionBuildArgsText = Invoke-LongStabilityExpectFailure @(
+  "-Browser", $SyntheticBrowser,
+  "-ExpectedChromiumRevision", "test-chromium-revision",
+  "-Duration", "1",
+  "-Warmup", "1",
+  "-Label", "expected-revision-without-build-args-preflight"
+) "long-stability expected Chromium revision without build args"
+if ($MissingExpectedRevisionBuildArgsText -notmatch "Build args is required when ExpectedChromiumRevision is supplied") {
+  throw "run_long_stability.ps1 did not clearly reject expected Chromium revision evidence without build args. Output: $MissingExpectedRevisionBuildArgsText"
+}
+if ($MissingExpectedRevisionBuildArgsText -match "run_benchmark\.mjs|validate_metrics\.mjs|validate_stability_result\.mjs") {
+  throw "run_long_stability.ps1 ran benchmark or validation work before rejecting missing build args for expected revision evidence."
+}
 
 $EmptyBuildArgs = Join-Path $TempDir "empty-args.gn"
 New-Item -ItemType File -Path $EmptyBuildArgs -Force | Out-Null
@@ -497,4 +538,4 @@ if ($RequiredFlagFailure.Output -notmatch "browser_flags.*--disable-software-ras
 }
 
 Remove-Item -LiteralPath $TempDir -Recurse -Force
-Write-Host "Stability result validation enforces RSS, renderer resource, duration, provenance, browser executable, package size, fork revision, viewer flag thresholds, required launch flags, and long-stability input/package preflights."
+Write-Host "Stability result validation enforces RSS, renderer resource, duration, provenance, browser executable, build-args hash, package size, fork revision, viewer flag thresholds, required launch flags, and long-stability input/package preflights."

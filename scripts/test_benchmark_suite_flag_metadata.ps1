@@ -36,6 +36,7 @@ function New-Result {
     p50_frame_ms = 16
     p95_frame_ms = 17
     p99_frame_ms = 18
+    frame_times_ms = @(16, 16.5, 17, 18)
     one_percent_low_fps = 55
     point_one_percent_low_fps = 50
     avg_cpu_frame_ms = 1
@@ -99,6 +100,7 @@ function Invoke-SuiteValidation {
       --expectedScenes many-draw-calls `
       --requireCheckout `
       --requireBuildArgs `
+      --expectedBuildArgsHash "test-build-args-hash" `
       --requireForkRevision `
       --expectedForkRevision "test-chromium-revision+viewerpatch-test" `
       --expectedBrowser "C:\synthetic\fork-content_shell.exe" `
@@ -106,6 +108,7 @@ function Invoke-SuiteValidation {
       --rejectSoftwareRendering `
       --requireGpuMetadata `
       --requirePackageSize `
+      --requireFrameTimes `
       --expectedMeasuredSeconds 120 `
       --expectedWarmupSeconds 20 `
       --expectedFlagMetadata viewer_mode=true `
@@ -165,6 +168,18 @@ if ($WrongBrowserFailure.Output -notmatch "browser_executable") {
 }
 
 Write-Json $ResultPath (New-Result)
+$WrongBuildArgsHash = Get-Content $ResultPath -Raw | ConvertFrom-Json
+$WrongBuildArgsHash.build_args_hash = "other-build-args-hash"
+Write-Json $ResultPath $WrongBuildArgsHash
+$WrongBuildArgsHashFailure = Invoke-SuiteValidation $ResultPath
+if ($WrongBuildArgsHashFailure.ExitCode -eq 0) {
+  throw "Benchmark suite validation accepted a result with the wrong build_args_hash."
+}
+if ($WrongBuildArgsHashFailure.Output -notmatch "build_args_hash") {
+  throw "Benchmark suite build-args hash mismatch did not name build_args_hash. Output: $($WrongBuildArgsHashFailure.Output)"
+}
+
+Write-Json $ResultPath (New-Result)
 $MissingLaunchFlag = Get-Content $ResultPath -Raw | ConvertFrom-Json
 $MissingLaunchFlag.browser_flags = @()
 Write-Json $ResultPath $MissingLaunchFlag
@@ -176,5 +191,17 @@ if ($MissingLaunchFlagFailure.Output -notmatch "browser_flags.*--disable-softwar
   throw "Benchmark suite missing-browser-flag failure did not name browser_flags and --disable-software-rasterizer. Output: $($MissingLaunchFlagFailure.Output)"
 }
 
+Write-Json $ResultPath (New-Result)
+$MissingFrameTimes = Get-Content $ResultPath -Raw | ConvertFrom-Json
+$MissingFrameTimes.PSObject.Properties.Remove("frame_times_ms")
+Write-Json $ResultPath $MissingFrameTimes
+$MissingFrameTimesFailure = Invoke-SuiteValidation $ResultPath
+if ($MissingFrameTimesFailure.ExitCode -eq 0) {
+  throw "Benchmark suite validation accepted a result without required raw frame-time samples."
+}
+if ($MissingFrameTimesFailure.Output -notmatch "frame_times_ms") {
+  throw "Benchmark suite missing-frame-times failure did not name frame_times_ms. Output: $($MissingFrameTimesFailure.Output)"
+}
+
 Remove-Item -LiteralPath $TempDir -Recurse -Force
-Write-Host "Benchmark suite validation enforces expected trusted viewer flag metadata, browser executable provenance, and required launch flags."
+Write-Host "Benchmark suite validation enforces expected trusted viewer flag metadata, browser executable provenance, build-args hash provenance, required launch flags, and raw frame-time samples."

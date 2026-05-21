@@ -20,11 +20,13 @@ function parseArgs(argv) {
     viewerMode: false,
     viewerTrustedContent: false,
     browserFlag: [],
+    unsafeFullSizeWindow: false,
   };
   const booleanArgs = new Set([
     'requireWebGPU',
     'viewerMode',
     'viewerTrustedContent',
+    'unsafeFullSizeWindow',
   ]);
 
   for (let i = 2; i < argv.length; i += 1) {
@@ -59,11 +61,31 @@ function ensureFile(file, label) {
   }
 }
 
+function hasSwitch(flags, name) {
+  return flags.some((flag) => flag === name || flag.startsWith(`${name}=`));
+}
+
+function pushDefaultFlag(flags, extraFlags, flag) {
+  const name = flag.split('=')[0];
+  if (!hasSwitch(flags, name) && !hasSwitch(extraFlags, name)) {
+    flags.push(flag);
+  }
+}
+
+function addSafeDesktopFlags(flags, extraFlags) {
+  pushDefaultFlag(flags, extraFlags, '--force-high-performance-gpu');
+  pushDefaultFlag(flags, extraFlags, '--window-size=640,480');
+  pushDefaultFlag(flags, extraFlags, '--window-position=40,40');
+  pushDefaultFlag(flags, extraFlags, '--force-device-scale-factor=1');
+}
+
 function commandText(command, args, options = {}) {
   const result = spawnSync(command, args, {
     cwd: options.cwd || rootDir,
     encoding: 'utf8',
     shell: false,
+    timeout: options.timeoutMs || 5000,
+    windowsHide: true,
   });
   if (result.status !== 0) return '';
   return result.stdout.trim();
@@ -77,9 +99,9 @@ function getBrowserVersion(browser) {
       '-Command',
       `(Get-Item -LiteralPath '${literalPath}').VersionInfo.ProductVersion`,
     ]);
-    if (out) return out;
+    return out || null;
   }
-  return commandText(browser, ['--version']) || null;
+  return commandText(browser, ['--version'], { timeoutMs: 5000 }) || null;
 }
 
 function killProcessTree(child) {
@@ -187,13 +209,18 @@ async function waitForJson(url, timeoutMs) {
 
 async function waitForPageTarget(debugPort, timeoutMs) {
   const start = Date.now();
+  let lastError = null;
   while (Date.now() - start < timeoutMs) {
-    const targets = await waitForJson(`http://127.0.0.1:${debugPort}/json/list`, 5000);
-    const page = targets.find((target) => target.type === 'page' && target.webSocketDebuggerUrl);
-    if (page) return page;
+    try {
+      const targets = await waitForJson(`http://127.0.0.1:${debugPort}/json/list`, 5000);
+      const page = targets.find((target) => target.type === 'page' && target.webSocketDebuggerUrl);
+      if (page) return page;
+    } catch (error) {
+      lastError = error;
+    }
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
-  throw new Error('Timed out waiting for a debuggable page target.');
+  throw lastError || new Error('Timed out waiting for a debuggable page target.');
 }
 
 class CdpClient {
@@ -775,6 +802,9 @@ async function main() {
     '--disable-renderer-backgrounding',
     '--disable-background-timer-throttling',
   ];
+  if (!args.unsafeFullSizeWindow) {
+    addSafeDesktopFlags(browserArgs, args.browserFlag);
+  }
   if (args.viewerMode) {
     browserArgs.push(`--viewer-app-url=${startupUrl}`);
     browserArgs.push('--viewer-block-external-navigation');

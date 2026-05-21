@@ -31,6 +31,11 @@ function Get-ShortSha256 {
   return (Get-FileHash -Algorithm SHA256 -LiteralPath $PathValue).Hash.Substring(0, 12).ToLowerInvariant()
 }
 
+function Get-Sha256 {
+  param([string]$PathValue)
+  return (Get-FileHash -Algorithm SHA256 -LiteralPath $PathValue).Hash.ToLowerInvariant()
+}
+
 function Write-TestFile {
   param(
     [string]$PathValue,
@@ -194,6 +199,7 @@ function New-Result {
     [string]$ChromiumRevision,
     [string]$ForkRevision,
     [string]$BrowserExecutable,
+    [string]$BuildArgsHash,
     [string[]]$Flags
   )
 
@@ -202,7 +208,7 @@ function New-Result {
     generated_at = "2026-05-16T00:00:00.000Z"
     chromium_revision = $ChromiumRevision
     fork_revision = $ForkRevision
-    build_args_hash = "synthetic-build-args-hash"
+    build_args_hash = $BuildArgsHash
     platform = "test-platform"
     gpu_name = "NVIDIA GeForce RTX Test"
     driver_version = "test-driver"
@@ -215,6 +221,7 @@ function New-Result {
     p50_frame_ms = 16
     p95_frame_ms = 17
     p99_frame_ms = 18
+    frame_times_ms = @(16, 16.5, 17, 18)
     one_percent_low_fps = 55
     point_one_percent_low_fps = 50
     avg_cpu_frame_ms = 1
@@ -261,7 +268,8 @@ function New-Experiment {
     [string[]]$Flags,
     [string]$ChromiumRevision,
     [string]$ForkRevision,
-    [string]$Browser
+    [string]$Browser,
+    [string]$BuildArgsHash
   )
 
   $ResultFiles = @($RequiredScenes | ForEach-Object {
@@ -274,6 +282,7 @@ function New-Experiment {
         -ChromiumRevision $ChromiumRevision `
         -ForkRevision $ForkRevision `
         -BrowserExecutable $Browser `
+        -BuildArgsHash $BuildArgsHash `
         -Flags $Flags)
   }
 
@@ -294,20 +303,21 @@ function New-ValidTrustedManifest {
   $ForkRevision = "$ChromiumRevision+viewerpatch-$PatchHash"
   $Browser = Write-TestFile (Join-Path $TempDir "fork.exe") "fork browser"
   $BuildArgs = Write-TestFile (Join-Path $TempDir "args.gn") "is_debug=false"
+  $BuildArgsHash = Get-Sha256 $BuildArgs
   $Summary = Join-Path $TempDir "trusted-summary.md"
   $Comparison = Join-Path $TempDir "trusted-comparison.md"
   New-Item -ItemType Directory -Path $PackageDir -Force | Out-Null
   $null = Write-TestFile (Join-Path $PackageDir "content_shell.exe") "fork browser"
 
   $Experiments = @(
-    (New-Experiment "fork-viewer-exp-default" @() $ChromiumRevision $ForkRevision $Browser)
-    (New-Experiment "fork-viewer-exp-aggressive-gpu" @("--viewerAggressiveGpu") $ChromiumRevision $ForkRevision $Browser)
-    (New-Experiment "fork-viewer-exp-in-process-gpu" @("--viewerInProcessGpu") $ChromiumRevision $ForkRevision $Browser)
-    (New-Experiment "fork-viewer-exp-single-process" @("--viewerSingleProcess") $ChromiumRevision $ForkRevision $Browser)
-    (New-Experiment "fork-viewer-exp-angle-d3d11" @("--viewerForceAngleBackend", "d3d11") $ChromiumRevision $ForkRevision $Browser)
-    (New-Experiment "fork-viewer-exp-relaxed-webgl-validation-gate" @("--viewerRelaxedWebglValidation") $ChromiumRevision $ForkRevision $Browser)
-    (New-Experiment "fork-viewer-exp-disable-unneeded-blink-features-gate" @("--viewerDisableUnneededBlinkFeatures") $ChromiumRevision $ForkRevision $Browser)
-    (New-Experiment "fork-viewer-exp-direct-gpu-presentation-gate" @("--viewerDirectGpuPresentation") $ChromiumRevision $ForkRevision $Browser)
+    (New-Experiment "fork-viewer-exp-default" @() $ChromiumRevision $ForkRevision $Browser $BuildArgsHash)
+    (New-Experiment "fork-viewer-exp-aggressive-gpu" @("--viewerAggressiveGpu") $ChromiumRevision $ForkRevision $Browser $BuildArgsHash)
+    (New-Experiment "fork-viewer-exp-in-process-gpu" @("--viewerInProcessGpu") $ChromiumRevision $ForkRevision $Browser $BuildArgsHash)
+    (New-Experiment "fork-viewer-exp-single-process" @("--viewerSingleProcess") $ChromiumRevision $ForkRevision $Browser $BuildArgsHash)
+    (New-Experiment "fork-viewer-exp-angle-d3d11" @("--viewerForceAngleBackend", "d3d11") $ChromiumRevision $ForkRevision $Browser $BuildArgsHash)
+    (New-Experiment "fork-viewer-exp-relaxed-webgl-validation-gate" @("--viewerRelaxedWebglValidation") $ChromiumRevision $ForkRevision $Browser $BuildArgsHash)
+    (New-Experiment "fork-viewer-exp-disable-unneeded-blink-features-gate" @("--viewerDisableUnneededBlinkFeatures") $ChromiumRevision $ForkRevision $Browser $BuildArgsHash)
+    (New-Experiment "fork-viewer-exp-direct-gpu-presentation-gate" @("--viewerDirectGpuPresentation") $ChromiumRevision $ForkRevision $Browser $BuildArgsHash)
   )
   $AllResultFiles = @($Experiments | ForEach-Object { $_.result_files })
   $null = Write-TestFile $Summary (New-TrustedSummaryReportContent -Experiments $Experiments)
@@ -333,8 +343,10 @@ function New-ValidTrustedManifest {
       forbid_smoke = $true
       reject_software_rendering = $true
       require_gpu_metadata = $true
+      require_frame_times = $true
       expected_chromium_revision = $ChromiumRevision
       expected_browser = $Browser
+      expected_build_args_hash = $BuildArgsHash
       expected_measured_seconds = 60
       expected_warmup_seconds = 10
       exact_scene_output_files = $true

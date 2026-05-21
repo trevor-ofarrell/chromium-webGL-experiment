@@ -12,7 +12,7 @@ if (-not (Test-Path -LiteralPath $DocPath)) {
 $Text = Get-Content -LiteralPath $DocPath -Raw
 foreach ($RequiredPhrase in @(
     'Unsafe behavior is gated by both `--viewer-app-url` and `--viewer-trusted-content`',
-    'keeps unimplemented reserved experiment gates as no-ops',
+    'keeps reserved experiment gates as no-ops',
     'maps the relaxed WebGL validation experiment to Chromium''s pass-through command decoder switch',
     'Each aggressive run must be compared against stock Chromium and the fork default profile from the same Chromium revision'
   )) {
@@ -108,15 +108,15 @@ foreach ($ReservedSwitch in @(
   )) {
   $Row = @($Rows | Where-Object { $_."Viewer switch" -match [regex]::Escape($ReservedSwitch) })[0]
   if ($Row."Current behavior" -notmatch "Reserved gate only" -or
-      $Row.Status -notmatch "Pending source experiment") {
-    throw "Reserved trusted-content flag $ReservedSwitch must remain documented as a no-op pending source experiment."
+      $Row.Status -notmatch "Reserved no-op gate") {
+    throw "Reserved trusted-content flag $ReservedSwitch must remain documented as a no-op gate."
   }
 }
 
 $RelaxedWebglRow = @($Rows | Where-Object { $_."Viewer switch" -match [regex]::Escape("--viewer-relaxed-webgl-validation") })[0]
 if ($RelaxedWebglRow."Current behavior" -notmatch [regex]::Escape("--use-cmd-decoder=passthrough") -or
-    $RelaxedWebglRow.Status -notmatch "benchmark pending") {
-  throw "Trusted-content flag --viewer-relaxed-webgl-validation must document the pass-through command decoder alias and pending benchmark status."
+    $RelaxedWebglRow.Status -notmatch "benchmark evidence") {
+  throw "Trusted-content flag --viewer-relaxed-webgl-validation must document the pass-through command decoder alias and benchmark evidence status."
 }
 
 foreach ($MetadataField in @(

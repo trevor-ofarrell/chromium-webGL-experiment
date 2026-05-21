@@ -7,6 +7,7 @@ $Audit = Join-Path $Root "scripts\audit_artifacts.ps1"
 $TempDir = Join-Path $Root "benchmarks\tmp\manifest-override-guard"
 $TempOutput = Join-Path $TempDir "checklist.md"
 $FakeOfficialManifest = Join-Path $TempDir "official-comparison-manifest.json"
+$FakeTrustedManifest = Join-Path $TempDir "trusted-experiment-matrix-manifest.json"
 $FakeWebGlReport = Join-Path $TempDir "official-webgl2-comparison.md"
 $FakeWebGpuReport = Join-Path $TempDir "official-webgpu-comparison.md"
 $FakeRemovedSubsystemsDoc = Join-Path $TempDir "removed-subsystems.md"
@@ -14,6 +15,7 @@ $FakePerformanceClaimDoc = Join-Path $TempDir "performance-claim.md"
 
 New-Item -ItemType Directory -Path $TempDir -Force | Out-Null
 $OldOfficialManifestPath = $env:THREE_BROWSER_TEST_OFFICIAL_COMPARISON_MANIFEST
+$OldTrustedManifestPath = $env:THREE_BROWSER_TEST_TRUSTED_EXPERIMENT_MATRIX_MANIFEST
 $OldWebGlReportPath = $env:THREE_BROWSER_TEST_OFFICIAL_WEBGL2_REPORT
 $OldWebGpuReportPath = $env:THREE_BROWSER_TEST_OFFICIAL_WEBGPU_REPORT
 $OldRemovedSubsystemsDoc = $env:THREE_BROWSER_TEST_REMOVED_SUBSYSTEMS_DOC
@@ -22,6 +24,11 @@ $OldAllowManifestOverrides = $env:THREE_BROWSER_ALLOW_TEST_MANIFEST_OVERRIDES
 
 try {
   Set-Content -LiteralPath $FakeOfficialManifest -Value "{}" -Encoding UTF8
+  Remove-Item Env:\THREE_BROWSER_TEST_TRUSTED_EXPERIMENT_MATRIX_MANIFEST -ErrorAction SilentlyContinue
+  Remove-Item Env:\THREE_BROWSER_TEST_OFFICIAL_WEBGL2_REPORT -ErrorAction SilentlyContinue
+  Remove-Item Env:\THREE_BROWSER_TEST_OFFICIAL_WEBGPU_REPORT -ErrorAction SilentlyContinue
+  Remove-Item Env:\THREE_BROWSER_TEST_REMOVED_SUBSYSTEMS_DOC -ErrorAction SilentlyContinue
+  Remove-Item Env:\THREE_BROWSER_TEST_PERFORMANCE_CLAIM_DOCS -ErrorAction SilentlyContinue
   $env:THREE_BROWSER_TEST_OFFICIAL_COMPARISON_MANIFEST = $FakeOfficialManifest
   Remove-Item Env:\THREE_BROWSER_ALLOW_TEST_MANIFEST_OVERRIDES -ErrorAction SilentlyContinue
 
@@ -41,6 +48,26 @@ try {
   }
 
   Remove-Item Env:\THREE_BROWSER_TEST_OFFICIAL_COMPARISON_MANIFEST -ErrorAction SilentlyContinue
+  Set-Content -LiteralPath $FakeTrustedManifest -Value "{}" -Encoding UTF8
+  $env:THREE_BROWSER_TEST_TRUSTED_EXPERIMENT_MATRIX_MANIFEST = $FakeTrustedManifest
+  Remove-Item Env:\THREE_BROWSER_ALLOW_TEST_MANIFEST_OVERRIDES -ErrorAction SilentlyContinue
+
+  $FailedAsExpected = $false
+  $FailureText = ""
+  try {
+    $null = & $Audit -Output $TempOutput *>&1
+  } catch {
+    $FailedAsExpected = $true
+    $FailureText = $_.Exception.Message
+  }
+  if (-not $FailedAsExpected) {
+    throw "Artifact audit accepted a test trusted matrix manifest path override without THREE_BROWSER_ALLOW_TEST_MANIFEST_OVERRIDES=1."
+  }
+  if ($FailureText -notmatch "THREE_BROWSER_TEST_TRUSTED_EXPERIMENT_MATRIX_MANIFEST requires THREE_BROWSER_ALLOW_TEST_MANIFEST_OVERRIDES=1") {
+    throw "Artifact audit reported the wrong failure for an ungated trusted matrix manifest override: $FailureText"
+  }
+
+  Remove-Item Env:\THREE_BROWSER_TEST_TRUSTED_EXPERIMENT_MATRIX_MANIFEST -ErrorAction SilentlyContinue
   Set-Content -LiteralPath $FakeWebGlReport -Value "# fake report" -Encoding UTF8
   Set-Content -LiteralPath $FakeWebGpuReport -Value "# fake report" -Encoding UTF8
   $env:THREE_BROWSER_TEST_OFFICIAL_WEBGL2_REPORT = $FakeWebGlReport
@@ -108,6 +135,11 @@ try {
   } else {
     $env:THREE_BROWSER_TEST_OFFICIAL_COMPARISON_MANIFEST = $OldOfficialManifestPath
   }
+  if ($null -eq $OldTrustedManifestPath) {
+    Remove-Item Env:\THREE_BROWSER_TEST_TRUSTED_EXPERIMENT_MATRIX_MANIFEST -ErrorAction SilentlyContinue
+  } else {
+    $env:THREE_BROWSER_TEST_TRUSTED_EXPERIMENT_MATRIX_MANIFEST = $OldTrustedManifestPath
+  }
   if ($null -eq $OldWebGlReportPath) {
     Remove-Item Env:\THREE_BROWSER_TEST_OFFICIAL_WEBGL2_REPORT -ErrorAction SilentlyContinue
   } else {
@@ -138,4 +170,4 @@ try {
   }
 }
 
-Write-Host "Artifact audit rejects test manifest, report, removed-subsystem doc, and performance-claim doc path overrides unless the explicit test override gate is enabled."
+Write-Host "Artifact audit rejects test manifest, trusted matrix, report, removed-subsystem doc, and performance-claim doc path overrides unless the explicit test override gate is enabled."

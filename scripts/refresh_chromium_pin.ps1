@@ -114,7 +114,8 @@ function Write-PinRefreshManifest {
     skip_hooks = [bool]$SkipHooks
     skip_gn_gen = [bool]$SkipGnGen
   }
-  $Manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $PinRefreshManifest -Encoding UTF8
+  $Utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+  [System.IO.File]::WriteAllText($PinRefreshManifest, (($Manifest | ConvertTo-Json -Depth 8) + "`n"), $Utf8NoBom)
 }
 
 function Update-SourceInvestigationVerification {
@@ -154,6 +155,7 @@ $PreviousRevision = if (Test-Path $RevisionFile) { (Get-Content -LiteralPath $Re
 $SelectedAt = (Get-Date).ToUniversalTime().ToString("o")
 $SelectedFromUpstreamHead = $false
 $RevisionSource = "explicit -Revision"
+$ExplicitRevision = -not [string]::IsNullOrWhiteSpace($Revision)
 if (-not $Revision) {
   $Revision = Get-UpstreamHeadRevision
   $SelectedFromUpstreamHead = $true
@@ -162,6 +164,19 @@ if (-not $Revision) {
 
 if ($Revision -notmatch "^[0-9a-f]{40}$") {
   throw "Revision must be a 40-character Chromium commit SHA: $Revision"
+}
+
+if ($ExplicitRevision -and (Test-Path -LiteralPath $PinRefreshManifest)) {
+  try {
+    $ExistingPinRefresh = Get-Content -LiteralPath $PinRefreshManifest -Raw | ConvertFrom-Json
+    if ($ExistingPinRefresh.target_revision -eq $Revision -and $ExistingPinRefresh.selected_from_upstream_head -eq $true) {
+      $SelectedFromUpstreamHead = $true
+      $SelectedAt = [string]$ExistingPinRefresh.selected_at
+      $RevisionSource = "explicit -Revision preserving existing origin HEAD selection"
+    }
+  } catch {
+    Write-Warning "Could not read existing pin refresh manifest for resume provenance preservation: $($_.Exception.Message)"
+  }
 }
 
 Write-Host "Target Chromium revision: $Revision"

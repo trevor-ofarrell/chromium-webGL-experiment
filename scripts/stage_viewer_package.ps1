@@ -81,6 +81,7 @@ param(
   [int]$PrerenderFrames = 0,
   [switch]$DisableGpuTiming,
   [int]$StartDelayMs = 0,
+  [switch]$UnsafeFullSizeWindow,
   [string[]]$ExtraArgs = @()
 )
 
@@ -130,6 +131,15 @@ $ViewerArgs = @(
   "--disable-background-timer-throttling",
   "--disable-features=Translate,OptimizationHints,AutofillServerCommunication"
 )
+
+if (-not $UnsafeFullSizeWindow) {
+  $ViewerArgs += @(
+    "--force-high-performance-gpu",
+    "--window-size=640,480",
+    "--window-position=40,40",
+    "--force-device-scale-factor=1"
+  )
+}
 
 & $Exe @ViewerArgs @ExtraArgs
 exit $LASTEXITCODE

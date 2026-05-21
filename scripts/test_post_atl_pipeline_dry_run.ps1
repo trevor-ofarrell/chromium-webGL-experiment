@@ -30,6 +30,41 @@ function Get-ShortSha256 {
   return (Get-FileHash -Algorithm SHA256 -LiteralPath $PathValue).Hash.Substring(0, 12).ToLowerInvariant()
 }
 
+function Get-Sha256 {
+  param([string]$PathValue)
+  return (Get-FileHash -Algorithm SHA256 -LiteralPath $PathValue).Hash.ToLowerInvariant()
+}
+
+function Write-SyntheticBuildProvenance {
+  param(
+    [string]$OutDir,
+    [string]$SourceArgsPath,
+    [switch]$ViewerPatchApplied
+  )
+
+  $OutFull = Join-Path $Src $OutDir
+  $Browser = Join-Path $OutFull "content_shell.exe"
+  $Args = Join-Path $OutFull "args.gn"
+  $ProvenancePath = Join-Path $OutFull "three_browser_build_provenance.json"
+  $Provenance = [ordered]@{
+    generated_at = (Get-Date).ToUniversalTime().ToString("o")
+    build_started_at = (Get-Date).ToUniversalTime().ToString("o")
+    chromium_revision = Get-GitRevision $Src
+    out_dir = $OutDir
+    target = "content_shell"
+    target_artifact = $Browser
+    target_artifact_sha256 = Get-Sha256 $Browser
+    args_gn = $Args
+    args_gn_sha256 = Get-Sha256 $Args
+    source_args = $SourceArgsPath
+    source_args_sha256 = Get-Sha256 $SourceArgsPath
+    build_jobs = 0
+    viewer_patch_applies_cleanly = [bool](-not $ViewerPatchApplied)
+    viewer_patch_already_applied = [bool]$ViewerPatchApplied
+  }
+  $Provenance | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $ProvenancePath -Encoding UTF8
+}
+
 function Assert-Matches {
   param(
     [string]$Text,
@@ -71,6 +106,8 @@ function Invoke-PostAtlPipelineDryRun {
     [switch]$SkipBaselineBuild,
     [switch]$AssumeViewerPatchAlreadyApplied,
     [switch]$OmitAggressiveAngleBackend,
+    [switch]$OmitFinalGate,
+    [int]$BuildJobs = 0,
     [string]$AggressiveAngleBackend = "d3d11",
     [string[]]$TrustedMatrixAngleBackend = @()
   )
@@ -88,6 +125,9 @@ function Invoke-PostAtlPipelineDryRun {
     "-TraceWarmup", "1",
     "-TraceStartDelayMs", "1234",
     "-Precompile",
+    "-DisableWebGpuTiming",
+    "-DisableForkWebGpuTiming",
+    "-ReuseValidResults",
     "-PrerenderFrames", "2",
     "-RunTrustedExperimentMatrix",
     "-TrustedMatrixInProcessGpu",
@@ -98,9 +138,14 @@ function Invoke-PostAtlPipelineDryRun {
     "-LongStabilityWarmup", "1",
     "-MaxRssDeltaMb", "128",
     "-MaxRendererResourceDelta", "0",
-    "-FinalGate",
     "-DryRun"
   )
+  if (-not $OmitFinalGate) {
+    $Command += "-FinalGate"
+  }
+  if ($BuildJobs -gt 0) {
+    $Command += @("-BuildJobs", "$BuildJobs")
+  }
   if (-not $OmitAggressiveAngleBackend) {
     $Command += @("-AggressiveAngleBackend", $AggressiveAngleBackend)
   }
@@ -173,6 +218,9 @@ Assert-Matches $Text "-IncludeAggressiveGpu" "official aggressive GPU coverage"
 Assert-Matches $Text "-AggressiveAngleBackend\s+d3d11" "official ANGLE backend handoff"
 Assert-Matches $Text "-CaptureTrace" "official trace capture handoff"
 Assert-Matches $Text "-TraceStartDelayMs\s+1234" "official trace start delay handoff"
+Assert-Matches $Text "-DisableWebGpuTiming" "global WebGPU timing disable handoff"
+Assert-Matches $Text "-DisableForkWebGpuTiming" "fork WebGPU timing disable handoff"
+Assert-Matches $Text "-ReuseValidResults" "official benchmark resume handoff"
 Assert-Matches $Text "-DryRun" "nested official dry-run handoff"
 
 Assert-Matches $Text "trusted-content experiment matrix" "the trusted experiment matrix step"
@@ -189,11 +237,11 @@ Assert-Matches $Text "-AngleBackend\s+d3d11" "trusted matrix ANGLE backend exper
 Assert-Matches $Text "-Precompile" "trusted matrix resource warmup flag"
 Assert-Matches $Text "-PrerenderFrames\s+2" "trusted matrix prerender frame handoff"
 
-$ExplicitAngleOutput = Invoke-PostAtlPipelineDryRun -SkipBaselineBuild:$InitialPatchState.AlreadyApplied -OmitAggressiveAngleBackend -TrustedMatrixAngleBackend "d3d11"
+$ExplicitAngleOutput = Invoke-PostAtlPipelineDryRun -SkipBaselineBuild:$InitialPatchState.AlreadyApplied -OmitAggressiveAngleBackend -OmitFinalGate -TrustedMatrixAngleBackend "d3d11"
 $ExplicitAngleText = ($ExplicitAngleOutput | ForEach-Object { [string]$_ }) -join "`n"
 Assert-Matches $ExplicitAngleText "-AngleBackend\s+d3d11" "explicit trusted matrix D3D11 ANGLE experiment"
 
-$DefaultAngleOutput = Invoke-PostAtlPipelineDryRun -SkipBaselineBuild:$InitialPatchState.AlreadyApplied -OmitAggressiveAngleBackend
+$DefaultAngleOutput = Invoke-PostAtlPipelineDryRun -SkipBaselineBuild:$InitialPatchState.AlreadyApplied -OmitAggressiveAngleBackend -OmitFinalGate
 $DefaultAngleText = ($DefaultAngleOutput | ForEach-Object { [string]$_ }) -join "`n"
 Assert-Matches $DefaultAngleText "trusted-content experiment matrix" "the trusted experiment matrix step when no official aggressive ANGLE backend is supplied"
 Assert-Matches $DefaultAngleText "-AngleBackend\s+d3d11" "default trusted matrix D3D11 ANGLE experiment"
@@ -208,6 +256,10 @@ Assert-Matches $FallbackAngleText "-AngleBackend\s+vulkan" "trusted matrix fallb
 if ($FallbackAngleText -match "-AngleBackend\s+d3d11") {
   throw "Trusted matrix unexpectedly kept the D3D11 default when an official aggressive ANGLE backend override was supplied."
 }
+
+$ThrottledBuildOutput = Invoke-PostAtlPipelineDryRun -SkipBaselineBuild:$InitialPatchState.AlreadyApplied -BuildJobs 8
+$ThrottledBuildText = ($ThrottledBuildOutput | ForEach-Object { [string]$_ }) -join "`n"
+Assert-Matches $ThrottledBuildText "-Jobs\s+8" "post-ATL build job throttle handoff"
 
 Assert-Matches $Text "stock one-hour stability" "the stock long-stability step"
 Assert-Matches $Text "fork one-hour stability" "the fork long-stability step"
@@ -244,6 +296,10 @@ Assert-Matches $PostAtlText "DryRunAssumeViewerPatchAlreadyApplied" "non-mutatin
 Assert-Matches $PostAtlText "-DryRunAssumeViewerPatchAlreadyApplied is only valid with -DryRun" "dry-run-only guard for patch-state override"
 Assert-Matches $PostAtlText "-RefreshRevision requires -RefreshChromiumPin" "refresh revision guard"
 Assert-Matches $PostAtlText "Assert-SkippedArtifactState" "resume artifact preflight guard"
+Assert-Matches $PostAtlText "Assert-FinalGateOptions" "final-gate option preflight"
+Assert-Matches $PostAtlText "-FinalGate requires completion-oriented options" "final-gate missing-options failure"
+Assert-Matches $PostAtlText "-FinalGate cannot be combined with -SkipOfficialComparison" "final-gate skip-official guard"
+Assert-Matches $PostAtlText "-Jobs" "build-job throttle handoff"
 Assert-Matches $PostAtlText "SkipBaselineBuild requires an existing stock baseline binary" "skip-baseline existing binary guard"
 Assert-Matches $PostAtlText "SkipForkBuild requires an existing fork binary" "skip-fork existing binary guard"
 Assert-Matches $PostAtlText "SkipPackage requires -SkipBaselineBuild" "skip-package requires baseline build reuse guard"
@@ -251,6 +307,50 @@ Assert-Matches $PostAtlText "SkipPackage requires -SkipForkBuild" "skip-package 
 Assert-Matches $PostAtlText "SkipPackage requires an existing stock baseline package" "skip-package existing baseline package guard"
 Assert-Matches $PostAtlText "SkipPackage requires an existing fork package" "skip-package existing fork package guard"
 Assert-Matches $PostAtlText "executable does not match expected browser" "skip-package package executable hash guard"
+Assert-Matches $PostAtlText "Assert-ExistingBuildProvenance" "skip-build provenance guard"
+Assert-Matches $PostAtlText "build provenance revision mismatch" "skip-build provenance revision guard"
+Assert-Matches $PostAtlText "stock baseline evidence must come from an unmodified checkout" "skip-baseline patch-state provenance guard"
+
+$MissingFinalGateOptionsText = Invoke-PostAtlPipelineExpectFailure @(
+  "-FinalGate",
+  "-DryRun"
+) "final gate without completion options"
+Assert-Matches $MissingFinalGateOptionsText "-FinalGate requires completion-oriented options" "final-gate missing completion options runtime guard"
+foreach ($RequiredFinalGateOption in @(
+  "-RefreshChromiumPin",
+  "-IncludeWebGPU",
+  "-IncludeAggressiveGpu",
+  "-AggressiveAngleBackend <backend>",
+  "-CaptureTrace",
+  "-RunTrustedExperimentMatrix",
+  "-RunLongStability"
+)) {
+  Assert-Matches $MissingFinalGateOptionsText ([regex]::Escape($RequiredFinalGateOption)) "final-gate missing option $RequiredFinalGateOption"
+}
+if ($MissingFinalGateOptionsText -match "refresh Chromium pin|Checking host and checkout prerequisites") {
+  throw "Final-gate option preflight ran work before rejecting missing completion options."
+}
+
+$SkipOfficialFinalGateText = Invoke-PostAtlPipelineExpectFailure @(
+  "-FinalGate",
+  "-RefreshChromiumPin",
+  "-RefreshRevision", $DryRunRefreshRevision,
+  "-IncludeWebGPU",
+  "-IncludeAggressiveGpu",
+  "-AggressiveAngleBackend", "d3d11",
+  "-CaptureTrace",
+  "-RunTrustedExperimentMatrix",
+  "-TrustedMatrixInProcessGpu",
+  "-TrustedMatrixSingleProcess",
+  "-TrustedMatrixReservedNoopGates",
+  "-RunLongStability",
+  "-SkipOfficialComparison",
+  "-DryRun"
+) "final gate with skipped official comparison"
+Assert-Matches $SkipOfficialFinalGateText "-FinalGate cannot be combined with -SkipOfficialComparison" "final-gate skip-official runtime guard"
+if ($SkipOfficialFinalGateText -match "refresh Chromium pin|Checking host and checkout prerequisites") {
+  throw "Final-gate skip-official preflight ran work before rejecting the incomplete evidence path."
+}
 
 $NonDryRunFailureText = ""
 $NonDryRunFailedAsExpected = $false
@@ -283,11 +383,15 @@ if ($MissingBaselineFailureText -match "Checking host and checkout prerequisites
 }
 
 $MissingForkOutDir = "out\MissingForkResumeGuard-$PID"
-$MissingForkFailureText = Invoke-PostAtlPipelineExpectFailure @(
+$MissingForkArgs = @(
   "-ForkOutDir", $MissingForkOutDir,
   "-SkipForkBuild",
   "-SkipOfficialComparison"
-) "missing skipped fork binary"
+)
+if ($InitialPatchState.AlreadyApplied) {
+  $MissingForkArgs += "-SkipBaselineBuild"
+}
+$MissingForkFailureText = Invoke-PostAtlPipelineExpectFailure $MissingForkArgs "missing skipped fork binary"
 Assert-Matches $MissingForkFailureText "SkipForkBuild requires an existing fork binary" "skip-fork missing binary runtime guard"
 if ($MissingForkFailureText -match "Checking host and checkout prerequisites") {
   throw "Skip-fork resume guard ran prebuild verification before rejecting the missing fork binary."
@@ -297,19 +401,42 @@ $SyntheticBaselineOutDir = "out\PostAtlBaselineResumeGuard-$PID"
 $SyntheticForkOutDir = "out\PostAtlForkResumeGuard-$PID"
 $SyntheticBaselineFull = Join-Path $Src $SyntheticBaselineOutDir
 $SyntheticForkFull = Join-Path $Src $SyntheticForkOutDir
+$SyntheticBaselineArgsFile = Join-Path $Root "benchmarks\tmp\post-atl-baseline-args-$PID.gn"
+$SyntheticForkArgsFile = Join-Path $Root "benchmarks\tmp\post-atl-fork-args-$PID.gn"
 $MismatchedBaselinePackage = Join-Path $Root "benchmarks\tmp\post-atl-mismatched-baseline-package-$PID"
 $MismatchedForkPackage = Join-Path $Root "benchmarks\tmp\post-atl-mismatched-fork-package-$PID"
 try {
   New-Item -ItemType Directory -Path $SyntheticBaselineFull -Force | Out-Null
   New-Item -ItemType Directory -Path $SyntheticForkFull -Force | Out-Null
+  New-Item -ItemType Directory -Path (Split-Path $SyntheticBaselineArgsFile -Parent) -Force | Out-Null
   Set-Content -LiteralPath (Join-Path $SyntheticBaselineFull "content_shell.exe") -Value "synthetic-baseline-browser" -Encoding ASCII
   Set-Content -LiteralPath (Join-Path $SyntheticBaselineFull "args.gn") -Value "is_debug=false" -Encoding ASCII
   Set-Content -LiteralPath (Join-Path $SyntheticForkFull "content_shell.exe") -Value "synthetic-fork-browser" -Encoding ASCII
   Set-Content -LiteralPath (Join-Path $SyntheticForkFull "args.gn") -Value "is_debug=false" -Encoding ASCII
+  Set-Content -LiteralPath $SyntheticBaselineArgsFile -Value "is_debug=false" -Encoding ASCII
+  Set-Content -LiteralPath $SyntheticForkArgsFile -Value "is_debug=false" -Encoding ASCII
+  Write-SyntheticBuildProvenance -OutDir $SyntheticBaselineOutDir -SourceArgsPath $SyntheticBaselineArgsFile
+  Write-SyntheticBuildProvenance -OutDir $SyntheticForkOutDir -SourceArgsPath $SyntheticForkArgsFile -ViewerPatchApplied
+
+  $StaleProvenancePath = Join-Path $SyntheticBaselineFull "three_browser_build_provenance.json"
+  $OriginalProvenance = Get-Content -LiteralPath $StaleProvenancePath -Raw
+  $StaleProvenance = $OriginalProvenance | ConvertFrom-Json
+  $StaleProvenance.chromium_revision = "0000000000000000000000000000000000000000"
+  $StaleProvenance | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $StaleProvenancePath -Encoding UTF8
+  $StaleProvenanceFailureText = Invoke-PostAtlPipelineExpectFailure @(
+    "-BaselineOutDir", $SyntheticBaselineOutDir,
+    "-BaselineArgsFile", $SyntheticBaselineArgsFile,
+    "-SkipBaselineBuild",
+    "-SkipOfficialComparison"
+  ) "stale skipped baseline provenance"
+  Assert-Matches $StaleProvenanceFailureText "SkipBaselineBuild requires current stock baseline build provenance revision mismatch" "skip-baseline stale provenance runtime guard"
+  Set-Content -LiteralPath $StaleProvenancePath -Value $OriginalProvenance -Encoding UTF8
 
   $MissingPackageFailureText = Invoke-PostAtlPipelineExpectFailure @(
     "-BaselineOutDir", $SyntheticBaselineOutDir,
     "-ForkOutDir", $SyntheticForkOutDir,
+    "-BaselineArgsFile", $SyntheticBaselineArgsFile,
+    "-ForkArgsFile", $SyntheticForkArgsFile,
     "-BaselinePackageDir", ".\benchmarks\packages\missing-baseline-resume-guard-$PID",
     "-ForkPackageDir", ".\benchmarks\packages\missing-fork-resume-guard-$PID",
     "-SkipBaselineBuild",
@@ -333,6 +460,8 @@ try {
   $MismatchedPackageFailureText = Invoke-PostAtlPipelineExpectFailure @(
     "-BaselineOutDir", $SyntheticBaselineOutDir,
     "-ForkOutDir", $SyntheticForkOutDir,
+    "-BaselineArgsFile", $SyntheticBaselineArgsFile,
+    "-ForkArgsFile", $SyntheticForkArgsFile,
     "-BaselinePackageDir", $MismatchedBaselinePackage,
     "-ForkPackageDir", $MismatchedForkPackage,
     "-SkipBaselineBuild",
@@ -344,7 +473,7 @@ try {
     throw "Skip-package resume guard ran prebuild verification before rejecting the mismatched package executable."
   }
 } finally {
-  foreach ($PathToRemove in @($SyntheticBaselineFull, $SyntheticForkFull, $MismatchedBaselinePackage, $MismatchedForkPackage)) {
+  foreach ($PathToRemove in @($SyntheticBaselineFull, $SyntheticForkFull, $MismatchedBaselinePackage, $MismatchedForkPackage, $SyntheticBaselineArgsFile, $SyntheticForkArgsFile)) {
     if (Test-Path -LiteralPath $PathToRemove) {
       Remove-Item -LiteralPath $PathToRemove -Recurse -Force
     }
