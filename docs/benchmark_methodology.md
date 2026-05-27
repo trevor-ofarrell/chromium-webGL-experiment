@@ -1,12 +1,15 @@
 # Benchmark Methodology
 
-Date: 2026-05-21
+Date: 2026-05-24
 
-The benchmark system compares stock Chromium `content_shell`, the default viewer fork, and trusted viewer experiments built from the same Chromium revision.
+The benchmark system compares stock Chromium `content_shell`, the default viewer fork, and trusted viewer experiments built from the same Chromium revision. Fork benchmark results must identify the exact patch content through the fork revision stamp.
+
+Current source revision:
+
+- Chromium revision: `3a94d90ec3c04556622c56944796dd76753e0581`
+- Fork revision stamp: `3a94d90ec3c04556622c56944796dd76753e0581+viewerpatch-43dbf0b6871e`
 
 ## Required Scene Suite
-
-Implemented viewer scene names:
 
 The viewer runs seven deterministic scenes:
 
@@ -20,7 +23,9 @@ The viewer runs seven deterministic scenes:
 
 Renderer modes:
 
-Each scene is exercised through WebGL2. WebGPU is exercised for the same scene names where Three.js WebGPU support is available.
+- WebGL2 is exercised for every scene.
+- WebGPU is exercised for the same scene names where Three.js WebGPU support is available.
+- WebGPU `webgpuBundleMode` / BundleGroup render-bundle mode is part of the compatibility key for comparisons.
 
 ## Runtime Surface
 
@@ -58,6 +63,7 @@ Each JSON result must include:
 - `angle_backend`
 - `renderer_type`
 - `scene_name`
+- `complexity`
 - `warmup_seconds`
 - `measured_seconds`
 - `avg_fps`
@@ -87,13 +93,25 @@ Each JSON result must include:
 - `viewer_bundle_size_mb`
 - `package_size_mb`
 
-Unavailable metrics are recorded as `null` rather than omitted.
+Unavailable metrics are recorded as `null` rather than omitted. Every benchmark JSON is validated by `scripts/validate_metrics.mjs`.
 
-Every benchmark JSON is validated by `scripts/validate_metrics.mjs`.
-
-The harness enriches viewer-emitted metrics with checkout provenance, browser executable metadata, build args hash, package metadata, creates the output directory, and writes the final machine-readable JSON file. Fork benchmark results must identify the actual fork patch content through the fork revision stamp.
+The harness enriches viewer-emitted metrics with checkout provenance, browser executable metadata, build args hash, package metadata, creates the output directory, and writes the final machine-readable JSON file.
 
 WebGPU GPU timestamp timing is disabled in the official WebGPU suite because timestamp queries caused device loss in stress runs. WebGPU adapter/device metadata and CPU-side frame metrics remain valid.
+
+## Attribution Metrics
+
+Viewer-side attribution modes are diagnostic only. They can explain where time is going, but they add JavaScript wrappers and cannot be promoted as clean performance evidence.
+
+Supported attribution modes:
+
+- `--queueInstrumentation` / `queueInstrumentation=1`: wraps WebGPU queue calls and records `writeBuffer`, `writeTexture`, `copyExternalImageToTexture`, `copyElementImageToTexture`, and `submit` counts/timing. Results also record descriptor-shape counts for common `writeTexture` layout/extent inputs and `copyExternalImageToTexture` default-origin, common-origin, explicit-common-origin, sRGB-destination, full-source, and common-extent inputs that map to the WebGPU upload fast paths.
+- `--commandEncoderInstrumentation` / `commandEncoderInstrumentation=1`: wraps `GPUDevice.createCommandEncoder` plus command-encoder `beginRenderPass`, `beginComputePass`, `finish`, `copyBufferToBuffer`, `copyBufferToTexture`, `copyTextureToBuffer`, and `copyTextureToTexture` calls. Results record counts, wall-clock timing, render-pass color/depth/clearValue descriptor shape counts, estimated copy MB, and measured-window copy counts.
+- WebGPU pipeline creation telemetry wraps `createRenderPipeline`, `createRenderPipelineAsync`, `createComputePipeline`, and `createComputePipelineAsync`; it records creation timing plus descriptor-shape counts for render-pipeline vertex buffers/attributes, fragment color targets/blend states, programmable-stage constants, and whether those descriptors are eligible for the source stack-conversion fast paths.
+- bind-group, pipeline-state, buffer-state, render-state, and immediate-data attribution modes where present in the viewer and runner.
+- source-added WebGPU queue trace attribution when the Chromium patch is built.
+
+Candidate analysis and final suite validation reject attribution runs unless explicitly requested for investigation. Clean retained speed claims must filter out viewer-side WebGPU queue attribution, command-encoder attribution, bind-group attribution, pipeline-state attribution, buffer-state attribution, render-state attribution, immediate-data attribution, and source-added WebGPU queue trace attribution.
 
 ## Official Comparison
 
@@ -124,7 +142,7 @@ Official reports:
 - `benchmarks/reports/official-webgpu-comparison.md`
 - `benchmarks/reports/official-comparison-manifest.json`
 
-Human-readable official comparison reports summarize FPS, low-FPS, frame-time, CPU/GPU/JS/submission, memory, startup, draw/triangle/upload, shader-event, binary, viewer, and package metrics.
+Human-readable official comparison reports summarize FPS, low-FPS, frame-time, CPU/GPU/JS/submission, memory, startup, draw/triangle/upload, shader-event, binary, viewer, and package metrics. Summary reports also include an optional WebGPU fast-path coverage section when queue or pipeline descriptor-shape attribution fields are present. Summary and comparison reports include an `Input file digest` so raw JSON inputs can be tied back to the rendered report.
 
 ## Trusted Experiment Matrix
 
@@ -147,12 +165,21 @@ Trusted reports:
 
 Unsafe flags are evaluated one at a time where possible, documented with risk, and not promoted to default launch policy without matching stability evidence.
 
+## Texture Upload Modes
+
+The texture-streaming scene supports:
+
+- `textureUploadMode=canvas`
+- `textureUploadMode=data`
+
+The DataTexture mode increases absolute texture-streaming throughput and exercises WebGPU queue/write paths differently from the canvas path. It is part of the comparison compatibility key and must not be mixed with canvas-mode results for retained claims.
+
 ## Stability
 
 One-hour stability uses:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\run_long_stability.ps1 -Browser .\src\out\ReleaseViewerDefault\content_shell.exe -Renderer webgl2 -Scene instancing -Duration 3600 -Warmup 30 -Label fork-viewer-default-long-stability -BuildArgs .\src\out\ReleaseViewerDefault\args.gn -PackageDir .\benchmarks\packages\viewer-default -ExpectedChromiumRevision 3a94d90ec3c04556622c56944796dd76753e0581 -ForkRevision 3a94d90ec3c04556622c56944796dd76753e0581+viewerpatch-cca4b9171b07 -ViewerMode -ViewerTrustedContent -MaxRssDeltaMb 128 -MaxRendererResourceDelta 0 -FriendlyWindow
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\run_long_stability.ps1 -Browser .\src\out\ReleaseViewerDefault\content_shell.exe -Renderer webgl2 -Scene instancing -Duration 3600 -Warmup 30 -Label fork-viewer-default-long-stability -BuildArgs .\src\out\ReleaseViewerDefault\args.gn -PackageDir .\benchmarks\packages\viewer-default -ExpectedChromiumRevision 3a94d90ec3c04556622c56944796dd76753e0581 -ForkRevision 3a94d90ec3c04556622c56944796dd76753e0581+viewerpatch-43dbf0b6871e -ViewerMode -ViewerTrustedContent -MaxRssDeltaMb 128 -MaxRendererResourceDelta 0 -FriendlyWindow
 ```
 
 Stability acceptance:
@@ -166,6 +193,7 @@ Stability acceptance:
 - `process_rss_delta_mb <= 128`
 - zero geometry, texture, and program growth after warmup
 - no accepted JSON from early browser exit or crash
+- final JSON emission waits one microtask/task turn for queued WebGPU device-loss callbacks before stability fields are stamped
 
 Completed artifacts:
 
@@ -174,13 +202,34 @@ Completed artifacts:
 
 ## Trace Capture
 
-Official trace capture records Chrome trace JSON and benchmark sidecars for representative WebGL2 `many-draw-calls` runs. Trace sidecars are validated against browser path, scene, renderer, duration, warmup, start delay, launch flags, and embedded benchmark metadata.
+Official trace capture records Chrome trace JSON and benchmark sidecars for representative WebGL2 runs. WebGPU diagnostic traces may enable `--queueInstrumentation` and `--commandEncoderInstrumentation` to attribute queue and command-encoder work, but those sidecars are attribution evidence only and are excluded from retained FPS claims. Reports and strict validators reject attribution-instrumented results as clean speed evidence.
+
+Trace sidecars are validated against browser path, scene, renderer, duration, warmup, start delay, launch flags, embedded benchmark metadata, and mirrored WebGPU fast-path coverage counters when present. Trace summaries automatically read the sibling `.result.json` sidecar and add WebGPU queue/pipeline fast-path coverage when finite counters are available.
 
 Trace summaries:
 
 - `benchmarks/reports/baseline-content-shell-many-draw-calls-webgl2-trace-summary.md`
 - `benchmarks/reports/fork-viewer-default-many-draw-calls-webgl2-trace-summary.md`
 
+## Current Chromium Patch Classes
+
+The current patch series documents or implements:
+
+- minimal viewer entrypoint and trusted local navigation policy
+- WebGPU queue attribution traces
+- common WebGPU buffer descriptor conversion fast paths
+- common WebGPU bind-group entry and bind-group descriptor conversion fast paths
+- WebGPU render-pass clearValue GPUColor-dict conversion fast path
+- WebGPU command-encoder descriptorless creation fast path
+- WebGPU command-encoder `GPUExtent3D` conversion fast path for copy commands
+- WebGPU command-encoder texel-copy buffer layout conversion fast path for common `{ buffer, bytesPerRow }` layouts
+- WebGPU render-pipeline vertex/fragment descriptor stack conversion fast paths
+- WebGPU programmable-stage shader-constant stack conversion fast path
+
+All source-level WebGPU changes remain blocked from retained evidence until WDAC/App Control allows rebuilt Chromium artifacts to run.
+
 ## Reporting Rule
 
 Performance claims must cite the official manifest and report path. Trusted experiment claims must cite the trusted matrix manifest and raw experiment files. Stability claims must cite the one-hour stability JSON and the stability validator result.
+
+Do not claim a speed improvement from installed Chrome, stale binaries, attribution runs, software rendering, device-loss-contaminated runs, or runs that do not match the current Chromium revision and fork patch stamp.

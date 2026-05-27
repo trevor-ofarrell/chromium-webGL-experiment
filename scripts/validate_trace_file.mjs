@@ -6,12 +6,15 @@ function parseArgs(argv) {
   const args = {
     files: [],
     minEvents: 1,
+    rejectWebGpuCpuFallback: false,
   };
 
   for (let i = 2; i < argv.length; i += 1) {
     const token = argv[i];
     if (token === '--minEvents') {
       args.minEvents = Number(argv[++i]);
+    } else if (token === '--rejectWebGpuCpuFallback') {
+      args.rejectWebGpuCpuFallback = true;
     } else if (token.startsWith('--')) {
       throw new Error(`Unknown argument: ${token}`);
     } else {
@@ -20,13 +23,20 @@ function parseArgs(argv) {
   }
 
   if (!args.files.length) {
-    throw new Error('Usage: node scripts/validate_trace_file.mjs [--minEvents 1] <trace.json...>');
+    throw new Error('Usage: node scripts/validate_trace_file.mjs [--minEvents 1] [--rejectWebGpuCpuFallback] <trace.json...>');
   }
   if (!Number.isInteger(args.minEvents) || args.minEvents < 1) {
     throw new Error('--minEvents must be a positive integer');
   }
   return args;
 }
+
+const webGpuCpuFallbackEvents = new Set([
+  'GPUQueue::CopyFromCanvasSourceImage::ForcedReadback',
+  'GPUQueue::CopyFromCanvasSourceImage::CPUFallback',
+  'GPUQueue::CopyFromCanvasSourceImage::CPUFallbackReadPixels',
+  'GPUQueue::CopyFromCanvasSourceImage::CPUFallbackRejected',
+]);
 
 function isObject(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -48,6 +58,7 @@ function validateTrace(trace, file, args) {
   let namedEvents = 0;
   let phaseEvents = 0;
   let timedEvents = 0;
+  const cpuFallbackCounts = new Map();
   for (let index = 0; index < trace.traceEvents.length; index += 1) {
     const event = trace.traceEvents[index];
     if (!isObject(event)) {
@@ -63,6 +74,9 @@ function validateTrace(trace, file, args) {
     if (typeof event.ts === 'number' && Number.isFinite(event.ts)) {
       timedEvents += 1;
     }
+    if (args.rejectWebGpuCpuFallback && webGpuCpuFallbackEvents.has(event.name)) {
+      cpuFallbackCounts.set(event.name, (cpuFallbackCounts.get(event.name) || 0) + 1);
+    }
   }
 
   if (namedEvents === 0) {
@@ -73,6 +87,13 @@ function validateTrace(trace, file, args) {
   }
   if (timedEvents === 0) {
     errors.push(`${label}: traceEvents must contain at least one timestamped event`);
+  }
+  if (cpuFallbackCounts.size > 0) {
+    const details = [...cpuFallbackCounts.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([name, count]) => `${name}=${count}`)
+      .join(', ');
+    errors.push(`${label}: WebGPU CPU texture fallback/readback events were present under --rejectWebGpuCpuFallback (${details})`);
   }
   return errors;
 }

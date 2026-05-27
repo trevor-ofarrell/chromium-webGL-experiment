@@ -30,11 +30,13 @@ function Get-HashString {
 Assert-UnderDirectory $TestOutAbs $OutRoot
 
 try {
+  # This is a GN-generation regression fixture, not stock-baseline evidence.
   & (Join-Path $Root "scripts\build_chromium.ps1") `
     -OutDir $TestOutDir `
     -Target content_shell `
     -ArgsFile "build\gn_args\baseline_content_shell.gn" `
     -SkipPrereqCheck `
+    -AllowViewerPatchApplied `
     -GenOnly
 
   $GeneratedArgs = Join-Path $TestOutAbs "args.gn"

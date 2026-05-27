@@ -18,6 +18,7 @@ $ViewerSwitches = @(
   "--viewer-in-process-gpu",
   "--viewer-single-process",
   "--viewer-relaxed-webgl-validation",
+  "--viewer-zero-copy",
   "--viewer-disable-unneeded-blink-features",
   "--viewer-direct-gpu-presentation"
 )
@@ -27,7 +28,9 @@ $PatchFiles = @(
   "content/shell/browser/shell.cc",
   "content/shell/browser/shell_browser_main_parts.cc",
   "content/shell/browser/shell_content_browser_client.cc",
-  "content/shell/common/shell_switches.h"
+  "content/shell/common/shell_switches.h",
+  "third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc",
+  "third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.h"
 )
 
 $PatchBehaviorTerms = @(
@@ -37,6 +40,7 @@ $PatchBehaviorTerms = @(
   "confines URL launches",
   "viewer file or files beneath the viewer app directory",
   "THREE_VIEWER_RESULT",
+  "Blink WebGL per-draw validation",
   "reserved gates"
 )
 

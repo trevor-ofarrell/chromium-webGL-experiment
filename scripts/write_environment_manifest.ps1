@@ -6,6 +6,10 @@ param(
 
 $ErrorActionPreference = "Stop"
 $Root = Resolve-Path (Join-Path $PSScriptRoot "..")
+$ViewerPatchSeries = @(
+  "chromium_patches\0001-draft-minimal-three-viewer-entrypoint.patch",
+  "chromium_patches\0002-draft-webgpu-queue-trace-attribution.patch"
+)
 
 if ($TestAssumeViewerPatchAlreadyApplied) {
   $ResolvedOutputForTest = if ([System.IO.Path]::IsPathRooted($Output)) {
@@ -243,6 +247,8 @@ public static class ThreeBrowserCodeIntegrityProbe {
     sac_enforcement_reason = $null
     sample_dlls = @()
     blocked_sample_dll_count = 0
+    siso_code_integrity_blocks = @()
+    siso_code_integrity_block_count = 0
     recent_block_count = 0
     recent_active_policy_block_count = 0
     recent_policy_ids = @()
@@ -291,14 +297,50 @@ public static class ThreeBrowserCodeIntegrityProbe {
         }
       })
     $Result.blocked_sample_dll_count = @($Result.sample_dlls | Where-Object { $_.blocked_by_code_integrity }).Count
+
+    $SisoBlocks = @()
+    foreach ($OutDir in @(Get-ChildItem $OutRoot -Directory -ErrorAction SilentlyContinue)) {
+      $SisoOutput = Join-Path $OutDir.FullName "siso_output"
+      if (-not (Test-Path $SisoOutput)) {
+        continue
+      }
+      $OutputLastWrite = (Get-Item -LiteralPath $SisoOutput).LastWriteTimeUtc
+      $BuildNinja = Join-Path $OutDir.FullName "build.ninja"
+      $BuildNinjaStamp = Join-Path $OutDir.FullName "build.ninja.stamp"
+      $BuildTimes = @($BuildNinja, $BuildNinjaStamp) |
+        Where-Object { Test-Path $_ } |
+        ForEach-Object { (Get-Item -LiteralPath $_).LastWriteTimeUtc }
+      $NewestBuildTime = if (@($BuildTimes).Count -gt 0) {
+        $BuildTimes | Sort-Object -Descending | Select-Object -First 1
+      } else {
+        $null
+      }
+      if ($NewestBuildTime -and $OutputLastWrite -lt $NewestBuildTime) {
+        continue
+      }
+      $FirstBlockLine = Get-Content -LiteralPath $SisoOutput -ErrorAction SilentlyContinue |
+        Where-Object { $_ -match "WinError 4551|Application Control policy|Enterprise signing level|did not meet" } |
+        Select-Object -First 1
+      if (-not $FirstBlockLine) {
+        continue
+      }
+      $SisoBlocks += [pscustomobject]@{
+        out_dir = $OutDir.FullName
+        siso_output = $SisoOutput
+        siso_output_last_write_utc = $OutputLastWrite.ToString("o")
+        first_block_line = $FirstBlockLine.Trim()
+      }
+    }
+    $Result.siso_code_integrity_blocks = @($SisoBlocks)
+    $Result.siso_code_integrity_block_count = @($Result.siso_code_integrity_blocks).Count
   }
 
   try {
     $StartTime = (Get-Date).AddDays(-7)
     $Events = @(Get-WinEvent -FilterHashtable @{ LogName = "Microsoft-Windows-CodeIntegrity/Operational"; StartTime = $StartTime } -ErrorAction Stop |
       Where-Object {
-        $_.Message -match "rustc\.exe" -and
         $_.Message -match "three-browser" -and
+        $_.Message -match "rustc\.exe|win_clang_x64_for_rust_host_build_tools|build_script|proc-macro|proc_macro" -and
         $_.Message -match "Application Control policy|Enterprise signing level|did not meet"
       })
     $Result.recent_block_count = $Events.Count
@@ -475,6 +517,30 @@ if (Test-Path $PatchPath) {
   }
 }
 
+$PatchSeries = @($ViewerPatchSeries | ForEach-Object {
+    $PatchRelativePath = $_
+    $ResolvedPatchPath = Resolve-RepoPath $PatchRelativePath
+    $PatchExists = Test-Path $ResolvedPatchPath
+    $SeriesPatchApplies = $false
+    $SeriesPatchAlreadyApplied = $false
+    if ($PatchExists) {
+      $SeriesPatchApplies = Test-GitApply $Src $ResolvedPatchPath
+      $SeriesPatchAlreadyApplied = Test-GitApply $Src $ResolvedPatchPath -Reverse
+      if ($TestAssumeViewerPatchAlreadyApplied) {
+        $SeriesPatchApplies = $false
+        $SeriesPatchAlreadyApplied = $true
+      }
+    }
+    [pscustomobject]@{
+      path = $PatchRelativePath
+      exists = $PatchExists
+      applies_cleanly = $SeriesPatchApplies
+      already_applied = $SeriesPatchAlreadyApplied
+      sha256 = Get-FileHashOrNull $ResolvedPatchPath
+    }
+  })
+$PatchSeriesReady = @($PatchSeries | Where-Object { $_.exists -and ($_.applies_cleanly -or $_.already_applied) }).Count -eq $ViewerPatchSeries.Count
+
 $Checks = [System.Collections.Generic.List[object]]::new()
 Add-Check $Checks "depot_tools" (Test-Path (Join-Path $DepotTools "gclient.py")) $DepotTools
 Add-Check $Checks "visual_studio_installer" (Test-Path $VisualStudioInstaller) $VisualStudioInstaller
@@ -486,10 +552,19 @@ Add-Check $Checks "vs2022_install" (Test-Path $VsPath) $VsPath
 Add-Check $Checks "visual_studio_atl" ($null -ne $Atldef) ($(if ($Atldef) { $Atldef.FullName } else { "missing atldef.h" }))
 Add-Check $Checks "visual_studio_atl_component" ($VsAtlInstances.Count -gt 0) ($(if ($VsAtlInstances.Count -gt 0) { "vswhere reports $AtlComponentId in $($VsAtlInstances[0].installationPath)" } else { "vswhere does not report component $AtlComponentId" }))
 Add-Check $Checks "windows_sdk_debuggers" (Test-Path "C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\dbghelp.dll") "C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\dbghelp.dll"
-Add-Check $Checks "windows_code_integrity_chromium_rust" ($CodeIntegrityBlock.blocked_sample_dll_count -eq 0) ($(if ($CodeIntegrityBlock.blocked_sample_dll_count -eq 0) { "no current Code Integrity block when probing existing Chromium Rust proc-macro DLLs; active_policies=$(@($CodeIntegrityBlock.active_policy_ids).Count); recent_block_events=$($CodeIntegrityBlock.recent_block_count); verified_and_reputable_policy_state=$($CodeIntegrityBlock.verified_and_reputable_policy_state)" } else { "current Code Integrity block for Chromium Rust proc-macro DLLs; blocked_samples=$($CodeIntegrityBlock.blocked_sample_dll_count); policy_ids=$(@($CodeIntegrityBlock.recent_policy_ids) -join ','); unblock WDAC/Smart App Control for generated Chromium build DLLs, then rerun the failed build" }))
+$CodeIntegrityBlockedHostToolCount = $CodeIntegrityBlock.blocked_sample_dll_count + $CodeIntegrityBlock.siso_code_integrity_block_count
+$CodeIntegrityDetail = if ($CodeIntegrityBlockedHostToolCount -eq 0) {
+  "no current Code Integrity block when probing existing Chromium Rust host tools; active_policies=$(@($CodeIntegrityBlock.active_policy_ids).Count); recent_block_events=$($CodeIntegrityBlock.recent_block_count); current_siso_blocks=$($CodeIntegrityBlock.siso_code_integrity_block_count); verified_and_reputable_policy_state=$($CodeIntegrityBlock.verified_and_reputable_policy_state)"
+} else {
+  $FirstSisoBlock = @($CodeIntegrityBlock.siso_code_integrity_blocks | Select-Object -First 1)
+  $FirstSisoDetail = if ($FirstSisoBlock.Count -gt 0) { "; first_siso_block=$($FirstSisoBlock[0].first_block_line)" } else { "" }
+  "current Code Integrity block for Chromium Rust host tools; blocked_sample_dlls=$($CodeIntegrityBlock.blocked_sample_dll_count); current_siso_blocks=$($CodeIntegrityBlock.siso_code_integrity_block_count); policy_ids=$(@($CodeIntegrityBlock.recent_policy_ids) -join ',')$FirstSisoDetail; unblock WDAC/Smart App Control for generated Chromium build DLLs/EXEs, then rerun the failed build"
+}
+Add-Check $Checks "windows_code_integrity_chromium_rust" ($CodeIntegrityBlockedHostToolCount -eq 0) $CodeIntegrityDetail
 Add-Check $Checks "viewer_dist" (Test-Path (Resolve-RepoPath "viewer\dist\index.html")) (Resolve-RepoPath "viewer\dist\index.html")
 Add-Check $Checks "viewer_patch_available" (Test-Path $PatchPath) $PatchPath
 Add-Check $Checks "viewer_patch_state" ($PatchApplies -or $PatchAlreadyApplied) ($(if ($PatchApplies) { "applies cleanly" } elseif ($PatchAlreadyApplied) { "already applied" } else { "not applicable" }))
+Add-Check $Checks "viewer_patch_series_state" $PatchSeriesReady (@($PatchSeries | ForEach-Object { "$($_.path):$(if ($_.applies_cleanly) { "applies" } elseif ($_.already_applied) { "applied" } else { "blocked" })" }) -join "; ")
 Add-Check $Checks "navigation_external_ipv4" ($NonLoopbackIPv4Addresses.Count -gt 0) ($(if ($NonLoopbackIPv4Addresses.Count -gt 0) { (@($NonLoopbackIPv4Addresses | ForEach-Object { "$($_.address) on $($_.interface_name)" }) -join "; ") } else { "no non-loopback IPv4 address available for external HTTP navigation-lock smoke" }))
 
 $GnArgFiles = @(
@@ -577,6 +652,7 @@ $Manifest = [pscustomobject]@{
     already_applied = $PatchAlreadyApplied
     sha256 = Get-FileHashOrNull $PatchPath
   }
+  patch_series = $PatchSeries
   gn_args = $GnArgFiles
   binaries = $Binaries
   build_failures = $BuildFailures

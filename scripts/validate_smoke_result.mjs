@@ -2,6 +2,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+function readJson(file) {
+  return JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, ''));
+}
+
 const expectedByType = {
   runtime: {
     requiredPass: [
@@ -527,7 +531,7 @@ let failed = false;
 for (const file of args.files) {
   let data;
   try {
-    data = JSON.parse(fs.readFileSync(file, 'utf8'));
+    data = readJson(file);
   } catch (error) {
     console.error(`FAIL: ${file}`);
     console.error(`  ${error.message}`);

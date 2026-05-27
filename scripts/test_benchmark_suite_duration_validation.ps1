@@ -26,6 +26,7 @@ function New-Result {
     angle_backend = "ANGLE (NVIDIA, D3D11)"
     renderer_type = "webgl2"
     scene_name = "many-draw-calls"
+    complexity = 2
     warmup_seconds = $WarmupSeconds
     measured_seconds = $MeasuredSeconds
     avg_fps = 60
@@ -87,6 +88,7 @@ function Invoke-SuiteValidation {
       --requireGpuMetadata `
       --expectedMeasuredSeconds 120 `
       --expectedWarmupSeconds 20 `
+      --expectedComplexity 2 `
       $PathValue 2>&1
     return [pscustomobject]@{
       ExitCode = $LASTEXITCODE

@@ -84,6 +84,8 @@ try {
     "verified_and_reputable_policy_state",
     "sample_dlls",
     "blocked_sample_dll_count",
+    "siso_code_integrity_blocks",
+    "siso_code_integrity_block_count",
     "recent_block_count",
     "recent_active_policy_block_count",
     "recent_policy_ids",
@@ -99,6 +101,16 @@ try {
   Assert-True ($Manifest.patch.exists -eq $true) "Manifest does not record the viewer patch as present."
   Assert-True (($Manifest.patch.applies_cleanly -eq $true) -or ($Manifest.patch.already_applied -eq $true)) "Manifest patch state is neither clean-applying nor already-applied."
   Assert-True ([string]::IsNullOrWhiteSpace($Manifest.patch.sha256) -eq $false) "Manifest does not record a viewer patch hash."
+  Assert-True (@($Manifest.patch_series).Count -ge 2) "Manifest does not record the full viewer patch series."
+  foreach ($PatchPath in @(
+      "chromium_patches\0001-draft-minimal-three-viewer-entrypoint.patch",
+      "chromium_patches\0002-draft-webgpu-queue-trace-attribution.patch"
+    )) {
+    $PatchEntry = Assert-PathEntry @($Manifest.patch_series) $PatchPath "patch_series"
+    Assert-True ($PatchEntry.exists -eq $true) "Patch series entry $PatchPath is not marked present."
+    Assert-True (($PatchEntry.applies_cleanly -eq $true) -or ($PatchEntry.already_applied -eq $true)) "Patch series entry $PatchPath is neither clean-applying nor already-applied."
+    Assert-True ([string]::IsNullOrWhiteSpace($PatchEntry.sha256) -eq $false) "Patch series entry $PatchPath lacks a sha256 hash."
+  }
 
   foreach ($PathValue in @(
     "build\gn_args\baseline_content_shell.gn",
@@ -140,6 +152,7 @@ try {
     "viewer_dist",
     "viewer_patch_available",
     "viewer_patch_state",
+    "viewer_patch_series_state",
     "navigation_external_ipv4"
   )) {
     $Matches = @($Manifest.checks | Where-Object { $_.name -eq $Name })

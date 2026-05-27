@@ -28,11 +28,15 @@ function New-Sidecar {
     generated_at = "2026-05-16T00:00:00.000Z"
     platform = "test-platform"
     browser = $Browser
+    gpu_name = "NVIDIA Test GPU"
+    driver_version = "test-driver"
+    angle_backend = "ANGLE D3D11"
     scene = $Scene
     renderer = $Renderer
     duration_seconds = $Duration
     warmup_seconds = $Warmup
     start_delay_ms = $StartDelayMs
+    benchmark_hud_enabled = $false
     viewer_mode = $true
     viewer_block_external_navigation = $true
     viewer_trusted_content = $true
@@ -46,6 +50,15 @@ function New-Sidecar {
     viewer_direct_gpu_presentation = $false
     browser_flags = @("--disable-software-rasterizer")
     categories = "gpu,viz,v8"
+    webgpu_queue_write_texture_common_layout_count = 8
+    webgpu_queue_write_texture_common_extent_count = 9
+    webgpu_queue_copy_external_image_default_origin_count = 6
+    webgpu_queue_copy_external_image_common_origin_count = 7
+    webgpu_queue_copy_external_image_explicit_common_origin_count = 1
+    webgpu_queue_copy_external_image_srgb_destination_count = 7
+    webgpu_queue_copy_external_image_full_source_count = 5
+    webgpu_pipeline_descriptor_stack_fast_path_eligible_count = 4
+    webgpu_pipeline_descriptor_measured_stack_fast_path_eligible_count = 3
     benchmark_result = [pscustomobject]@{
       scene_name = $Scene
       renderer_type = $Renderer
@@ -53,6 +66,15 @@ function New-Sidecar {
       warmup_seconds = $Warmup
       avg_fps = $AvgFps
       startup_ms_to_first_frame = 123
+      webgpu_queue_write_texture_common_layout_count = 8
+      webgpu_queue_write_texture_common_extent_count = 9
+      webgpu_queue_copy_external_image_default_origin_count = 6
+      webgpu_queue_copy_external_image_common_origin_count = 7
+      webgpu_queue_copy_external_image_explicit_common_origin_count = 1
+      webgpu_queue_copy_external_image_srgb_destination_count = 7
+      webgpu_queue_copy_external_image_full_source_count = 5
+      webgpu_pipeline_descriptor_stack_fast_path_eligible_count = 4
+      webgpu_pipeline_descriptor_measured_stack_fast_path_eligible_count = 3
     }
   }
 }
@@ -88,9 +110,11 @@ try {
     "--expectedWarmup", "2",
     "--expectedStartDelayMs", "2000",
     "--expectedFlagMetadata", "viewer_mode=true",
+    "--expectedFlagMetadata", "benchmark_hud_enabled=false",
     "--expectedFlagMetadata", "viewer_block_external_navigation=true",
     "--expectedFlagMetadata", "viewer_trusted_content=true",
     "--expectedFlagMetadata", "viewer_force_angle_backend=null",
+    "--rejectSoftwareRendering",
     "--requiredBrowserFlag", "--disable-software-rasterizer",
     $Valid
   )
@@ -128,6 +152,15 @@ try {
     throw "Expected mismatched embedded benchmark renderer to fail. Output: $($Result.Output)"
   }
 
+  $WrongFastPathCoverage = Join-Path $TmpDir "wrong-fast-path-coverage.result.json"
+  $Sidecar = New-Sidecar -Renderer "webgpu"
+  $Sidecar.webgpu_queue_copy_external_image_full_source_count = 99
+  Write-Json $WrongFastPathCoverage $Sidecar
+  $Result = Invoke-Validator -ValidatorArgs @($WrongFastPathCoverage)
+  if ($Result.ExitCode -eq 0 -or $Result.Output -notmatch "webgpu_queue_copy_external_image_full_source_count.*benchmark_result") {
+    throw "Expected mismatched WebGPU fast-path coverage metadata to fail. Output: $($Result.Output)"
+  }
+
   $WrongFlag = Join-Path $TmpDir "wrong-flag.result.json"
   $Sidecar = New-Sidecar
   $Sidecar.viewer_trusted_content = $false
@@ -145,10 +178,80 @@ try {
   if ($Result.ExitCode -eq 0 -or $Result.Output -notmatch "browser_flags.*--disable-software-rasterizer") {
     throw "Expected trace sidecar without required browser flag to fail. Output: $($Result.Output)"
   }
+
+  $SoftwareRenderer = Join-Path $TmpDir "software-renderer.result.json"
+  $Sidecar = New-Sidecar
+  $Sidecar.gpu_name = "Google SwiftShader"
+  Write-Json $SoftwareRenderer $Sidecar
+  $Result = Invoke-Validator -ValidatorArgs @("--rejectSoftwareRendering", $SoftwareRenderer)
+  if ($Result.ExitCode -eq 0 -or $Result.Output -notmatch "software-rendered.*SwiftShader") {
+    throw "Expected trace sidecar with software renderer metadata to fail. Output: $($Result.Output)"
+  }
+
+  $SoftwareBenchmark = Join-Path $TmpDir "software-benchmark.result.json"
+  $Sidecar = New-Sidecar
+  $Sidecar.benchmark_result | Add-Member -NotePropertyName gpu_name -NotePropertyValue "Microsoft Basic Render Driver" -Force
+  Write-Json $SoftwareBenchmark $Sidecar
+  $Result = Invoke-Validator -ValidatorArgs @("--rejectSoftwareRendering", $SoftwareBenchmark)
+  if ($Result.ExitCode -eq 0 -or $Result.Output -notmatch "benchmark_result.*Microsoft Basic Render Driver") {
+    throw "Expected trace sidecar with software-rendered embedded benchmark metadata to fail. Output: $($Result.Output)"
+  }
+
+  $DiagnosticOptIn = Join-Path $TmpDir "diagnostic-opt-in.result.json"
+  $Sidecar = New-Sidecar
+  $Sidecar | Add-Member -NotePropertyName allow_software_rendering -NotePropertyValue $true -Force
+  Write-Json $DiagnosticOptIn $Sidecar
+  $Result = Invoke-Validator -ValidatorArgs @("--rejectSoftwareRendering", $DiagnosticOptIn)
+  if ($Result.ExitCode -eq 0 -or $Result.Output -notmatch "diagnostic software-rendering opt-in") {
+    throw "Expected trace sidecar with diagnostic software-rendering opt-in metadata to fail. Output: $($Result.Output)"
+  }
+
+  $DiagnosticBenchmarkOptIn = Join-Path $TmpDir "diagnostic-benchmark-opt-in.result.json"
+  $Sidecar = New-Sidecar
+  $Sidecar.benchmark_result | Add-Member -NotePropertyName allow_software_rendering -NotePropertyValue $true -Force
+  Write-Json $DiagnosticBenchmarkOptIn $Sidecar
+  $Result = Invoke-Validator -ValidatorArgs @("--rejectSoftwareRendering", $DiagnosticBenchmarkOptIn)
+  if ($Result.ExitCode -eq 0 -or $Result.Output -notmatch "benchmark_result uses diagnostic software-rendering opt-in") {
+    throw "Expected trace sidecar with diagnostic software-rendering opt-in embedded benchmark metadata to fail. Output: $($Result.Output)"
+  }
+
+  $MissingBundleGroup = Join-Path $TmpDir "missing-bundlegroup.result.json"
+  $Sidecar = New-Sidecar -Scene "texture-streaming" -Renderer "webgpu"
+  $Sidecar | Add-Member -NotePropertyName webgpu_bundle_mode -NotePropertyValue "static" -Force
+  $Sidecar | Add-Member -NotePropertyName webgpu_bundle_groups -NotePropertyValue 0 -Force
+  $Sidecar.benchmark_result | Add-Member -NotePropertyName webgpu_bundle_mode -NotePropertyValue "static" -Force
+  $Sidecar.benchmark_result | Add-Member -NotePropertyName webgpu_bundle_groups -NotePropertyValue 0 -Force
+  Write-Json $MissingBundleGroup $Sidecar
+  $Result = Invoke-Validator -ValidatorArgs @($MissingBundleGroup)
+  if ($Result.ExitCode -eq 0 -or $Result.Output -notmatch "webgpu_bundle_mode=static requires a positive webgpu_bundle_groups") {
+    throw "Expected trace sidecar with static BundleGroup mode and no recorded BundleGroups to fail. Output: $($Result.Output)"
+  }
+
+  $OffModeBundleGroup = Join-Path $TmpDir "off-mode-bundlegroup.result.json"
+  $Sidecar = New-Sidecar -Scene "texture-streaming" -Renderer "webgpu"
+  $Sidecar | Add-Member -NotePropertyName webgpu_bundle_mode -NotePropertyValue "off" -Force
+  $Sidecar | Add-Member -NotePropertyName webgpu_bundle_groups -NotePropertyValue 1 -Force
+  Write-Json $OffModeBundleGroup $Sidecar
+  $Result = Invoke-Validator -ValidatorArgs @($OffModeBundleGroup)
+  if ($Result.ExitCode -eq 0 -or $Result.Output -notmatch "webgpu_bundle_groups must be zero") {
+    throw "Expected trace sidecar with BundleGroup count while mode is off to fail. Output: $($Result.Output)"
+  }
+
+  $ValidBundleGroup = Join-Path $TmpDir "valid-bundlegroup.result.json"
+  $Sidecar = New-Sidecar -Scene "texture-streaming" -Renderer "webgpu"
+  $Sidecar | Add-Member -NotePropertyName webgpu_bundle_mode -NotePropertyValue "static" -Force
+  $Sidecar | Add-Member -NotePropertyName webgpu_bundle_groups -NotePropertyValue 1 -Force
+  $Sidecar.benchmark_result | Add-Member -NotePropertyName webgpu_bundle_mode -NotePropertyValue "static" -Force
+  $Sidecar.benchmark_result | Add-Member -NotePropertyName webgpu_bundle_groups -NotePropertyValue 1 -Force
+  Write-Json $ValidBundleGroup $Sidecar
+  $Result = Invoke-Validator -ValidatorArgs @("--expectedFlagMetadata", "webgpu_bundle_mode=static", $ValidBundleGroup)
+  if ($Result.ExitCode -ne 0) {
+    throw "Expected valid static BundleGroup trace sidecar to pass. Output: $($Result.Output)"
+  }
 } finally {
   if (Test-Path -LiteralPath $TmpDir) {
     Remove-Item -LiteralPath $TmpDir -Recurse -Force
   }
 }
 
-Write-Host "Trace result sidecar validation accepts matching sidecars and rejects mismatched browser, scene, delay, flag, benchmark metadata, and required launch flags."
+Write-Host "Trace result sidecar validation accepts matching sidecars and static BundleGroup metadata, and rejects mismatched browser, scene, delay, flag, benchmark metadata, required launch flags, software-rendered GPU metadata, diagnostic software-rendering opt-in metadata, and invalid static BundleGroup evidence."

@@ -1,0 +1,77 @@
+﻿{
+    "generated_at":  "2026-05-24T10:57:54.1763987Z",
+    "dry_run":  true,
+    "phase":  "planned",
+    "triage_analysis_json":  "C:\\Users\\trevo\\code\\three-browser\\.\\benchmarks\\reports\\targeted-blocker-triage-analysis.json",
+    "targeted_plan_manifest":  "C:\\Users\\trevo\\code\\three-browser\\.\\benchmarks\\reports\\targeted-blocker-experiment-plan.json",
+    "promotion_plan_manifest":  "C:\\Users\\trevo\\code\\three-browser\\.\\benchmarks\\reports\\targeted-suite-promotion-plan.json",
+    "chromium_revision":  "3a94d90ec3c04556622c56944796dd76753e0581",
+    "fork_revision":  "3a94d90ec3c04556622c56944796dd76753e0581+viewerpatch-65b60b64d68f",
+    "options":  {
+                    "duration":  120,
+                    "warmup":  20,
+                    "complexity":  2,
+                    "precompile":  true,
+                    "prerender_frames":  2,
+                    "settle_gpu_after_warmup":  true,
+                    "webgpu_pipeline_quiet_frames":  2,
+                    "webgpu_pipeline_quiet_max_frames":  12,
+                    "label_suffix":  "-warmup-precompile-prerender2-settlegpu",
+                    "webgl2_label_suffix":  "-warmup-precompile-prerender2-settlegpu",
+                    "webgpu_label_suffix":  "-warmup-precompile-prerender2-settlegpu-pipelinequiet2",
+                    "disable_webgpu_timing":  true,
+                    "webgpu_profile_cache_key":  null,
+                    "webgpu_profile_cache_mode":  "fresh-temp",
+                    "profile_cache_root":  null,
+                    "prime_webgpu_profile_cache":  false,
+                    "profile_cache_policy":  "same-profile-cache-mode-and-key",
+                    "profile_cache_prime_policy":  "none",
+                    "run_comparable_baselines":  false,
+                    "max_profiles_per_renderer":  3,
+                    "fresh_profile_confirmation_label_suffix":  "-warmup-precompile-prerender2-settlegpu-fresh-profile-confirmation",
+                    "webgl2_fresh_profile_confirmation_label_suffix":  "-warmup-precompile-prerender2-settlegpu-fresh-profile-confirmation",
+                    "webgpu_fresh_profile_confirmation_label_suffix":  "-warmup-precompile-prerender2-settlegpu-pipelinequiet2-fresh-profile-confirmation"
+                },
+    "required_scenes":  [
+                            "many-draw-calls",
+                            "instancing",
+                            "shader-heavy",
+                            "texture-streaming",
+                            "postprocessing",
+                            "large-static",
+                            "gltf-loader-stress"
+                        ],
+    "required_candidate_renderers":  [
+                                         "webgl2",
+                                         "webgpu"
+                                     ],
+    "promotion_profiles":  [
+
+                           ],
+    "cache_attribution_confirmations":  [
+
+                                        ],
+    "generated_input_list":  "C:\\Users\\trevo\\code\\three-browser\\.\\benchmarks\\reports\\targeted-suite-promotion-analysis-inputs.txt",
+    "generated_input_count":  0,
+    "analysis":  {
+                     "output":  ".\\benchmarks\\reports\\targeted-suite-promotion-analysis.md",
+                     "json":  ".\\benchmarks\\reports\\targeted-suite-promotion-analysis.json",
+                     "min_measured_seconds":  30,
+                     "min_avg_fps_delta_pct":  0.5,
+                     "min_scenes":  7,
+                     "scene_regression_pct":  1,
+                     "dropped_frames_regression":  0,
+                     "cpu_frame_regression_ms":  0.5,
+                     "render_submission_regression_ms":  0.5,
+                     "pipeline_create_regression_ms":  1,
+                     "require_frame_times":  true,
+                     "require_checkout":  true,
+                     "require_package_size":  true,
+                     "expected_input_file_digest":  null,
+                     "expected_chromium_revision":  "3a94d90ec3c04556622c56944796dd76753e0581",
+                     "expected_fork_revision":  "3a94d90ec3c04556622c56944796dd76753e0581+viewerpatch-65b60b64d68f"
+                 },
+    "steps":  [
+
+              ]
+}

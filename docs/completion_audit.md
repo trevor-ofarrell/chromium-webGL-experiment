@@ -1,57 +1,92 @@
 # Completion Audit
 
-Date: 2026-05-21
+Date: 2026-05-24
 
-This document summarizes the concrete deliverables for the Chromium-derived Three.js viewer runtime.
+This document records the current completion state for the Chromium-derived
+Three.js viewer runtime. It is intentionally fail-closed: historical smoke
+artifacts and dry-run manifests are not treated as final evidence until the
+same-revision stock and fork Chromium builds run successfully on this host.
 
 ## Deliverables
 
-| Deliverable | Evidence |
-| --- | --- |
-| Runnable Chromium-derived viewer binary | `src/out/ReleaseViewerDefault/content_shell.exe` with `three_browser_build_provenance.json` |
-| Stock Chromium baseline binary | `src/out/ReleaseBaseline/content_shell.exe` with `three_browser_build_provenance.json` |
-| Patch series | `chromium_patches/0001-draft-minimal-three-viewer-entrypoint.patch`, `chromium_patches/README.md`, `chromium_patches/minimal_viewer_entrypoint.md` |
-| Bundled Three.js benchmark viewer | `viewer/src/*`, `viewer/dist/index.html`, package copies under `benchmarks/packages/*/viewer` |
-| Machine-readable benchmark results | `benchmarks/raw/*.json` |
-| Human-readable reports | `benchmarks/reports/official-webgl2-comparison.md`, `benchmarks/reports/official-webgpu-comparison.md`, trusted matrix reports, trace summaries |
-| Optimization decision table | `docs/optimization_log.md` |
-| Removed-subsystem register | `docs/removed_subsystems.md` |
-| Stability behavior | `docs/stability_behavior.md` plus one-hour JSON artifacts |
-| Reproduction guide | `README.md`, `docs/build.md`, `docs/benchmark_methodology.md` |
+| Deliverable | Current evidence | Status |
+| --- | --- | --- |
+| Runnable Chromium-derived viewer binary | Expected path: `src/out/ReleaseViewerDefault/content_shell.exe` with `three_browser_build_provenance.json`; current Chromium rebuild is blocked by Windows application control rejecting generated Rust host tools under `src/out`. | blocked |
+| Stock Chromium baseline binary | Expected path: `src/out/ReleaseBaseline/content_shell.exe` with `three_browser_build_provenance.json`; same blocker applies. | blocked |
+| Patch series | `chromium_patches/0001-draft-minimal-three-viewer-entrypoint.patch`, `chromium_patches/0002-draft-webgpu-queue-trace-attribution.patch`, `chromium_patches/README.md`, `chromium_patches/minimal_viewer_entrypoint.md`. | in progress |
+| Bundled Three.js benchmark viewer | `viewer/src/*`, `viewer/dist/index.html`, and package staging scripts exist. | in progress |
+| Machine-readable benchmark results | `benchmarks/raw/*.json` contains historical and diagnostic results; strict candidate analysis currently accepts zero retained performance candidates. | blocked |
+| Human-readable reports | `benchmarks/reports/*` includes official, trusted-matrix, blocker, and candidate-analysis reports; current reports are diagnostic until rebuilt evidence exists. | blocked |
+| Optimization decision table | `docs/optimization_log.md`. Entries marked `blocked` are not retained optimizations. | in progress |
+| Removed-subsystem register | `docs/removed_subsystems.md`. | in progress |
+| Stability behavior | `docs/stability_behavior.md`; one-hour stability artifacts must be regenerated after the rebuild blocker is cleared. | blocked |
+| Reproduction guide | `README.md`, `docs/build.md`, `docs/benchmark_methodology.md`. | in progress |
 
 ## Build Completion
 
-- Stock and fork `content_shell.exe` binaries exist under `src/out`.
-- GN args are reproducible and hash-checked against checked-in profiles.
-- Build provenance files bind binaries to Chromium revision, target hash, source GN args hash, generated GN args hash, and viewer-patch state.
-- Staged packages exist for stock and fork, with package hashes recorded in manifests.
+Build completion is blocked. The current handoff in `docs/build.md` records
+`OSError: [WinError 4551] An Application Control policy has blocked this file`
+while Chromium/Siso runs generated Rust host build scripts from
+`src/out/.../win_clang_x64_for_rust_host_build_tools`.
+
+Required before this section can move to complete:
+
+- Re-run the post-ATL pipeline after the Windows application-control policy is
+  adjusted or the build directory is otherwise allowed.
+- Produce stock and fork `content_shell.exe` binaries from the same Chromium
+  revision.
+- Regenerate build provenance, package manifests, GN args hashes, and patch
+  series hashes from the rebuilt checkout.
 
 ## Runtime Completion
 
-- Fork runtime launches directly into the bundled viewer through `--viewer-app-url`.
-- Browser chrome is suppressed in viewer mode.
-- Runtime smoke validates WebGL2, WebGPU when requested, Canvas, `requestAnimationFrame`, local `fetch`, `performance.now`, texture loading, shader material render, and basic input events.
-- Navigation smoke validates same-origin/file confinement and external navigation refusal.
+Runtime completion is blocked by the missing rebuilt binaries. The source patch
+still targets a direct `--viewer-app-url` launch, no browser chrome, local
+viewer loading, external navigation refusal, WebGL2, WebGPU where available,
+Canvas, `requestAnimationFrame`, local `fetch`, `performance.now`, texture
+loading, shader material rendering, and basic input events.
+
+These claims must be revalidated with rebuilt stock/fork binaries before they
+can be used as final evidence.
 
 ## Performance Completion
 
-- Official WebGL2 and WebGPU reports compare stock, fork default, and fork aggressive D3D11 profiles from the same Chromium revision.
-- Reports include average FPS, low FPS, frame-time percentiles, CPU/JS/submission time, GPU timing where supported, draw calls, triangles, upload sizes, memory, startup, binary size, viewer size, and package size.
-- Trusted WebGL2 matrix compares default, aggressive GPU, in-process GPU, single-process, D3D11, relaxed WebGL validation, Blink-disable reserved gate, and direct-presentation reserved gate.
+Performance completion is not achieved. The latest strict candidate analysis
+for the current patch state reports zero accepted candidates for the required
+WebGL2 and WebGPU renderer gate. Historical results, installed-Chrome smokes,
+short diagnostics, dry-run manifests, trace-instrumented runs, stale revision
+artifacts, software-rendered results, and WebGPU device-loss-contaminated runs
+must remain filtered out.
+
+Required before any speed claim:
+
+- Same-revision stock Chromium baseline, fork default, and fork trusted
+  aggressive suites must run at the required duration, warmup, complexity, and
+  GPU-timing mode.
+- WebGL2 and WebGPU must each pass the required candidate gate with no material
+  scene regression, dropped-frame regression, shader/pipeline-stall regression,
+  software rendering, CPU texture fallback, or device loss.
+- Results must be written to machine-readable JSON and human-readable reports.
 
 ## Stability Completion
 
-- Stock one-hour WebGL2 `instancing` stability: `benchmarks/raw/baseline-content-shell-long-stability-instancing-webgl2.json`
-- Fork one-hour WebGL2 `instancing` stability: `benchmarks/raw/fork-viewer-default-long-stability-instancing-webgl2.json`
-- Both runs used NVIDIA ANGLE D3D11, recorded zero WebGL context loss, zero render errors, RSS delta under 128 MB, and zero renderer geometry/texture/program growth after warmup.
+Stability completion is blocked. One-hour stock and fork stability artifacts
+must be regenerated from the rebuilt binaries and must satisfy the current
+thresholds for crash behavior, WebGL context loss, WebGPU device loss, process
+RSS growth, renderer geometry/texture/program growth, shader/program/texture
+growth, and GPU restart behavior.
 
 ## Remaining Bottlenecks
 
-- Default fork WebGPU is slower than stock in the current official suite, especially shader-heavy, postprocessing, and large-static cases.
-- Default fork WebGL2 improves p99/startup/package size but does not improve average FPS.
-- Process-collapse trusted modes are fast but too risky for default operation.
-- WebGPU timestamp queries are unstable for stress timing on this host and remain disabled for official WebGPU runs.
-- Direct GPU presentation and Blink module trimming need real source implementations before they can be useful.
+- Windows application control currently blocks the Chromium rebuild needed for
+  official evidence.
+- WebGPU is not yet proven faster than stock Chromium; prior WebGPU losses were
+  associated with driver/pipeline stalls, and at least one apparent aggressive
+  win was contaminated by device loss.
+- WebGL2 has plausible trusted fast paths through D3D11 and relaxed validation,
+  but the retained speedup gate still needs rebuilt same-revision evidence.
+- Direct GPU presentation and Blink module trimming remain reserved/no-op gates
+  until implemented and measured.
 
 ## Final Gate
 
@@ -61,4 +96,6 @@ Run:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\audit_artifacts.ps1 -FailOnIncomplete -Output .\docs\prompt_to_artifact_checklist.md
 ```
 
-The generated checklist is the prompt-to-artifact map for the objective.
+The generated checklist is the prompt-to-artifact map for the objective. A
+passing documentation structure test is not a performance claim; only a passing
+final gate with rebuilt same-revision official evidence can close the project.

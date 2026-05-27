@@ -9,6 +9,10 @@ import { spawn, spawnSync } from 'node:child_process';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
+const viewerPatchSeries = [
+  'chromium_patches/0001-draft-minimal-three-viewer-entrypoint.patch',
+  'chromium_patches/0002-draft-webgpu-queue-trace-attribution.patch',
+];
 
 const schemaKeys = [
   'chromium_revision',
@@ -20,6 +24,7 @@ const schemaKeys = [
   'angle_backend',
   'renderer_type',
   'scene_name',
+  'complexity',
   'warmup_seconds',
   'measured_seconds',
   'avg_fps',
@@ -61,25 +66,65 @@ function parseArgs(argv) {
     warmup: '5',
     precompile: false,
     prerenderFrames: '0',
+    settleGpuAfterWarmup: false,
+    pipelineQuietFrames: '0',
+    pipelineQuietMaxFrames: '30',
     disableGpuTiming: false,
+    textureUploadMode: 'canvas',
+    webgpuBundleMode: 'off',
+    queueInstrumentation: false,
+    commandEncoderInstrumentation: false,
+    bindGroupInstrumentation: false,
+    pipelineStateInstrumentation: false,
+    bufferStateInstrumentation: false,
+    renderStateInstrumentation: false,
+    immediateInstrumentation: false,
+    showHud: false,
     viewerDir: path.join(rootDir, 'viewer', 'dist'),
     output: path.join(rootDir, 'benchmarks', 'raw', 'result.json'),
     buildArgs: '',
     packageDir: '',
     forkRevision: '',
+    userDataDir: '',
+    profileCacheKey: '',
     viewerFileMode: false,
     viewerMode: false,
     viewerTrustedContent: false,
     viewerAggressiveGpu: false,
     viewerRelaxedWebglValidation: false,
+    viewerZeroCopy: false,
     viewerInProcessGpu: false,
     viewerSingleProcess: false,
     viewerForceAngleBackend: '',
     viewerDisableUnneededBlinkFeatures: false,
     viewerDirectGpuPresentation: false,
+    viewerDeferWebgpuPipelineFlush: false,
+    viewerDeferWebgpuQueueFlush: false,
+    viewerDeferWebgpuSubmitFlush: false,
+    viewerSkipWebgpuCanvasTextureValidation: false,
+    viewerSkipWebgpuCanvasMemoryAccounting: false,
+    viewerSkipWebgpuCopyExternalImageColorConversion: false,
+    viewerSkipWebgpuCopyExternalImageColorSpaceValidation: false,
+    viewerSkipWebgpuCopyExternalImageDestValidation: false,
+    viewerSkipWebgpuCopyExternalImageSourceValidation: false,
+    viewerSkipWebgpuCopyExternalImageCopySizeValidation: false,
+    viewerSkipWebgpuWriteTextureLayoutValidation: false,
+    viewerRejectWebgpuCpuTextureFallback: false,
+    viewerSkipWebgpuUseCounters: false,
+    viewerCacheWebgpuBindGroupLayouts: false,
+    viewerSkipWebgpuCommandLabels: false,
+    viewerSkipWebgpuResourceLabels: false,
+    viewerSkipWebgpuShaderSourceNullCheck: false,
+    viewerSkipWebgpuShaderMemoryAccounting: false,
+    viewerSkipWebgpuRedundantPipelineSets: false,
+    viewerSkipWebgpuRedundantBindGroupSets: false,
+    viewerSkipWebgpuRedundantBufferSets: false,
+    viewerSkipWebgpuRedundantRenderStateSets: false,
+    viewerTraceWebgpuQueue: false,
     browserFlag: [],
     angleBackend: '',
     unsafeFullSizeWindow: false,
+    allowSoftwareRendering: false,
   };
   const booleanArgs = new Set([
     'viewerMode',
@@ -87,13 +132,47 @@ function parseArgs(argv) {
     'viewerTrustedContent',
     'viewerAggressiveGpu',
     'viewerRelaxedWebglValidation',
+    'viewerZeroCopy',
     'viewerInProcessGpu',
     'viewerSingleProcess',
     'viewerDisableUnneededBlinkFeatures',
     'viewerDirectGpuPresentation',
+    'viewerDeferWebgpuPipelineFlush',
+    'viewerDeferWebgpuQueueFlush',
+    'viewerDeferWebgpuSubmitFlush',
+    'viewerSkipWebgpuCanvasTextureValidation',
+    'viewerSkipWebgpuCanvasMemoryAccounting',
+    'viewerSkipWebgpuCopyExternalImageColorConversion',
+    'viewerSkipWebgpuCopyExternalImageColorSpaceValidation',
+    'viewerSkipWebgpuCopyExternalImageDestValidation',
+    'viewerSkipWebgpuCopyExternalImageSourceValidation',
+    'viewerSkipWebgpuCopyExternalImageCopySizeValidation',
+    'viewerSkipWebgpuWriteTextureLayoutValidation',
+    'viewerRejectWebgpuCpuTextureFallback',
+    'viewerSkipWebgpuUseCounters',
+    'viewerCacheWebgpuBindGroupLayouts',
+    'viewerSkipWebgpuCommandLabels',
+    'viewerSkipWebgpuResourceLabels',
+    'viewerSkipWebgpuShaderSourceNullCheck',
+    'viewerSkipWebgpuShaderMemoryAccounting',
+    'viewerSkipWebgpuRedundantPipelineSets',
+    'viewerSkipWebgpuRedundantBindGroupSets',
+    'viewerSkipWebgpuRedundantBufferSets',
+    'viewerSkipWebgpuRedundantRenderStateSets',
+    'viewerTraceWebgpuQueue',
     'precompile',
+    'settleGpuAfterWarmup',
     'disableGpuTiming',
+    'queueInstrumentation',
+    'commandEncoderInstrumentation',
+    'bindGroupInstrumentation',
+    'pipelineStateInstrumentation',
+    'bufferStateInstrumentation',
+    'renderStateInstrumentation',
+    'immediateInstrumentation',
+    'showHud',
     'unsafeFullSizeWindow',
+    'allowSoftwareRendering',
   ]);
 
   for (let i = 2; i < argv.length; i += 1) {
@@ -112,24 +191,222 @@ function parseArgs(argv) {
       throw new Error(`Unknown argument: ${token}`);
     }
   }
+  if (!['canvas', 'data'].includes(args.textureUploadMode)) {
+    throw new Error('--textureUploadMode must be canvas or data');
+  }
+  if (!['off', 'static'].includes(args.webgpuBundleMode)) {
+    throw new Error('--webgpuBundleMode must be off or static');
+  }
+  if (args.webgpuBundleMode !== 'off' && args.renderer !== 'webgpu') {
+    throw new Error('--webgpuBundleMode is only supported for --renderer webgpu');
+  }
+  if (Number(args.pipelineQuietFrames) < 0 || Number(args.pipelineQuietMaxFrames) < 0) {
+    throw new Error('--pipelineQuietFrames and --pipelineQuietMaxFrames must be non-negative');
+  }
+  if (Number(args.pipelineQuietFrames) > 0 && args.renderer !== 'webgpu') {
+    throw new Error('--pipelineQuietFrames is only supported for --renderer webgpu');
+  }
+  if (args.bindGroupInstrumentation && args.renderer !== 'webgpu') {
+    throw new Error('--bindGroupInstrumentation is only supported for --renderer webgpu');
+  }
+  if (args.commandEncoderInstrumentation && args.renderer !== 'webgpu') {
+    throw new Error('--commandEncoderInstrumentation is only supported for --renderer webgpu');
+  }
+  if (args.pipelineStateInstrumentation && args.renderer !== 'webgpu') {
+    throw new Error('--pipelineStateInstrumentation is only supported for --renderer webgpu');
+  }
+  if (args.bufferStateInstrumentation && args.renderer !== 'webgpu') {
+    throw new Error('--bufferStateInstrumentation is only supported for --renderer webgpu');
+  }
+  if (args.renderStateInstrumentation && args.renderer !== 'webgpu') {
+    throw new Error('--renderStateInstrumentation is only supported for --renderer webgpu');
+  }
+  if (args.immediateInstrumentation && args.renderer !== 'webgpu') {
+    throw new Error('--immediateInstrumentation is only supported for --renderer webgpu');
+  }
   return args;
+}
+
+function isPathInside(child, parent) {
+  const relative = path.relative(parent, child);
+  return relative.length > 0 && !relative.startsWith('..') && !path.isAbsolute(relative);
+}
+
+function planUserDataProfile(args) {
+  const tmpRoot = path.resolve(rootDir, 'benchmarks', 'tmp');
+  const requestedUserDataDir = String(args.userDataDir || '').trim();
+  const requestedCacheKey = String(args.profileCacheKey || '').trim();
+
+  if (!requestedUserDataDir) {
+    if (requestedCacheKey) {
+      throw new Error('--profileCacheKey requires --userDataDir.');
+    }
+    return {
+      tmpRoot,
+      userDataDir: '',
+      profile_cache_mode: 'fresh-temp',
+      profile_cache_key: null,
+      profile_reuse_enabled: false,
+      profile_dir_created_by_runner: true,
+    };
+  }
+
+  const resolvedUserDataDir = path.resolve(requestedUserDataDir);
+  if (!isPathInside(resolvedUserDataDir, tmpRoot)) {
+    throw new Error(`--userDataDir must resolve under ${tmpRoot} so benchmark profile reuse cannot touch unrelated browser profiles.`);
+  }
+  if (!requestedCacheKey) {
+    throw new Error('--userDataDir requires --profileCacheKey so warmed-profile comparisons are labeled and cannot mix with cold baselines.');
+  }
+
+  return {
+    tmpRoot,
+    userDataDir: resolvedUserDataDir,
+    profile_cache_mode: 'explicit-reuse',
+    profile_cache_key: requestedCacheKey,
+    profile_reuse_enabled: true,
+    profile_dir_created_by_runner: !fs.existsSync(resolvedUserDataDir),
+  };
+}
+
+function materializeUserDataProfile(profilePlan) {
+  fs.mkdirSync(profilePlan.tmpRoot, { recursive: true });
+  if (profilePlan.userDataDir) {
+    fs.mkdirSync(profilePlan.userDataDir, { recursive: true });
+    return profilePlan.userDataDir;
+  }
+  return fs.mkdtempSync(path.join(profilePlan.tmpRoot, 'profile-'));
 }
 
 function assertTrustedViewerExperimentGates(args) {
   const unsafeFlags = [
     ['viewerAggressiveGpu', args.viewerAggressiveGpu],
     ['viewerRelaxedWebglValidation', args.viewerRelaxedWebglValidation],
+    ['viewerZeroCopy', args.viewerZeroCopy],
     ['viewerInProcessGpu', args.viewerInProcessGpu],
     ['viewerSingleProcess', args.viewerSingleProcess],
     ['viewerForceAngleBackend', Boolean(args.viewerForceAngleBackend)],
     ['viewerDisableUnneededBlinkFeatures', args.viewerDisableUnneededBlinkFeatures],
     ['viewerDirectGpuPresentation', args.viewerDirectGpuPresentation],
+    ['viewerDeferWebgpuPipelineFlush', args.viewerDeferWebgpuPipelineFlush],
+    ['viewerDeferWebgpuQueueFlush', args.viewerDeferWebgpuQueueFlush],
+    ['viewerDeferWebgpuSubmitFlush', args.viewerDeferWebgpuSubmitFlush],
+    ['viewerSkipWebgpuCanvasTextureValidation', args.viewerSkipWebgpuCanvasTextureValidation],
+    ['viewerSkipWebgpuCanvasMemoryAccounting', args.viewerSkipWebgpuCanvasMemoryAccounting],
+    ['viewerSkipWebgpuCopyExternalImageColorConversion', args.viewerSkipWebgpuCopyExternalImageColorConversion],
+    ['viewerSkipWebgpuCopyExternalImageColorSpaceValidation', args.viewerSkipWebgpuCopyExternalImageColorSpaceValidation],
+    ['viewerSkipWebgpuCopyExternalImageDestValidation', args.viewerSkipWebgpuCopyExternalImageDestValidation],
+    ['viewerSkipWebgpuCopyExternalImageSourceValidation', args.viewerSkipWebgpuCopyExternalImageSourceValidation],
+    ['viewerSkipWebgpuCopyExternalImageCopySizeValidation', args.viewerSkipWebgpuCopyExternalImageCopySizeValidation],
+    ['viewerSkipWebgpuWriteTextureLayoutValidation', args.viewerSkipWebgpuWriteTextureLayoutValidation],
+    ['viewerRejectWebgpuCpuTextureFallback', args.viewerRejectWebgpuCpuTextureFallback],
+    ['viewerSkipWebgpuUseCounters', args.viewerSkipWebgpuUseCounters],
+    ['viewerCacheWebgpuBindGroupLayouts', args.viewerCacheWebgpuBindGroupLayouts],
+    ['viewerSkipWebgpuCommandLabels', args.viewerSkipWebgpuCommandLabels],
+    ['viewerSkipWebgpuResourceLabels', args.viewerSkipWebgpuResourceLabels],
+    ['viewerSkipWebgpuShaderSourceNullCheck', args.viewerSkipWebgpuShaderSourceNullCheck],
+    ['viewerSkipWebgpuShaderMemoryAccounting', args.viewerSkipWebgpuShaderMemoryAccounting],
+    ['viewerSkipWebgpuRedundantPipelineSets', args.viewerSkipWebgpuRedundantPipelineSets],
+    ['viewerSkipWebgpuRedundantBindGroupSets', args.viewerSkipWebgpuRedundantBindGroupSets],
+    ['viewerSkipWebgpuRedundantBufferSets', args.viewerSkipWebgpuRedundantBufferSets],
+    ['viewerSkipWebgpuRedundantRenderStateSets', args.viewerSkipWebgpuRedundantRenderStateSets],
+    ['viewerTraceWebgpuQueue', args.viewerTraceWebgpuQueue],
   ].filter(([, enabled]) => enabled).map(([name]) => `--${name}`);
+  const unsafeBrowserFlags = args.browserFlag.filter((flag) => (
+    flag === '--use-webgpu-adapter' ||
+    flag.startsWith('--use-webgpu-adapter=') ||
+    flag === '--enable-dawn-features' ||
+    flag.startsWith('--enable-dawn-features=') ||
+    flag === '--disable-dawn-features' ||
+    flag.startsWith('--disable-dawn-features=') ||
+    flag === '--enable-features' ||
+    flag.startsWith('--enable-features=') ||
+    flag === '--disable-features' ||
+    flag.startsWith('--disable-features=') ||
+    flag === '--enable-gpu-memory-buffer-compositor-resources' ||
+    flag === '--ui-enable-zero-copy' ||
+    flag === '--enable-gpu-rasterization' ||
+    flag === '--disable-frame-rate-limit' ||
+    flag === '--disable-gpu-vsync'
+  ));
+  unsafeFlags.push(...unsafeBrowserFlags);
 
   if (unsafeFlags.length && (!args.viewerMode || !args.viewerTrustedContent)) {
     throw new Error(
-      `Unsafe viewer experiment flags require --viewerMode and --viewerTrustedContent: ${unsafeFlags.join(', ')}`,
+      `Unsafe viewer/browser experiment flags require --viewerMode and --viewerTrustedContent: ${unsafeFlags.join(', ')}`,
     );
+  }
+  if (args.viewerZeroCopy && args.renderer !== 'webgl2') {
+    throw new Error('--viewerZeroCopy is currently restricted to --renderer webgl2 because WebGPU zero-copy evidence regressed.');
+  }
+  if (args.viewerDeferWebgpuPipelineFlush && args.renderer !== 'webgpu') {
+    throw new Error('--viewerDeferWebgpuPipelineFlush is only valid with --renderer webgpu.');
+  }
+  if (args.viewerDeferWebgpuQueueFlush && args.renderer !== 'webgpu') {
+    throw new Error('--viewerDeferWebgpuQueueFlush is only valid with --renderer webgpu.');
+  }
+  if (args.viewerDeferWebgpuSubmitFlush && args.renderer !== 'webgpu') {
+    throw new Error('--viewerDeferWebgpuSubmitFlush is only valid with --renderer webgpu.');
+  }
+  if (args.viewerSkipWebgpuCanvasTextureValidation && args.renderer !== 'webgpu') {
+    throw new Error('--viewerSkipWebgpuCanvasTextureValidation is only valid with --renderer webgpu.');
+  }
+  if (args.viewerSkipWebgpuCanvasMemoryAccounting && args.renderer !== 'webgpu') {
+    throw new Error('--viewerSkipWebgpuCanvasMemoryAccounting is only valid with --renderer webgpu.');
+  }
+  if (args.viewerSkipWebgpuCopyExternalImageColorConversion && args.renderer !== 'webgpu') {
+    throw new Error('--viewerSkipWebgpuCopyExternalImageColorConversion is only valid with --renderer webgpu.');
+  }
+  if (args.viewerSkipWebgpuCopyExternalImageColorSpaceValidation && args.renderer !== 'webgpu') {
+    throw new Error('--viewerSkipWebgpuCopyExternalImageColorSpaceValidation is only valid with --renderer webgpu.');
+  }
+  if (args.viewerSkipWebgpuCopyExternalImageDestValidation && args.renderer !== 'webgpu') {
+    throw new Error('--viewerSkipWebgpuCopyExternalImageDestValidation is only valid with --renderer webgpu.');
+  }
+  if (args.viewerSkipWebgpuCopyExternalImageSourceValidation && args.renderer !== 'webgpu') {
+    throw new Error('--viewerSkipWebgpuCopyExternalImageSourceValidation is only valid with --renderer webgpu.');
+  }
+  if (args.viewerSkipWebgpuCopyExternalImageCopySizeValidation && args.renderer !== 'webgpu') {
+    throw new Error('--viewerSkipWebgpuCopyExternalImageCopySizeValidation is only valid with --renderer webgpu.');
+  }
+  if (args.viewerSkipWebgpuWriteTextureLayoutValidation && args.renderer !== 'webgpu') {
+    throw new Error('--viewerSkipWebgpuWriteTextureLayoutValidation is only valid with --renderer webgpu.');
+  }
+  if (args.viewerRejectWebgpuCpuTextureFallback && args.renderer !== 'webgpu') {
+    throw new Error('--viewerRejectWebgpuCpuTextureFallback is only valid with --renderer webgpu.');
+  }
+  if (args.viewerSkipWebgpuUseCounters && args.renderer !== 'webgpu') {
+    throw new Error('--viewerSkipWebgpuUseCounters is only valid with --renderer webgpu.');
+  }
+  if (args.viewerCacheWebgpuBindGroupLayouts && args.renderer !== 'webgpu') {
+    throw new Error('--viewerCacheWebgpuBindGroupLayouts is only valid with --renderer webgpu.');
+  }
+  if (args.viewerSkipWebgpuCommandLabels && args.renderer !== 'webgpu') {
+    throw new Error('--viewerSkipWebgpuCommandLabels is only valid with --renderer webgpu.');
+  }
+  if (args.viewerSkipWebgpuResourceLabels && args.renderer !== 'webgpu') {
+    throw new Error('--viewerSkipWebgpuResourceLabels is only valid with --renderer webgpu.');
+  }
+  if (args.viewerSkipWebgpuShaderSourceNullCheck && args.renderer !== 'webgpu') {
+    throw new Error('--viewerSkipWebgpuShaderSourceNullCheck is only valid with --renderer webgpu.');
+  }
+  if (args.viewerSkipWebgpuShaderMemoryAccounting && args.renderer !== 'webgpu') {
+    throw new Error('--viewerSkipWebgpuShaderMemoryAccounting is only valid with --renderer webgpu.');
+  }
+  if (args.viewerSkipWebgpuRedundantPipelineSets && args.renderer !== 'webgpu') {
+    throw new Error('--viewerSkipWebgpuRedundantPipelineSets is only valid with --renderer webgpu.');
+  }
+  if (args.viewerSkipWebgpuRedundantBindGroupSets && args.renderer !== 'webgpu') {
+    throw new Error('--viewerSkipWebgpuRedundantBindGroupSets is only valid with --renderer webgpu.');
+  }
+  if (args.viewerSkipWebgpuRedundantBufferSets && args.renderer !== 'webgpu') {
+    throw new Error('--viewerSkipWebgpuRedundantBufferSets is only valid with --renderer webgpu.');
+  }
+  if (args.viewerSkipWebgpuRedundantRenderStateSets && args.renderer !== 'webgpu') {
+    throw new Error('--viewerSkipWebgpuRedundantRenderStateSets is only valid with --renderer webgpu.');
+  }
+  if (args.viewerTraceWebgpuQueue && args.renderer !== 'webgpu') {
+    throw new Error('--viewerTraceWebgpuQueue is only valid with --renderer webgpu.');
   }
 }
 
@@ -151,6 +428,53 @@ function addSafeDesktopFlags(flags, extraFlags) {
   pushDefaultFlag(flags, extraFlags, '--force-device-scale-factor=1');
 }
 
+function softwareRendererReason(metadata) {
+  const haystack = [
+    metadata?.gpu_name,
+    metadata?.driver_version,
+    metadata?.angle_backend,
+  ]
+    .filter((value) => typeof value === 'string')
+    .join(' ')
+    .toLowerCase();
+
+  if (!haystack) return '';
+
+  const patterns = [
+    ['swiftshader', 'SwiftShader'],
+    ['llvmpipe', 'llvmpipe'],
+    ['softpipe', 'softpipe'],
+    ['software rasterizer', 'software rasterizer'],
+    ['software renderer', 'software renderer'],
+    ['microsoft basic render driver', 'Microsoft Basic Render Driver'],
+    ['microsoft basic renderer', 'Microsoft Basic Renderer'],
+    ['warp', 'WARP'],
+  ];
+
+  const match = patterns.find(([pattern]) => haystack.includes(pattern));
+  return match ? match[1] : '';
+}
+
+function gpuMetadataFromSystemInfo(systemInfo, angleBackend = null) {
+  const gpuDevice = systemInfo?.gpu?.devices?.[0] || null;
+  return {
+    gpu_name: gpuDevice?.deviceString || null,
+    driver_version: gpuDevice?.driverVendor || gpuDevice?.driverVersion || null,
+    angle_backend: angleBackend,
+  };
+}
+
+function assertNoSoftwareRenderer(metadata, context, allowSoftwareRendering) {
+  const reason = softwareRendererReason(metadata);
+  if (!reason || allowSoftwareRendering) return;
+
+  throw new Error(
+    `${context} reported software-rendered GPU path (${reason}). ` +
+    'Benchmark evidence must use hardware GPU acceleration; rerun after fixing the driver/GPU path, ' +
+    'or pass --allowSoftwareRendering only for diagnostic failure-mode runs that will not be retained as speed evidence.',
+  );
+}
+
 function ensureFile(file, label) {
   if (!file || !fs.existsSync(file)) {
     throw new Error(`${label} not found: ${file}`);
@@ -163,6 +487,18 @@ function readTextIfExists(file) {
 
 function sha256Text(text) {
   return crypto.createHash('sha256').update(text).digest('hex');
+}
+
+function getViewerPatchRevision(chromiumRevision) {
+  if (!chromiumRevision) return null;
+  const entries = [];
+  for (const patchRelativePath of viewerPatchSeries) {
+    const patchPath = path.join(rootDir, patchRelativePath);
+    if (!fs.existsSync(patchPath)) return null;
+    entries.push(`${patchRelativePath}=${sha256Text(fs.readFileSync(patchPath))}`);
+  }
+  const patchHash = sha256Text(entries.join('\n')).slice(0, 12);
+  return `${chromiumRevision}+viewerpatch-${patchHash}`;
 }
 
 function bytesToMb(bytes) {
@@ -461,6 +797,80 @@ function parseBenchmarkConsoleResult(values) {
   return null;
 }
 
+function flagValues(flags, switchName) {
+  const values = [];
+  const prefix = `${switchName}=`;
+  for (let index = 0; index < flags.length; index += 1) {
+    const flag = flags[index];
+    if (flag === switchName && index + 1 < flags.length) {
+      values.push(flags[index + 1]);
+      index += 1;
+    } else if (flag.startsWith(prefix)) {
+      values.push(flag.slice(prefix.length));
+    }
+  }
+  return values;
+}
+
+function flagTokenListIncludes(flags, switchName, token) {
+  return flagValues(flags, switchName).some((value) => value.split(',').some((part) => {
+    const normalized = part.trim().split(':', 1)[0];
+    return normalized === token;
+  }));
+}
+
+function viewerUrlMetadata(viewerUrl) {
+  const url = new URL(viewerUrl);
+  return {
+    viewer_url: viewerUrl,
+    viewer_url_scheme: url.protocol.replace(/:$/, ''),
+    viewer_origin: url.origin === 'null' ? null : url.origin,
+  };
+}
+
+function webGpuBlobCacheMetadata(args, viewerUrl) {
+  const launch = viewerUrlMetadata(viewerUrl);
+  const originEligible =
+    args.renderer === 'webgpu' &&
+    (launch.viewer_url_scheme === 'http' || launch.viewer_url_scheme === 'https') &&
+    Boolean(launch.viewer_origin);
+  const explicitDisable = flagTokenListIncludes(args.browserFlag, '--enable-dawn-features', 'disable_blob_cache');
+  const hashValidationDisabled =
+    flagTokenListIncludes(args.browserFlag, '--disable-dawn-features', 'blob_cache_hash_validation');
+  const expectedAvailable = originEligible && !explicitDisable;
+  let reason = 'not-webgpu';
+  if (args.renderer === 'webgpu') {
+    if (!originEligible) {
+      reason = `viewer-url-scheme-${launch.viewer_url_scheme}`;
+    } else if (explicitDisable) {
+      reason = 'dawn-disable_blob_cache-toggle';
+    } else {
+      reason = 'local-http-origin';
+    }
+  }
+  return {
+    ...launch,
+    webgpu_blob_cache_origin_eligible: originEligible,
+    webgpu_blob_cache_disabled_by_explicit_toggle: explicitDisable,
+    webgpu_blob_cache_expected_available: expectedAvailable,
+    webgpu_blob_cache_hash_validation_disabled: hashValidationDisabled,
+    webgpu_blob_cache_eligibility_reason: reason,
+  };
+}
+
+function assertWebGpuBlobCacheExperimentEligible(metadata, args) {
+  if (
+    args.renderer === 'webgpu' &&
+    metadata.webgpu_blob_cache_hash_validation_disabled &&
+    !metadata.webgpu_blob_cache_expected_available
+  ) {
+    throw new Error(
+      'WebGPU blob-cache hash-validation experiments require a cache-eligible local HTTP(S) viewer origin and must not enable Dawn disable_blob_cache. ' +
+      `Current cache eligibility: ${metadata.webgpu_blob_cache_eligibility_reason}.`
+    );
+  }
+}
+
 function percentile(sorted, fraction) {
   if (!sorted.length) return null;
   const index = Math.min(sorted.length - 1, Math.max(0, Math.floor((sorted.length - 1) * fraction)));
@@ -474,6 +884,19 @@ function ensureSchema(result) {
   return result;
 }
 
+function assertFiniteBenchmarkNumber(value, name, { allowZero = false } = {}) {
+  if (!Number.isFinite(value) || value < 0 || (!allowZero && value === 0)) {
+    const qualifier = allowZero ? 'a non-negative finite number' : 'a positive finite number';
+    throw new Error(`--${name} must be ${qualifier}`);
+  }
+}
+
+function assertNonNegativeIntegerBenchmarkNumber(value, name) {
+  if (!Number.isInteger(value) || value < 0) {
+    throw new Error(`--${name} must be a non-negative integer`);
+  }
+}
+
 async function main() {
   const args = parseArgs(process.argv);
   assertTrustedViewerExperimentGates(args);
@@ -482,6 +905,19 @@ async function main() {
   const duration = Number(args.duration);
   const warmup = Number(args.warmup);
   const complexity = Number(args.complexity);
+  const prerenderFrames = Number(args.prerenderFrames);
+  const pipelineQuietFrames = Number(args.pipelineQuietFrames);
+  const pipelineQuietMaxFrames = Number(args.pipelineQuietMaxFrames);
+  assertFiniteBenchmarkNumber(duration, 'duration');
+  assertFiniteBenchmarkNumber(warmup, 'warmup', { allowZero: true });
+  assertFiniteBenchmarkNumber(complexity, 'complexity');
+  assertNonNegativeIntegerBenchmarkNumber(prerenderFrames, 'prerenderFrames');
+  assertNonNegativeIntegerBenchmarkNumber(pipelineQuietFrames, 'pipelineQuietFrames');
+  assertNonNegativeIntegerBenchmarkNumber(pipelineQuietMaxFrames, 'pipelineQuietMaxFrames');
+  if (pipelineQuietFrames > 0 && pipelineQuietMaxFrames < pipelineQuietFrames) {
+    throw new Error('--pipelineQuietMaxFrames must be greater than or equal to --pipelineQuietFrames when pipeline-quiet warmup is enabled');
+  }
+  const profilePlan = planUserDataProfile(args);
 
   ensureFile(browser, 'Browser executable');
   ensureFile(path.join(viewerDir, 'index.html'), 'Built viewer index');
@@ -505,17 +941,30 @@ async function main() {
     duration: String(duration),
     warmup: String(warmup),
     precompile: args.precompile ? '1' : '0',
-    prerenderFrames: String(args.prerenderFrames),
+    prerenderFrames: String(prerenderFrames),
+    settleGpuAfterWarmup: args.settleGpuAfterWarmup ? '1' : '0',
+    pipelineQuietFrames: String(pipelineQuietFrames),
+    pipelineQuietMaxFrames: String(pipelineQuietMaxFrames),
     gpuTiming: args.disableGpuTiming ? '0' : '1',
+    textureUploadMode: args.textureUploadMode,
+    webgpuBundleMode: args.webgpuBundleMode,
+    queueInstrumentation: args.queueInstrumentation ? '1' : '0',
+    commandEncoderInstrumentation: args.commandEncoderInstrumentation ? '1' : '0',
+    bindGroupInstrumentation: args.bindGroupInstrumentation ? '1' : '0',
+    pipelineStateInstrumentation: args.pipelineStateInstrumentation ? '1' : '0',
+    bufferStateInstrumentation: args.bufferStateInstrumentation ? '1' : '0',
+    renderStateInstrumentation: args.renderStateInstrumentation ? '1' : '0',
+    immediateInstrumentation: args.immediateInstrumentation ? '1' : '0',
+    showHud: args.showHud ? '1' : '0',
   });
   const viewerIndex = path.join(viewerDir, 'index.html');
   const viewerUrl = args.viewerFileMode
     ? `${pathToFileURL(viewerIndex).href}?${query.toString()}`
     : `http://127.0.0.1:${viewerPort}/?${query.toString()}`;
   const expectedPageUrl = args.viewerFileMode ? pathToFileURL(viewerIndex).href : `http://127.0.0.1:${viewerPort}/`;
-  const tmpRoot = path.join(rootDir, 'benchmarks', 'tmp');
-  fs.mkdirSync(tmpRoot, { recursive: true });
-  const userDataDir = fs.mkdtempSync(path.join(tmpRoot, 'profile-'));
+  const launchMetadata = webGpuBlobCacheMetadata(args, viewerUrl);
+  assertWebGpuBlobCacheExperimentEligible(launchMetadata, args);
+  const userDataDir = materializeUserDataProfile(profilePlan);
   const checkoutRevision = getGitRevision(path.join(rootDir, 'src'));
   const pinnedChromiumRevision = readTextIfExists(path.join(rootDir, '.chromium_revision')).trim() || checkoutRevision;
   const buildArgsPath = args.buildArgs ? path.resolve(args.buildArgs) : '';
@@ -526,7 +975,8 @@ async function main() {
   const browserIsFromCheckout = browser.startsWith(`${srcDir}${path.sep}`);
   const chromiumRevision = browserIsFromCheckout ? pinnedChromiumRevision : browserVersion;
   const isForkVariant = args.variant.toLowerCase().includes('fork');
-  const forkRevision = args.forkRevision || (browserIsFromCheckout && isForkVariant ? checkoutRevision : null);
+  const forkRevision = args.forkRevision ||
+    (browserIsFromCheckout && isForkVariant ? getViewerPatchRevision(chromiumRevision) : null);
   const requestedAngleBackend = args.angleBackend || args.viewerForceAngleBackend || null;
 
   const browserArgs = [
@@ -568,6 +1018,9 @@ async function main() {
   if (args.viewerRelaxedWebglValidation) {
     browserArgs.push('--viewer-relaxed-webgl-validation');
   }
+  if (args.viewerZeroCopy) {
+    browserArgs.push('--viewer-zero-copy');
+  }
   if (args.viewerInProcessGpu) {
     browserArgs.push('--viewer-in-process-gpu');
   }
@@ -582,6 +1035,75 @@ async function main() {
   }
   if (args.viewerDirectGpuPresentation) {
     browserArgs.push('--viewer-direct-gpu-presentation');
+  }
+  if (args.viewerDeferWebgpuPipelineFlush) {
+    browserArgs.push('--viewer-defer-webgpu-pipeline-flush');
+  }
+  if (args.viewerDeferWebgpuQueueFlush) {
+    browserArgs.push('--viewer-defer-webgpu-queue-flush');
+  }
+  if (args.viewerDeferWebgpuSubmitFlush) {
+    browserArgs.push('--viewer-defer-webgpu-submit-flush');
+  }
+  if (args.viewerSkipWebgpuCanvasTextureValidation) {
+    browserArgs.push('--viewer-skip-webgpu-canvas-texture-validation');
+  }
+  if (args.viewerSkipWebgpuCanvasMemoryAccounting) {
+    browserArgs.push('--viewer-skip-webgpu-canvas-memory-accounting');
+  }
+  if (args.viewerSkipWebgpuCopyExternalImageColorConversion) {
+    browserArgs.push('--viewer-skip-webgpu-copy-external-image-color-conversion');
+  }
+  if (args.viewerSkipWebgpuCopyExternalImageColorSpaceValidation) {
+    browserArgs.push('--viewer-skip-webgpu-copy-external-image-color-space-validation');
+  }
+  if (args.viewerSkipWebgpuCopyExternalImageDestValidation) {
+    browserArgs.push('--viewer-skip-webgpu-copy-external-image-dest-validation');
+  }
+  if (args.viewerSkipWebgpuCopyExternalImageSourceValidation) {
+    browserArgs.push('--viewer-skip-webgpu-copy-external-image-source-validation');
+  }
+  if (args.viewerSkipWebgpuCopyExternalImageCopySizeValidation) {
+    browserArgs.push('--viewer-skip-webgpu-copy-external-image-copy-size-validation');
+  }
+  if (args.viewerSkipWebgpuWriteTextureLayoutValidation) {
+    browserArgs.push('--viewer-skip-webgpu-write-texture-layout-validation');
+  }
+  if (args.viewerRejectWebgpuCpuTextureFallback) {
+    browserArgs.push('--viewer-reject-webgpu-cpu-texture-fallback');
+  }
+  if (args.viewerSkipWebgpuUseCounters) {
+    browserArgs.push('--viewer-skip-webgpu-use-counters');
+  }
+  if (args.viewerCacheWebgpuBindGroupLayouts) {
+    browserArgs.push('--viewer-cache-webgpu-bind-group-layouts');
+  }
+  if (args.viewerSkipWebgpuCommandLabels) {
+    browserArgs.push('--viewer-skip-webgpu-command-labels');
+  }
+  if (args.viewerSkipWebgpuResourceLabels) {
+    browserArgs.push('--viewer-skip-webgpu-resource-labels');
+  }
+  if (args.viewerSkipWebgpuShaderSourceNullCheck) {
+    browserArgs.push('--viewer-skip-webgpu-shader-source-null-check');
+  }
+  if (args.viewerSkipWebgpuShaderMemoryAccounting) {
+    browserArgs.push('--viewer-skip-webgpu-shader-memory-accounting');
+  }
+  if (args.viewerSkipWebgpuRedundantPipelineSets) {
+    browserArgs.push('--viewer-skip-webgpu-redundant-pipeline-sets');
+  }
+  if (args.viewerSkipWebgpuRedundantBindGroupSets) {
+    browserArgs.push('--viewer-skip-webgpu-redundant-bind-group-sets');
+  }
+  if (args.viewerSkipWebgpuRedundantBufferSets) {
+    browserArgs.push('--viewer-skip-webgpu-redundant-buffer-sets');
+  }
+  if (args.viewerSkipWebgpuRedundantRenderStateSets) {
+    browserArgs.push('--viewer-skip-webgpu-redundant-render-state-sets');
+  }
+  if (args.viewerTraceWebgpuQueue) {
+    browserArgs.push('--viewer-trace-webgpu-queue');
   }
   browserArgs.push(...args.browserFlag);
   if (!args.viewerMode) {
@@ -620,6 +1142,12 @@ async function main() {
     const page = await waitForPageTarget(debugPort, expectedPageUrl, 30000);
     cdp = new CdpClient(page.webSocketDebuggerUrl);
     await cdp.connect();
+    const launchSystemInfo = await cdp.send('SystemInfo.getInfo').catch(() => null);
+    assertNoSoftwareRenderer(
+      gpuMetadataFromSystemInfo(launchSystemInfo, requestedAngleBackend),
+      'Hardware-GPU launch preflight',
+      args.allowSoftwareRendering,
+    );
 
     let result = null;
     const consoleErrors = [];
@@ -656,13 +1184,14 @@ async function main() {
     }
 
     const perfMetrics = await cdp.send('Performance.getMetrics').catch(() => null);
-    const systemInfo = await cdp.send('SystemInfo.getInfo').catch(() => null);
+    const systemInfo = launchSystemInfo || await cdp.send('SystemInfo.getInfo').catch(() => null);
     const jsHeap = perfMetrics?.metrics?.find((metric) => metric.name === 'JSHeapUsedSize')?.value;
     const gpuDevice = systemInfo?.gpu?.devices?.[0] || null;
 
     result.chromium_revision = result.chromium_revision || chromiumRevision || null;
     result.fork_revision = result.fork_revision || forkRevision || null;
     result.build_args_hash = result.build_args_hash || (buildArgsText ? sha256Text(buildArgsText) : null);
+    result.complexity = result.complexity ?? complexity;
     result.benchmark_variant = args.variant;
     result.viewer_mode = args.viewerMode;
     result.viewer_block_external_navigation = args.viewerMode;
@@ -670,14 +1199,80 @@ async function main() {
     result.viewer_trusted_content = args.viewerTrustedContent;
     result.viewer_aggressive_gpu = args.viewerAggressiveGpu;
     result.viewer_relaxed_webgl_validation = args.viewerRelaxedWebglValidation;
+    result.viewer_zero_copy = args.viewerZeroCopy;
     result.viewer_in_process_gpu = args.viewerInProcessGpu;
     result.viewer_single_process = args.viewerSingleProcess;
     result.viewer_force_angle_backend = args.viewerForceAngleBackend || null;
     result.viewer_disable_unneeded_blink_features = args.viewerDisableUnneededBlinkFeatures;
     result.viewer_direct_gpu_presentation = args.viewerDirectGpuPresentation;
+    result.viewer_defer_webgpu_pipeline_flush = args.viewerDeferWebgpuPipelineFlush;
+    result.viewer_defer_webgpu_queue_flush = args.viewerDeferWebgpuQueueFlush;
+    result.viewer_defer_webgpu_submit_flush = args.viewerDeferWebgpuSubmitFlush;
+    result.viewer_skip_webgpu_canvas_texture_validation = args.viewerSkipWebgpuCanvasTextureValidation;
+    result.viewer_skip_webgpu_canvas_memory_accounting = args.viewerSkipWebgpuCanvasMemoryAccounting;
+    result.viewer_skip_webgpu_copy_external_image_color_conversion =
+      args.viewerSkipWebgpuCopyExternalImageColorConversion;
+    result.viewer_skip_webgpu_copy_external_image_color_space_validation =
+      args.viewerSkipWebgpuCopyExternalImageColorSpaceValidation;
+    result.viewer_skip_webgpu_copy_external_image_dest_validation =
+      args.viewerSkipWebgpuCopyExternalImageDestValidation;
+    result.viewer_skip_webgpu_copy_external_image_source_validation =
+      args.viewerSkipWebgpuCopyExternalImageSourceValidation;
+    result.viewer_skip_webgpu_copy_external_image_copy_size_validation =
+      args.viewerSkipWebgpuCopyExternalImageCopySizeValidation;
+    result.viewer_skip_webgpu_write_texture_layout_validation =
+      args.viewerSkipWebgpuWriteTextureLayoutValidation;
+    result.viewer_reject_webgpu_cpu_texture_fallback = args.viewerRejectWebgpuCpuTextureFallback;
+    result.viewer_skip_webgpu_use_counters = args.viewerSkipWebgpuUseCounters;
+    result.viewer_cache_webgpu_bind_group_layouts = args.viewerCacheWebgpuBindGroupLayouts;
+    result.viewer_skip_webgpu_command_labels = args.viewerSkipWebgpuCommandLabels;
+    result.viewer_skip_webgpu_resource_labels = args.viewerSkipWebgpuResourceLabels;
+    result.viewer_skip_webgpu_shader_source_null_check =
+      args.viewerSkipWebgpuShaderSourceNullCheck;
+    result.viewer_skip_webgpu_shader_memory_accounting =
+      args.viewerSkipWebgpuShaderMemoryAccounting;
+    result.viewer_skip_webgpu_redundant_pipeline_sets =
+      args.viewerSkipWebgpuRedundantPipelineSets;
+    result.viewer_skip_webgpu_redundant_bind_group_sets =
+      args.viewerSkipWebgpuRedundantBindGroupSets;
+    result.viewer_skip_webgpu_redundant_buffer_sets =
+      args.viewerSkipWebgpuRedundantBufferSets;
+    result.viewer_skip_webgpu_redundant_render_state_sets =
+      args.viewerSkipWebgpuRedundantRenderStateSets;
+    result.viewer_trace_webgpu_queue = args.viewerTraceWebgpuQueue;
+    result.resource_warmup_settle_gpu = result.resource_warmup_settle_gpu ?? args.settleGpuAfterWarmup;
+    result.resource_warmup_pipeline_quiet_frames =
+      result.resource_warmup_pipeline_quiet_frames ?? pipelineQuietFrames;
+    result.resource_warmup_pipeline_quiet_max_frames =
+      result.resource_warmup_pipeline_quiet_max_frames ?? pipelineQuietMaxFrames;
+    result.texture_upload_mode = result.texture_upload_mode || args.textureUploadMode;
+    result.webgpu_bundle_mode = result.webgpu_bundle_mode || args.webgpuBundleMode;
+    result.webgpu_bundle_groups = result.webgpu_bundle_groups ?? 0;
+    result.benchmark_hud_enabled = result.benchmark_hud_enabled ?? args.showHud;
+    result.webgpu_queue_instrumentation_enabled =
+      result.webgpu_queue_instrumentation_enabled ?? args.queueInstrumentation;
+    result.webgpu_command_encoder_instrumentation_enabled =
+      result.webgpu_command_encoder_instrumentation_enabled ?? args.commandEncoderInstrumentation;
+    result.webgpu_bind_group_instrumentation_enabled =
+      result.webgpu_bind_group_instrumentation_enabled ?? args.bindGroupInstrumentation;
+    result.webgpu_pipeline_state_instrumentation_enabled =
+      result.webgpu_pipeline_state_instrumentation_enabled ?? args.pipelineStateInstrumentation;
+    result.webgpu_buffer_state_instrumentation_enabled =
+      result.webgpu_buffer_state_instrumentation_enabled ?? args.bufferStateInstrumentation;
+    result.webgpu_render_state_instrumentation_enabled =
+      result.webgpu_render_state_instrumentation_enabled ?? args.renderStateInstrumentation;
+    result.webgpu_immediate_instrumentation_enabled =
+      result.webgpu_immediate_instrumentation_enabled ?? args.immediateInstrumentation;
+    result.profile_cache_mode = profilePlan.profile_cache_mode;
+    result.profile_cache_key = profilePlan.profile_cache_key;
+    result.profile_reuse_enabled = profilePlan.profile_reuse_enabled;
+    result.profile_dir = userDataDir;
+    result.profile_dir_created_by_runner = profilePlan.profile_dir_created_by_runner;
+    Object.assign(result, launchMetadata);
     result.requested_angle_backend = requestedAngleBackend;
     result.browser_flags = browserArgs;
     result.browser_extra_flags = args.browserFlag;
+    result.allow_software_rendering = args.allowSoftwareRendering;
     result.browser_executable = browser;
     result.browser_version = browserVersion;
     result.browser_is_from_checkout = browserIsFromCheckout;
@@ -685,6 +1280,7 @@ async function main() {
     result.gpu_name = result.gpu_name || gpuDevice?.deviceString || null;
     result.driver_version = result.driver_version || gpuDevice?.driverVendor || gpuDevice?.driverVersion || null;
     result.angle_backend = result.angle_backend || requestedAngleBackend;
+    assertNoSoftwareRenderer(result, 'Benchmark result', args.allowSoftwareRendering);
     result.js_heap_mb = result.js_heap_mb || (Number.isFinite(jsHeap) ? jsHeap / (1024 * 1024) : null);
     const finalRssMb = getProcessTreeRssMb(child.pid);
     if (Number.isFinite(finalRssMb)) {

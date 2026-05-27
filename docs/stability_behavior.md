@@ -35,13 +35,14 @@ The one-hour WebGL2 stock and fork runs recorded `webgl_context_lost_count=0`.
 
 ## WebGPU Device Loss
 
-Three.js `WebGPURenderer` exposes `onDeviceLost`. The viewer wraps that callback and records:
+Three.js `WebGPURenderer` exposes `onDeviceLost`, and the underlying `GPUDevice` exposes the `device.lost` promise. The viewer records both paths so performance evidence does not depend on Three.js forwarding the loss callback:
 
 - `webgpu_device_lost`
 - `webgpu_device_loss_reason`
 - `webgpu_device_loss_message`
+- `webgpu_device_loss_source`
 
-The original Three.js callback is still invoked so upstream renderer behavior is preserved. WebGPU stress measurements disable timestamp-query GPU timing because timestamp queries caused device loss during suite investigation; WebGPU device-loss fields remain present in benchmark results.
+The original Three.js callback is still invoked so upstream renderer behavior is preserved. Before emitting final benchmark JSON, the viewer waits one microtask/task turn so already queued `GPUDevice.lost` callbacks can stamp the result instead of racing the final `THREE_VIEWER_RESULT` line. WebGPU stress measurements disable timestamp-query GPU timing because timestamp queries caused device loss during suite investigation; WebGPU device-loss fields remain present in benchmark results and the suite/candidate gates reject device-loss-contaminated performance evidence.
 
 ## GPU Process Crash/Restart
 
@@ -60,6 +61,7 @@ Optional stability fields emitted by the viewer:
 - `webgpu_device_lost`
 - `webgpu_device_loss_reason`
 - `webgpu_device_loss_message`
+- `webgpu_device_loss_source`
 - `render_error_count`
 - `last_render_error`
 

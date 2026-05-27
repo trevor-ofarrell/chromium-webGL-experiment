@@ -1,0 +1,20 @@
+# Benchmark Comparison
+
+Generated from 3 result file(s). Baseline per scene/renderer is the first variant whose name contains stock or baseline, falling back to the first result.
+Strict official input validation was enabled: all inputs must come from checkout-built binaries, share one Chromium revision, include build-args hashes, include patch-derived fork revisions for fork variants, contain baseline plus fork variants for every scene/renderer, use matching measured/warmup seconds per case, include GPU/backend metadata, and avoid known software-rendered GPU paths.
+
+| Scene | Renderer | Variant | Avg FPS | FPS Delta | FPS Delta % | 1% Low | 1% Low Delta | 0.1% Low | 0.1% Low Delta | P50 ms | P50 Delta | P95 ms | P95 Delta | P99 ms | P99 Delta | Max ms | Max Delta | CPU ms | CPU Delta | JS ms | JS Delta | Submit ms | Submit Delta | Compositor ms | Compositor Delta | Present ms | Present Delta | GPU ms | GPU Delta | Dropped | Dropped Delta | Startup ms | Startup Delta | RSS MB | RSS Delta | JS heap MB | JS heap Delta | GPU memory MB | GPU memory Delta | Draw calls | Draw calls Delta | Triangles | Triangles Delta | Texture MB | Texture Delta | Buffer MB | Buffer Delta | Shader events | Shader events Delta | Binary MB | Binary Delta | Viewer MB | Viewer Delta | Package MB | Package Delta |
+| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| texture-streaming | webgpu | iter4-baseline-c2-data-notiming-texture-streaming-webgpu | 78.7 | 0.0 | 0.0% | 43.9 | 0.0 | 35.9 | 0.0 | 13.90 | 0.00 | 14.20 | 0.00 | 20.90 | 0.00 | 27.90 | 0.00 | 10.88 | 0.00 | 2.66 | 0.00 | 8.17 | 0.00 |  |  |  |  |  |  | 6 | 0 | 1840 | 0 | 710.8 | 0.0 | 30.2 | 0.0 |  |  | 2924 | 0 | 193 | 0 | 35308.8 | 0.0 | 0.0 | 0.0 | 0 | 0 | 288.4 | 0.0 | 1.4 | 0.0 |  |  |
+| texture-streaming | webgpu | iter4-fork-browsermode-c2-data-notiming-texture-streaming-webgpu | 75.4 | -3.3 | -4.2% | 44.1 | 0.2 | 28.7 | -7.2 | 13.90 | 0.00 | 20.60 | 6.40 | 21.00 | 0.10 | 41.70 | 13.80 | 11.33 | 0.45 | 2.61 | -0.05 | 8.67 | 0.49 |  |  |  |  |  |  | 3 | -3 | 1170 | -669 | 717.7 | 6.9 | 33.8 | 3.6 |  |  | 2789 | -135 | 193 | 0 | 33732.4 | -1576.4 | 0.0 | 0.0 | 0 | 0 | 288.4 | 0.0 | 1.4 | 0.0 |  |  |
+| texture-streaming | webgpu | iter4-fork-default-c2-data-notiming-texture-streaming-webgpu | 78.2 | -0.6 | -0.7% | 41.8 | -2.2 | 35.8 | -0.1 | 13.90 | 0.00 | 14.10 | -0.10 | 20.90 | 0.00 | 27.90 | 0.00 | 10.94 | 0.06 | 2.62 | -0.04 | 8.28 | 0.10 |  |  |  |  |  |  | 10 | 4 | 1187 | -652 | 713.0 | 2.2 | 36.9 | 6.7 |  |  | 2936 | 12 | 193 | 0 | 35268.8 | -40.1 | 0.0 | 0.0 | 0 | 0 | 288.4 | 0.0 | 1.4 | 0.0 |  |  |
+
+## Aggregate Averages
+
+Averages are arithmetic means across the scene rows included in this report. Delta columns are relative to each scene/renderer baseline before averaging.
+
+| Renderer | Variant | Scenes | Avg FPS | Avg FPS Delta | Avg FPS Delta % | Avg 1% Low Delta | Avg 0.1% Low Delta | Avg P95 Delta ms | Avg P99 Delta ms | Avg Max Delta ms | Avg CPU Delta ms | Avg JS Delta ms | Avg Submit Delta ms | Avg Dropped Delta | Avg Startup Delta ms | Avg RSS Delta MB |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| webgpu | iter4-baseline-c2-data-notiming | 1 | 78.74 | 0.00 | 0.0% | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 |
+| webgpu | iter4-fork-browsermode-c2-data-notiming | 1 | 75.40 | -3.33 | -4.2% | 0.21 | -7.17 | 6.40 | 0.10 | 13.80 | 0.45 | -0.05 | 0.49 | -3.00 | -669.20 | 6.90 |
+| webgpu | iter4-fork-default-c2-data-notiming | 1 | 78.17 | -0.56 | -0.7% | -2.17 | -0.06 | -0.10 | 0.00 | 0.00 | 0.06 | -0.04 | 0.10 | 4.00 | -652.20 | 2.24 |

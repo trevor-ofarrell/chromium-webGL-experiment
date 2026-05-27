@@ -3,6 +3,7 @@ param()
 
 $ErrorActionPreference = "Stop"
 $Root = Resolve-Path (Join-Path $PSScriptRoot "..")
+. (Join-Path $PSScriptRoot "viewer_patch_series.ps1")
 $TempDir = Join-Path $Root "benchmarks\tmp\trusted-manifest-flag-audit"
 $ManifestPath = Join-Path $TempDir "trusted-experiment-matrix-manifest.json"
 $BackupPath = Join-Path $TempDir "trusted-experiment-matrix-manifest.backup.json"
@@ -69,12 +70,12 @@ if ($HadManifest) {
 
 try {
   $ChromiumRevision = Get-GitRevision (Join-Path $Root "src")
-  $PatchHash = Get-ShortSha256 (Join-Path $Root "chromium_patches\0001-draft-minimal-three-viewer-entrypoint.patch")
-  $ForkRevision = "$ChromiumRevision+viewerpatch-$PatchHash"
+  $ForkRevision = Get-ViewerForkRevisionForChromiumRevision -ChromiumRevision $ChromiumRevision -Root $Root
 
   $Experiments = @(
     New-Experiment "fork-viewer-exp-default" @(),
     New-Experiment "fork-viewer-exp-aggressive-gpu" @(),
+    New-Experiment "fork-viewer-exp-zero-copy" @("--viewerZeroCopy"),
     New-Experiment "fork-viewer-exp-in-process-gpu" @("--viewerInProcessGpu"),
     New-Experiment "fork-viewer-exp-single-process" @("--viewerSingleProcess"),
     New-Experiment "fork-viewer-exp-angle-d3d11" @("--viewerForceAngleBackend", "d3d11"),
@@ -103,6 +104,7 @@ try {
       expected_fork_revision = $ForkRevision
       forbid_smoke = $true
       reject_software_rendering = $true
+      reject_gpu_instability = $true
       require_gpu_metadata = $true
       require_frame_times = $true
       expected_chromium_revision = $ChromiumRevision

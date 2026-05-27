@@ -1,5 +1,5 @@
 ﻿{
-    "generated_at":  "2026-05-20T20:53:51.4293573Z",
+    "generated_at":  "2026-05-24T03:59:03.3742029Z",
     "root":  "C:\\Users\\trevo\\code\\three-browser",
     "user":  "DESKTOP-1IAA42N\\trevo",
     "is_admin":  false,
@@ -11,8 +11,8 @@
     "chromium":  {
                      "expected_revision":  "3a94d90ec3c04556622c56944796dd76753e0581",
                      "actual_revision":  "3a94d90ec3c04556622c56944796dd76753e0581",
-                     "upstream_head_revision":  "a03399d028ec672f656af104c684170386bd9f25",
-                     "upstream_head_checked_at":  "2026-05-20T20:53:51.4313668Z",
+                     "upstream_head_revision":  "225e8f9b7a106db2b85af6c76872624100716e9a",
+                     "upstream_head_checked_at":  "2026-05-24T03:59:03.3930170Z",
                      "upstream_head_matches_expected":  false,
                      "pin_refresh":  {
                                          "path":  "benchmarks\\reports\\chromium-pin-refresh.json",
@@ -20,13 +20,43 @@
                                          "target_revision":  "3a94d90ec3c04556622c56944796dd76753e0581",
                                          "previous_revision":  "3a94d90ec3c04556622c56944796dd76753e0581",
                                          "selected_from_upstream_head":  true,
-                                         "selected_at":  "2026-05-19T11:54:14.5578136Z",
-                                         "source":  "explicit -Revision preserving existing origin HEAD selection",
-                                         "generated_at":  "2026-05-20T20:52:02.8811186Z",
+                                         "selected_at":  "2026-05-23T23:39:19.8276552Z",
+                                         "source":  "synthetic trusted suite semantics audit test",
+                                         "generated_at":  "2026-05-23T23:40:19.8276552Z",
                                          "target_matches_expected":  true
                                      },
                      "status_short":  [
-                                          "## HEAD (no branch)"
+                                          "## HEAD (no branch)",
+                                          " M third_party/blink/renderer/modules/webgpu/BUILD.gn",
+                                          " M third_party/blink/renderer/modules/webgpu/dawn_conversions.cc",
+                                          " M third_party/blink/renderer/modules/webgpu/gpu.cc",
+                                          " M third_party/blink/renderer/modules/webgpu/gpu_adapter.cc",
+                                          " M third_party/blink/renderer/modules/webgpu/gpu_bind_group.cc",
+                                          " M third_party/blink/renderer/modules/webgpu/gpu_bind_group_layout.cc",
+                                          " M third_party/blink/renderer/modules/webgpu/gpu_buffer.cc",
+                                          " M third_party/blink/renderer/modules/webgpu/gpu_canvas_context.cc",
+                                          " M third_party/blink/renderer/modules/webgpu/gpu_command_encoder.cc",
+                                          " M third_party/blink/renderer/modules/webgpu/gpu_compute_pass_encoder.cc",
+                                          " M third_party/blink/renderer/modules/webgpu/gpu_compute_pass_encoder.h",
+                                          " M third_party/blink/renderer/modules/webgpu/gpu_compute_pipeline.cc",
+                                          " M third_party/blink/renderer/modules/webgpu/gpu_compute_pipeline.h",
+                                          " M third_party/blink/renderer/modules/webgpu/gpu_device.cc",
+                                          " M third_party/blink/renderer/modules/webgpu/gpu_pipeline_layout.cc",
+                                          " M third_party/blink/renderer/modules/webgpu/gpu_programmable_stage.cc",
+                                          " M third_party/blink/renderer/modules/webgpu/gpu_programmable_stage.h",
+                                          " M third_party/blink/renderer/modules/webgpu/gpu_query_set.cc",
+                                          " M third_party/blink/renderer/modules/webgpu/gpu_queue.cc",
+                                          " M third_party/blink/renderer/modules/webgpu/gpu_queue.h",
+                                          " M third_party/blink/renderer/modules/webgpu/gpu_render_bundle_encoder.cc",
+                                          " M third_party/blink/renderer/modules/webgpu/gpu_render_bundle_encoder.h",
+                                          " M third_party/blink/renderer/modules/webgpu/gpu_render_pass_encoder.cc",
+                                          " M third_party/blink/renderer/modules/webgpu/gpu_render_pass_encoder.h",
+                                          " M third_party/blink/renderer/modules/webgpu/gpu_render_pipeline.cc",
+                                          " M third_party/blink/renderer/modules/webgpu/gpu_render_pipeline.h",
+                                          " M third_party/blink/renderer/modules/webgpu/gpu_sampler.cc",
+                                          " M third_party/blink/renderer/modules/webgpu/gpu_shader_module.cc",
+                                          " M third_party/blink/renderer/modules/webgpu/gpu_texture.cc",
+                                          " A third_party/blink/renderer/modules/webgpu/viewer_webgpu_experiment_switches.h"
                                       ]
                  },
     "environment":  {
@@ -50,6 +80,11 @@
                                                                        "address":  "192.168.1.84",
                                                                        "interface_name":  "Wi-Fi",
                                                                        "interface_type":  "Wireless80211"
+                                                                   },
+                                                                   {
+                                                                       "address":  "172.30.208.1",
+                                                                       "interface_name":  "vEthernet (WSL (Hyper-V firewall))",
+                                                                       "interface_type":  "Ethernet"
                                                                    }
                                                                ],
                         "windows_code_integrity":  {
@@ -81,12 +116,21 @@
                                                                            }
                                                                        ],
                                                        "blocked_sample_dll_count":  0,
-                                                       "recent_block_count":  20,
+                                                       "siso_code_integrity_blocks":  [
+                                                                                          {
+                                                                                              "out_dir":  "C:\\Users\\trevo\\code\\three-browser\\src\\out\\ReleaseViewerDefault",
+                                                                                              "siso_output":  "C:\\Users\\trevo\\code\\three-browser\\src\\out\\ReleaseViewerDefault\\siso_output",
+                                                                                              "siso_output_last_write_utc":  "2026-05-22T01:47:42.9653657Z",
+                                                                                              "first_block_line":  "OSError: [WinError 4551] An Application Control policy has blocked this file"
+                                                                                          }
+                                                                                      ],
+                                                       "siso_code_integrity_block_count":  1,
+                                                       "recent_block_count":  44,
                                                        "recent_active_policy_block_count":  1,
                                                        "recent_policy_ids":  [
                                                                                  "0283AC0F-FFF1-49AE-ADA1-8A933130CAD6"
                                                                              ],
-                                                       "recent_first_message":  "Code Integrity determined that a process (\\Device\\HarddiskVolume3\\Users\\trevo\\code\\three-browser\\src\\third_party\\rust-toolchain\\bin\\rustc.exe) attempted to load \\Device\\HarddiskVolume3\\Users\\trevo\\code\\three-browser\\src\\out\\ReleaseViewerDefault\\win_clang_x64_for_rust_host_build_tools\\parsing_attribute_34eeb95b.dll that did not meet the Enterprise signing level requirements or violated code integrity policy (Policy ID:{0283ac0f-fff1-49ae-ada1-8a933130cad6}).",
+                                                       "recent_first_message":  "Code Integrity determined that a process (\\Device\\HarddiskVolume3\\Users\\trevo\\code\\three-browser\\tools\\depot_tools\\bootstrap-2@3_11_8_chromium_35_bin\\python3\\bin\\python3.exe) attempted to load \\Device\\HarddiskVolume3\\Users\\trevo\\code\\three-browser\\src\\out\\ReleaseViewerDefault\\win_clang_x64_for_rust_host_build_tools\\serde_json_lenient_lib_v0_2_build_script.exe that did not meet the Enterprise signing level requirements or violated code integrity policy (Policy ID:{0283ac0f-fff1-49ae-ada1-8a933130cad6}).",
                                                        "query_error":  null
                                                    },
                         "test_assumed_viewer_patch_already_applied":  false
@@ -96,8 +140,24 @@
                   "exists":  true,
                   "applies_cleanly":  true,
                   "already_applied":  false,
-                  "sha256":  "cca4b9171b07765d0d479ddeb5204217541f039dfeebc4ed5fed53d8164c6e81"
+                  "sha256":  "e29e21d10837273cac786261433995949ae48ed85230f5913b2cb4a9184e9c3d"
               },
+    "patch_series":  [
+                         {
+                             "path":  "chromium_patches\\0001-draft-minimal-three-viewer-entrypoint.patch",
+                             "exists":  true,
+                             "applies_cleanly":  true,
+                             "already_applied":  false,
+                             "sha256":  "e29e21d10837273cac786261433995949ae48ed85230f5913b2cb4a9184e9c3d"
+                         },
+                         {
+                             "path":  "chromium_patches\\0002-draft-webgpu-queue-trace-attribution.patch",
+                             "exists":  true,
+                             "applies_cleanly":  false,
+                             "already_applied":  true,
+                             "sha256":  "e4cd571f376f52313a25f2992959942f28e12a11f25d89795d985cc8de4dae8e"
+                         }
+                     ],
     "gn_args":  [
                     {
                         "path":  "build\\gn_args\\baseline_content_shell.gn",
@@ -147,43 +207,43 @@
     "build_failures":  [
                            {
                                "out_dir":  "src\\out\\ReleaseBaseline",
-                               "failed_targets_exists":  false,
+                               "failed_targets_exists":  true,
                                "siso_output_exists":  true,
                                "requested_targets":  [
-
+                                                         "chrome"
                                                      ],
                                "failed_targets":  [
-
+                                                      "obj/chrome/browser/web_applications/web_applications/icon_masker.obj"
                                                   ],
                                "first_fatal_error":  null,
-                               "failed_targets_sha256":  null,
-                               "siso_output_sha256":  "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-                               "failed_targets_last_write_utc":  null,
-                               "siso_output_last_write_utc":  "2026-05-19T21:08:13.4610091Z",
+                               "failed_targets_sha256":  "fa11f62c23791f116411e25f89f76356b3723500fdeed4909cd6e8f61c989625",
+                               "siso_output_sha256":  "9f4293ea69786965bc5c6d593a8068cbd3ba4c237ebec79f79837970fd07dda8",
+                               "failed_targets_last_write_utc":  "2026-05-21T22:39:59.9464364Z",
+                               "siso_output_last_write_utc":  "2026-05-21T22:39:52.4029865Z",
                                "build_ninja_last_write_utc":  "2026-05-20T20:51:09.5932679Z",
                                "build_ninja_stamp_last_write_utc":  "2026-05-20T20:51:09.6111015Z",
-                               "failure_logs_current_for_generated_build":  false,
-                               "failure_logs_stale_after_gn_gen":  true
+                               "failure_logs_current_for_generated_build":  true,
+                               "failure_logs_stale_after_gn_gen":  false
                            },
                            {
                                "out_dir":  "src\\out\\ReleaseViewerDefault",
-                               "failed_targets_exists":  false,
+                               "failed_targets_exists":  true,
                                "siso_output_exists":  true,
                                "requested_targets":  [
-
+                                                         "content_shell"
                                                      ],
                                "failed_targets":  [
-
+                                                      "gen/third_party/rust/serde_json_lenient/v0_2/lib/cargo_flags.rs"
                                                   ],
                                "first_fatal_error":  null,
-                               "failed_targets_sha256":  null,
-                               "siso_output_sha256":  "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-                               "failed_targets_last_write_utc":  null,
-                               "siso_output_last_write_utc":  "2026-05-20T20:34:52.7740592Z",
+                               "failed_targets_sha256":  "565b08558042883b699a48886fe6cc3fc90788e7b006536e2b514f0a5635518e",
+                               "siso_output_sha256":  "4ae0f8876fcc47b22e9eb0fcdc7e5e2aa2f618fa84a2987b68575e3cdd9c8048",
+                               "failed_targets_last_write_utc":  "2026-05-22T01:47:44.9727044Z",
+                               "siso_output_last_write_utc":  "2026-05-22T01:47:42.9653657Z",
                                "build_ninja_last_write_utc":  "2026-05-20T20:51:33.0792998Z",
                                "build_ninja_stamp_last_write_utc":  "2026-05-20T20:51:33.0951026Z",
-                               "failure_logs_current_for_generated_build":  false,
-                               "failure_logs_stale_after_gn_gen":  true
+                               "failure_logs_current_for_generated_build":  true,
+                               "failure_logs_stale_after_gn_gen":  false
                            }
                        ],
     "checks":  [
@@ -239,8 +299,8 @@
                    },
                    {
                        "name":  "windows_code_integrity_chromium_rust",
-                       "ok":  true,
-                       "detail":  "no current Code Integrity block when probing existing Chromium Rust proc-macro DLLs; active_policies=8; recent_block_events=20; verified_and_reputable_policy_state=1"
+                       "ok":  false,
+                       "detail":  "current Code Integrity block for Chromium Rust host tools; blocked_sample_dlls=0; current_siso_blocks=1; policy_ids=0283AC0F-FFF1-49AE-ADA1-8A933130CAD6; first_siso_block=OSError: [WinError 4551] An Application Control policy has blocked this file; unblock WDAC/Smart App Control for generated Chromium build DLLs/EXEs, then rerun the failed build"
                    },
                    {
                        "name":  "viewer_dist",
@@ -258,11 +318,16 @@
                        "detail":  "applies cleanly"
                    },
                    {
+                       "name":  "viewer_patch_series_state",
+                       "ok":  true,
+                       "detail":  "chromium_patches\\0001-draft-minimal-three-viewer-entrypoint.patch:applies; chromium_patches\\0002-draft-webgpu-queue-trace-attribution.patch:applied"
+                   },
+                   {
                        "name":  "navigation_external_ipv4",
                        "ok":  true,
-                       "detail":  "192.168.1.84 on Wi-Fi"
+                       "detail":  "192.168.1.84 on Wi-Fi; 172.30.208.1 on vEthernet (WSL (Hyper-V firewall))"
                    }
                ],
-    "ok":  true
+    "ok":  false
 }
 

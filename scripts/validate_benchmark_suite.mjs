@@ -16,6 +16,10 @@ const defaultScenes = [
   'gltf-loader-stress',
 ];
 
+function readJson(file) {
+  return JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, ''));
+}
+
 function wildcardToRegExp(pattern) {
   const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&');
   return new RegExp(`^${escaped.replace(/\*/g, '.*').replace(/\?/g, '.')}$`, 'i');
@@ -50,11 +54,13 @@ function parseArgs(argv) {
     expectedForkRevision: '',
     forbidSmoke: false,
     rejectSoftwareRendering: false,
+    rejectGpuInstability: false,
     requireGpuMetadata: false,
     requirePackageSize: false,
     requireFrameTimes: false,
     expectedMeasuredSeconds: null,
     expectedWarmupSeconds: null,
+    expectedComplexity: null,
     expectedFlagMetadata: [],
     requiredBrowserFlag: [],
   };
@@ -85,6 +91,8 @@ function parseArgs(argv) {
       args.forbidSmoke = true;
     } else if (token === '--rejectSoftwareRendering') {
       args.rejectSoftwareRendering = true;
+    } else if (token === '--rejectGpuInstability') {
+      args.rejectGpuInstability = true;
     } else if (token === '--requireGpuMetadata') {
       args.requireGpuMetadata = true;
     } else if (token === '--requirePackageSize') {
@@ -95,6 +103,8 @@ function parseArgs(argv) {
       args.expectedMeasuredSeconds = Number(argv[++i]);
     } else if (token === '--expectedWarmupSeconds') {
       args.expectedWarmupSeconds = Number(argv[++i]);
+    } else if (token === '--expectedComplexity') {
+      args.expectedComplexity = Number(argv[++i]);
     } else if (token === '--expectedFlagMetadata') {
       args.expectedFlagMetadata.push(argv[++i]);
     } else if (token === '--requiredBrowserFlag') {
@@ -122,9 +132,10 @@ function parseArgs(argv) {
   for (const [name, value] of [
     ['--expectedMeasuredSeconds', args.expectedMeasuredSeconds],
     ['--expectedWarmupSeconds', args.expectedWarmupSeconds],
+    ['--expectedComplexity', args.expectedComplexity],
   ]) {
-    if (value !== null && (!Number.isFinite(value) || value < 0)) {
-      throw new Error(`${name} must be a non-negative number`);
+    if (value !== null && (!Number.isFinite(value) || value < 0 || (name === '--expectedComplexity' && value <= 0))) {
+      throw new Error(name === '--expectedComplexity' ? `${name} must be greater than zero` : `${name} must be a non-negative number`);
     }
   }
   return args;
@@ -194,6 +205,10 @@ function softwareRendererReason(result) {
   return match ? match[1] : '';
 }
 
+function softwareRenderingDiagnosticOptIn(result) {
+  return result.allow_software_rendering === true || result.allowSoftwareRendering === true;
+}
+
 function hasGpuMetadata(result) {
   return [result.gpu_name, result.driver_version, result.angle_backend]
     .some((value) => typeof value === 'string' && value.trim().length > 0);
@@ -236,6 +251,59 @@ function validateRequiredBrowserFlags(errors, result, label, requiredFlags) {
   }
 }
 
+function flagValues(flags, switchName) {
+  if (!Array.isArray(flags)) return [];
+  const values = [];
+  const prefix = `${switchName}=`;
+  for (let index = 0; index < flags.length; index += 1) {
+    const flag = String(flags[index]);
+    if (flag === switchName && index + 1 < flags.length) {
+      values.push(String(flags[index + 1]));
+      index += 1;
+    } else if (flag.startsWith(prefix)) {
+      values.push(flag.slice(prefix.length));
+    }
+  }
+  return values;
+}
+
+function flagTokenListIncludes(flags, switchName, token) {
+  return flagValues(flags, switchName).some((value) => value.split(',').some((part) => {
+    const normalized = part.trim().split(':', 1)[0];
+    return normalized === token;
+  }));
+}
+
+function isWebGpuBlobCacheHashValidationExperiment(result) {
+  if (result.renderer_type !== 'webgpu') return false;
+  if (result.webgpu_blob_cache_hash_validation_disabled === true) return true;
+  if (/blob-cache-hash-validation/i.test(variantOf(result))) return true;
+  return flagTokenListIncludes(result.browser_flags, '--disable-dawn-features', 'blob_cache_hash_validation');
+}
+
+function validateWebGpuBlobCacheEligibility(errors, result, label) {
+  if (!isWebGpuBlobCacheHashValidationExperiment(result)) {
+    return;
+  }
+
+  if (result.webgpu_blob_cache_expected_available !== true) {
+    errors.push(`${label}: WebGPU blob-cache hash-validation experiment requires webgpu_blob_cache_expected_available=true`);
+  }
+  if (result.webgpu_blob_cache_origin_eligible !== true) {
+    errors.push(`${label}: WebGPU blob-cache hash-validation experiment requires webgpu_blob_cache_origin_eligible=true`);
+  }
+  if (result.webgpu_blob_cache_disabled_by_explicit_toggle === true ||
+      flagTokenListIncludes(result.browser_flags, '--enable-dawn-features', 'disable_blob_cache')) {
+    errors.push(`${label}: WebGPU blob-cache hash-validation experiment cannot enable Dawn disable_blob_cache`);
+  }
+  if (!['http', 'https'].includes(result.viewer_url_scheme)) {
+    errors.push(`${label}: WebGPU blob-cache hash-validation experiment requires an HTTP(S) viewer_url_scheme`);
+  }
+  if (typeof result.viewer_origin !== 'string' || result.viewer_origin.trim().length === 0) {
+    errors.push(`${label}: WebGPU blob-cache hash-validation experiment requires a non-empty viewer_origin`);
+  }
+}
+
 function validateRequiredFrameTimes(errors, result) {
   if (!Array.isArray(result.frame_times_ms) || result.frame_times_ms.length === 0) {
     errors.push(`${result.scene_name}: frame_times_ms must be a non-empty array when --requireFrameTimes is set`);
@@ -247,6 +315,267 @@ function validateRequiredFrameTimes(errors, result) {
       errors.push(`${result.scene_name}: frame_times_ms[${index}] must be a non-negative finite number`);
     }
   });
+}
+
+function validateGpuStability(errors, result) {
+  if (typeof result.webgpu_device_lost !== 'boolean') {
+    errors.push(`${result.scene_name}: webgpu_device_lost must be a boolean when --rejectGpuInstability is set`);
+  }
+  if (typeof result.webgl_context_currently_lost !== 'boolean') {
+    errors.push(`${result.scene_name}: webgl_context_currently_lost must be a boolean when --rejectGpuInstability is set`);
+  }
+  if (typeof result.webgl_context_lost_count !== 'number' || !Number.isFinite(result.webgl_context_lost_count)) {
+    errors.push(`${result.scene_name}: webgl_context_lost_count must be a finite number when --rejectGpuInstability is set`);
+  }
+  if (typeof result.render_error_count !== 'number' || !Number.isFinite(result.render_error_count)) {
+    errors.push(`${result.scene_name}: render_error_count must be a finite number when --rejectGpuInstability is set`);
+  }
+  if (result.webgpu_device_lost === true) {
+    errors.push(`${result.scene_name}: WebGPU device loss is not allowed in performance evidence`);
+  }
+  if (result.webgl_context_currently_lost === true) {
+    errors.push(`${result.scene_name}: WebGL context is currently lost`);
+  }
+  if (typeof result.webgl_context_lost_count === 'number' && Number.isFinite(result.webgl_context_lost_count) && result.webgl_context_lost_count > 0) {
+    errors.push(`${result.scene_name}: WebGL context loss count must be zero`);
+  }
+  if (typeof result.render_error_count === 'number' && Number.isFinite(result.render_error_count) && result.render_error_count > 0) {
+    errors.push(`${result.scene_name}: render_error_count must be zero`);
+  }
+}
+
+const webGpuCpuFallbackCountFields = [
+  'webgpu_cpu_texture_fallback_count',
+  'webgpu_cpu_texture_readback_count',
+  'webgpu_forced_texture_readback_count',
+  'webgpu_copy_external_image_cpu_fallback_count',
+  'webgpu_copy_external_image_cpu_readback_count',
+  'webgpu_copy_external_image_forced_readback_count',
+];
+
+const copyExternalImageExperimentFields = [
+  'viewer_skip_webgpu_copy_external_image_color_conversion',
+  'viewer_skip_webgpu_copy_external_image_color_space_validation',
+  'viewer_skip_webgpu_copy_external_image_dest_validation',
+  'viewer_skip_webgpu_copy_external_image_source_validation',
+  'viewer_skip_webgpu_copy_external_image_copy_size_validation',
+];
+
+function isCopyExternalImageUploadExperiment(result) {
+  if (result.renderer_type !== 'webgpu') return false;
+  if (copyExternalImageExperimentFields.some((field) => result[field] === true)) return true;
+  const variant = variantOf(result).toLowerCase();
+  return variant.includes('copy-external-image') ||
+    variant.includes('copy-ext-image') ||
+    variant.includes('aggressive-upload-fast-path');
+}
+
+function validateWebGpuCpuFallback(errors, result) {
+  if (result.renderer_type !== 'webgpu') {
+    return;
+  }
+  if (isCopyExternalImageUploadExperiment(result) &&
+      result.viewer_reject_webgpu_cpu_texture_fallback !== true) {
+    errors.push(`${result.scene_name}: WebGPU copyExternalImage upload experiment requires viewer_reject_webgpu_cpu_texture_fallback=true`);
+  }
+  if (result.webgpu_cpu_texture_fallback_detected === true) {
+    errors.push(`${result.scene_name}: WebGPU CPU texture fallback/readback is not allowed in performance evidence`);
+  }
+  const verdict = typeof result.webgpu_texture_copy_path_verdict === 'string'
+    ? result.webgpu_texture_copy_path_verdict.trim().toLowerCase()
+    : '';
+  if (verdict === 'cpu-fallback-detected' || verdict === 'cpu-fallback-rejected' || verdict === 'forced-readback-detected') {
+    errors.push(`${result.scene_name}: WebGPU CPU texture fallback/readback verdict is ${result.webgpu_texture_copy_path_verdict}`);
+  }
+  for (const field of webGpuCpuFallbackCountFields) {
+    if (Number.isFinite(result[field]) && result[field] > 0) {
+      errors.push(`${result.scene_name}: WebGPU CPU texture fallback/readback ${field} must be zero`);
+    }
+  }
+}
+
+const trustedViewerExperimentFields = [
+  'viewer_aggressive_gpu',
+  'viewer_relaxed_webgl_validation',
+  'viewer_zero_copy',
+  'viewer_in_process_gpu',
+  'viewer_single_process',
+  'viewer_disable_unneeded_blink_features',
+  'viewer_direct_gpu_presentation',
+  'viewer_defer_webgpu_pipeline_flush',
+  'viewer_defer_webgpu_queue_flush',
+  'viewer_defer_webgpu_submit_flush',
+  'viewer_skip_webgpu_canvas_texture_validation',
+  'viewer_skip_webgpu_canvas_memory_accounting',
+  'viewer_skip_webgpu_copy_external_image_color_conversion',
+  'viewer_skip_webgpu_copy_external_image_color_space_validation',
+  'viewer_skip_webgpu_copy_external_image_dest_validation',
+  'viewer_skip_webgpu_copy_external_image_source_validation',
+  'viewer_skip_webgpu_copy_external_image_copy_size_validation',
+  'viewer_skip_webgpu_write_texture_layout_validation',
+  'viewer_reject_webgpu_cpu_texture_fallback',
+  'viewer_skip_webgpu_use_counters',
+  'viewer_cache_webgpu_bind_group_layouts',
+  'viewer_skip_webgpu_command_labels',
+  'viewer_skip_webgpu_resource_labels',
+  'viewer_skip_webgpu_shader_source_null_check',
+  'viewer_skip_webgpu_shader_memory_accounting',
+  'viewer_skip_webgpu_redundant_pipeline_sets',
+  'viewer_skip_webgpu_redundant_bind_group_sets',
+  'viewer_skip_webgpu_redundant_buffer_sets',
+  'viewer_skip_webgpu_redundant_render_state_sets',
+  'viewer_trace_webgpu_queue',
+];
+
+const webGpuOnlyTrustedViewerExperimentFields = [
+  'viewer_defer_webgpu_pipeline_flush',
+  'viewer_defer_webgpu_queue_flush',
+  'viewer_defer_webgpu_submit_flush',
+  'viewer_skip_webgpu_canvas_texture_validation',
+  'viewer_skip_webgpu_canvas_memory_accounting',
+  'viewer_skip_webgpu_copy_external_image_color_conversion',
+  'viewer_skip_webgpu_copy_external_image_color_space_validation',
+  'viewer_skip_webgpu_copy_external_image_dest_validation',
+  'viewer_skip_webgpu_copy_external_image_source_validation',
+  'viewer_skip_webgpu_copy_external_image_copy_size_validation',
+  'viewer_skip_webgpu_write_texture_layout_validation',
+  'viewer_reject_webgpu_cpu_texture_fallback',
+  'viewer_skip_webgpu_use_counters',
+  'viewer_cache_webgpu_bind_group_layouts',
+  'viewer_skip_webgpu_command_labels',
+  'viewer_skip_webgpu_resource_labels',
+  'viewer_skip_webgpu_shader_source_null_check',
+  'viewer_skip_webgpu_shader_memory_accounting',
+  'viewer_skip_webgpu_redundant_pipeline_sets',
+  'viewer_skip_webgpu_redundant_bind_group_sets',
+  'viewer_skip_webgpu_redundant_buffer_sets',
+  'viewer_skip_webgpu_redundant_render_state_sets',
+  'viewer_trace_webgpu_queue',
+];
+
+const webGl2OnlyTrustedViewerExperimentFields = [
+  'viewer_relaxed_webgl_validation',
+  'viewer_zero_copy',
+];
+
+const trustedBrowserExperimentSwitches = [
+  '--use-webgpu-adapter',
+  '--enable-dawn-features',
+  '--disable-dawn-features',
+  '--enable-features',
+  '--disable-features',
+  '--enable-gpu-memory-buffer-compositor-resources',
+  '--ui-enable-zero-copy',
+  '--enable-gpu-rasterization',
+  '--disable-frame-rate-limit',
+  '--disable-gpu-vsync',
+];
+
+function hasSwitchValue(result, field) {
+  const value = result[field];
+  if (typeof value !== 'string') return false;
+  const normalized = value.trim().toLowerCase();
+  return normalized.length > 0 && normalized !== 'default' && normalized !== 'null';
+}
+
+function trustedBrowserExperimentFlags(result) {
+  if (!Array.isArray(result.browser_flags)) return [];
+  return result.browser_flags.filter((rawFlag) => {
+    const flag = String(rawFlag);
+    return trustedBrowserExperimentSwitches.some((switchName) => (
+      flag === switchName || flag.startsWith(`${switchName}=`)
+    ));
+  });
+}
+
+function validateTrustedExperimentMetadata(errors, result) {
+  const enabledMetadata = trustedViewerExperimentFields.filter((field) => result[field] === true);
+  if (hasSwitchValue(result, 'viewer_force_angle_backend')) {
+    enabledMetadata.push('viewer_force_angle_backend');
+  }
+  const enabledBrowserFlags = trustedBrowserExperimentFlags(result);
+  if (!enabledMetadata.length && !enabledBrowserFlags.length) return;
+
+  const enabled = [...enabledMetadata, ...enabledBrowserFlags];
+  if (result.viewer_mode !== true || result.viewer_trusted_content !== true) {
+    errors.push(`${result.scene_name}: trusted experiment requires viewer_mode=true and viewer_trusted_content=true (${enabled.join(', ')})`);
+  }
+
+  const webGpuOnly = webGpuOnlyTrustedViewerExperimentFields.find((field) => result[field] === true);
+  if (webGpuOnly && result.renderer_type !== 'webgpu') {
+    errors.push(`${result.scene_name}: WebGPU trusted experiment ${webGpuOnly} used with renderer_type=${result.renderer_type}`);
+  }
+  const webGl2Only = webGl2OnlyTrustedViewerExperimentFields.find((field) => result[field] === true);
+  if (webGl2Only && result.renderer_type !== 'webgl2') {
+    errors.push(`${result.scene_name}: WebGL2 trusted experiment ${webGl2Only} used with renderer_type=${result.renderer_type}`);
+  }
+}
+
+function validateWebGpuPipelineQuietWarmup(errors, result) {
+  const requestedFrames = Number(result.resource_warmup_pipeline_quiet_frames);
+  if (!Number.isFinite(requestedFrames) || requestedFrames <= 0) {
+    return;
+  }
+  if (result.renderer_type !== 'webgpu') {
+    errors.push(`${result.scene_name}: WebGPU pipeline-quiet warmup is only valid for WebGPU performance evidence`);
+    return;
+  }
+  if (result.resource_warmup_pipeline_quiet_achieved !== true) {
+    errors.push(`${result.scene_name}: WebGPU pipeline-quiet warmup did not achieve the requested quiet window`);
+  }
+  if (!Number.isFinite(result.resource_warmup_pipeline_quiet_actual_frames)) {
+    errors.push(`${result.scene_name}: WebGPU pipeline-quiet warmup requires resource_warmup_pipeline_quiet_actual_frames`);
+  } else if (result.resource_warmup_pipeline_quiet_actual_frames < requestedFrames) {
+    errors.push(`${result.scene_name}: WebGPU pipeline-quiet warmup actual frames ${result.resource_warmup_pipeline_quiet_actual_frames} below requested ${requestedFrames}`);
+  }
+  if (typeof result.resource_warmup_pipeline_quiet_error === 'string' &&
+      result.resource_warmup_pipeline_quiet_error.trim().length > 0) {
+    errors.push(`${result.scene_name}: WebGPU pipeline-quiet warmup reported error: ${result.resource_warmup_pipeline_quiet_error}`);
+  }
+  if (result.webgpu_pipeline_instrumentation_available !== true) {
+    errors.push(`${result.scene_name}: WebGPU pipeline-quiet warmup requires available pipeline instrumentation`);
+  }
+  if (!Number.isFinite(result.webgpu_pipeline_create_measured_count)) {
+    errors.push(`${result.scene_name}: WebGPU pipeline-quiet warmup requires measured-window pipeline creation telemetry`);
+  } else if (result.webgpu_pipeline_create_measured_count > 0) {
+    errors.push(`${result.scene_name}: WebGPU pipeline-quiet warmup still created ${result.webgpu_pipeline_create_measured_count} pipelines during the measured window`);
+  }
+}
+
+function validateResourceWarmupInit(errors, result) {
+  for (const field of ['resource_warmup_texture_init_error', 'resource_warmup_render_target_init_error']) {
+    const value = result[field];
+    if (typeof value === 'string' && value.trim().length > 0) {
+      errors.push(`${result.scene_name}: resource warmup reported ${field}: ${value}`);
+    }
+  }
+}
+
+function validateAttributionInstrumentation(errors, result) {
+  if (result.webgpu_queue_instrumentation_enabled === true) {
+    errors.push(`${result.scene_name}: WebGPU queue instrumentation attribution is not allowed in performance evidence`);
+  }
+  if (result.webgpu_command_encoder_instrumentation_enabled === true) {
+    errors.push(`${result.scene_name}: WebGPU command-encoder instrumentation attribution is not allowed in performance evidence`);
+  }
+  if (result.webgpu_bind_group_instrumentation_enabled === true) {
+    errors.push(`${result.scene_name}: WebGPU bind-group instrumentation attribution is not allowed in performance evidence`);
+  }
+  if (result.webgpu_pipeline_state_instrumentation_enabled === true) {
+    errors.push(`${result.scene_name}: WebGPU pipeline-state instrumentation attribution is not allowed in performance evidence`);
+  }
+  if (result.webgpu_buffer_state_instrumentation_enabled === true) {
+    errors.push(`${result.scene_name}: WebGPU buffer-state instrumentation attribution is not allowed in performance evidence`);
+  }
+  if (result.webgpu_render_state_instrumentation_enabled === true) {
+    errors.push(`${result.scene_name}: WebGPU render-state instrumentation attribution is not allowed in performance evidence`);
+  }
+  if (result.webgpu_immediate_instrumentation_enabled === true) {
+    errors.push(`${result.scene_name}: WebGPU immediate instrumentation attribution is not allowed in performance evidence`);
+  }
+  if (result.viewer_trace_webgpu_queue === true) {
+    errors.push(`${result.scene_name}: source WebGPU queue trace instrumentation is not allowed in performance evidence`);
+  }
 }
 
 function validateSuite(results, args) {
@@ -294,11 +623,23 @@ function validateSuite(results, args) {
       errors.push(`${result.scene_name}: smoke/installed variant is not allowed (${variantOf(result)})`);
     }
     if (args.rejectSoftwareRendering) {
+      if (softwareRenderingDiagnosticOptIn(result)) {
+        errors.push(`${result.scene_name}: diagnostic software-rendering opt-in is not allowed in performance evidence`);
+      }
       const reason = softwareRendererReason(result);
       if (reason) {
         errors.push(`${result.scene_name}: known software-rendered GPU path is not allowed (${reason})`);
       }
     }
+    if (args.rejectGpuInstability) {
+      validateGpuStability(errors, result);
+    }
+    validateAttributionInstrumentation(errors, result);
+    validateWebGpuCpuFallback(errors, result);
+    validateTrustedExperimentMetadata(errors, result);
+    validateWebGpuPipelineQuietWarmup(errors, result);
+    validateResourceWarmupInit(errors, result);
+    validateWebGpuBlobCacheEligibility(errors, result, result.scene_name);
     if (args.requireGpuMetadata && !hasGpuMetadata(result)) {
       errors.push(`${result.scene_name}: GPU metadata is required for official/trusted performance evidence`);
     }
@@ -317,6 +658,9 @@ function validateSuite(results, args) {
     }
     if (args.expectedWarmupSeconds !== null && !numericEquals(result.warmup_seconds, args.expectedWarmupSeconds)) {
       errors.push(`${result.scene_name}: warmup_seconds is ${result.warmup_seconds}, expected ${args.expectedWarmupSeconds}`);
+    }
+    if (args.expectedComplexity !== null && !numericEquals(result.complexity, args.expectedComplexity)) {
+      errors.push(`${result.scene_name}: complexity is ${formatValue(result.complexity)}, expected ${args.expectedComplexity}`);
     }
     validateRequiredBrowserFlags(errors, result, result.scene_name, args.requiredBrowserFlag);
     for (const { key, expected: expectedValue } of expectedFlagMetadata) {
@@ -349,7 +693,7 @@ function validateSuite(results, args) {
 const args = parseArgs(process.argv);
 const files = args.files.map((file) => path.resolve(file));
 validateMetrics(files);
-const results = files.map((file) => JSON.parse(fs.readFileSync(file, 'utf8')));
+const results = files.map((file) => readJson(file));
 const errors = validateSuite(results, args);
 
 if (errors.length) {

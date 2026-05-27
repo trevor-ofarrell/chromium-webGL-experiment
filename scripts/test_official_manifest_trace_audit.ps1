@@ -3,6 +3,7 @@ param()
 
 $ErrorActionPreference = "Stop"
 $Root = Resolve-Path (Join-Path $PSScriptRoot "..")
+. (Join-Path $PSScriptRoot "viewer_patch_series.ps1")
 $TempDir = Join-Path $Root "benchmarks\tmp\official-manifest-trace-audit"
 $ManifestPath = Join-Path $TempDir "official-comparison-manifest.json"
 $BackupPath = Join-Path $TempDir "official-comparison-manifest.trace-audit.backup.json"
@@ -34,6 +35,42 @@ function Get-ShortSha256 {
 function Get-Sha256 {
   param([string]$PathValue)
   return (Get-FileHash -Algorithm SHA256 -LiteralPath $PathValue).Hash.ToLowerInvariant()
+}
+
+function Get-StringSha256 {
+  param([string]$Text)
+  $Sha256 = [System.Security.Cryptography.SHA256]::Create()
+  try {
+    $Bytes = [System.Text.Encoding]::UTF8.GetBytes($Text)
+    return (($Sha256.ComputeHash($Bytes) | ForEach-Object { $_.ToString("x2") }) -join "")
+  } finally {
+    $Sha256.Dispose()
+  }
+}
+
+function ConvertTo-ReportInputPath {
+  param([string]$PathValue)
+  $FullPath = [System.IO.Path]::GetFullPath($PathValue)
+  $FullRoot = [System.IO.Path]::GetFullPath($Root).TrimEnd('\', '/')
+  $Prefix = "$FullRoot$([System.IO.Path]::DirectorySeparatorChar)"
+  $DisplayPath = if ($FullPath.StartsWith($Prefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+    $FullPath.Substring($Prefix.Length)
+  } else {
+    $FullPath
+  }
+  return (($DisplayPath -replace "\\", "/") -replace [regex]::Escape([System.IO.Path]::AltDirectorySeparatorChar), "/")
+}
+
+function Get-ReportInputDigest {
+  param([string[]]$PathValues)
+
+  $Entries = [System.Collections.Generic.List[string]]::new()
+  foreach ($PathValue in @($PathValues)) {
+    $Hash = Get-Sha256 $PathValue
+    $Size = (Get-Item -LiteralPath $PathValue).Length
+    $Entries.Add("$(ConvertTo-ReportInputPath $PathValue)`t$Hash`t$Size") | Out-Null
+  }
+  return Get-StringSha256 ((@($Entries | Sort-Object) -join "`n"))
 }
 
 function New-FileMetadata {
@@ -102,7 +139,10 @@ function Write-Json {
 }
 
 function New-OfficialComparisonReportContent {
-  param([string[]]$Scenes = $RequiredScenes)
+  param(
+    [string[]]$Scenes = $RequiredScenes,
+    [string]$InputDigest = ""
+  )
 
   $Rows = [System.Collections.Generic.List[string]]::new()
   foreach ($Scene in $Scenes) {
@@ -115,10 +155,39 @@ function New-OfficialComparisonReportContent {
 
 Generated from synthetic official trace audit fixtures.
 
+Input file digest: ``$InputDigest``
+
 Strict official input validation was enabled: synthetic.
 
 | Scene | Renderer | Variant | Avg FPS | Dropped Delta | JS heap Delta | GPU memory Delta |
 | --- | --- | --- | ---: | ---: | ---: | ---: |
+$($Rows -join "`n")
+"@
+}
+
+function New-SummaryReportContent {
+  param(
+    [string]$Variant,
+    [string]$InputDigest,
+    [string[]]$Scenes = $RequiredScenes
+  )
+
+  $Rows = [System.Collections.Generic.List[string]]::new()
+  foreach ($Scene in $Scenes) {
+    $Rows.Add("| $Scene | webgl2 | $Variant | 60 |") | Out-Null
+  }
+
+  @"
+# Benchmark Summary
+
+Generated from synthetic official trace audit fixtures.
+
+Input file digest: ``$InputDigest``
+
+Strict summary evidence validation was enabled: synthetic.
+
+| Scene | Renderer | Variant | Avg FPS |
+| --- | --- | --- | ---: |
 $($Rows -join "`n")
 "@
 }
@@ -141,6 +210,16 @@ Total events: 2
 | --- | ---: | ---: |
 | presentation | 1 | 0.50 |
 | other | 1 | 1.00 |
+
+## WebGPU Texture Copy Path Verdict
+
+Status: ${Tick}no-webgpu-texture-copy-path-observed${Tick}
+
+| Path | Events | Bytes MiB | Pixels |
+| --- | ---: | ---: | ---: |
+| GPU-resident shared image/mailbox copy | 0 |  |  |
+| CPU fallback/readback copy | 0 |  |  |
+| Rejected CPU fallback attempt | 0 |  |  |
 
 ## Top Duration Events
 
@@ -254,17 +333,45 @@ function New-TraceSidecar {
     duration_seconds = $Duration
     warmup_seconds = $Warmup
     start_delay_ms = $StartDelayMs
+    benchmark_hud_enabled = $false
     viewer_mode = $ViewerMode
     viewer_block_external_navigation = $ViewerBlockExternalNavigation
     viewer_trusted_content = $ViewerTrustedContent
     viewer_aggressive_gpu = $false
     viewer_relaxed_webgl_validation = $false
+    viewer_zero_copy = $false
     viewer_in_process_gpu = $false
     viewer_single_process = $false
     viewer_force_angle_backend = $null
     requested_angle_backend = $null
     viewer_disable_unneeded_blink_features = $false
     viewer_direct_gpu_presentation = $false
+    viewer_defer_webgpu_pipeline_flush = $false
+    viewer_defer_webgpu_queue_flush = $false
+    viewer_defer_webgpu_submit_flush = $false
+    viewer_skip_webgpu_canvas_texture_validation = $false
+    viewer_skip_webgpu_canvas_memory_accounting = $false
+    viewer_skip_webgpu_copy_external_image_color_conversion = $false
+    viewer_skip_webgpu_copy_external_image_color_space_validation = $false
+    viewer_skip_webgpu_copy_external_image_dest_validation = $false
+    viewer_skip_webgpu_copy_external_image_source_validation = $false
+    viewer_skip_webgpu_copy_external_image_copy_size_validation = $false
+    viewer_skip_webgpu_write_texture_layout_validation = $false
+    viewer_reject_webgpu_cpu_texture_fallback = $false
+    viewer_skip_webgpu_use_counters = $false
+    viewer_cache_webgpu_bind_group_layouts = $false
+    viewer_skip_webgpu_command_labels = $false
+    viewer_skip_webgpu_resource_labels = $false
+    viewer_skip_webgpu_shader_source_null_check = $false
+    viewer_skip_webgpu_shader_memory_accounting = $false
+    viewer_skip_webgpu_redundant_pipeline_sets = $false
+    viewer_skip_webgpu_redundant_bind_group_sets = $false
+    viewer_skip_webgpu_redundant_buffer_sets = $false
+    viewer_skip_webgpu_redundant_render_state_sets = $false
+    viewer_trace_webgpu_queue = $false
+    resource_warmup_enabled = $false
+    resource_warmup_precompile = $false
+    resource_warmup_prerender_frames = 0
     browser_flags = @("--disable-software-rasterizer")
     categories = "gpu,viz,v8"
     benchmark_result = [pscustomobject]@{
@@ -312,6 +419,7 @@ function New-BenchmarkResult {
     angle_backend = "ANGLE (NVIDIA, D3D11)"
     renderer_type = "webgl2"
     scene_name = $Scene
+    complexity = 1
     warmup_seconds = 20
     measured_seconds = 120
     avg_fps = 60
@@ -334,6 +442,10 @@ function New-BenchmarkResult {
     texture_upload_mb = 0
     buffer_upload_mb = 0
     shader_compile_events = 0
+    webgpu_device_lost = $false
+    webgl_context_currently_lost = $false
+    webgl_context_lost_count = 0
+    render_error_count = 0
     js_heap_mb = 10
     gpu_memory_mb = 20
     process_rss_mb = 100
@@ -349,12 +461,16 @@ function New-BenchmarkResult {
     viewer_trusted_content = $ViewerTrustedContent
     viewer_aggressive_gpu = $false
     viewer_relaxed_webgl_validation = $false
+    viewer_zero_copy = $false
     viewer_in_process_gpu = $false
     viewer_single_process = $false
     viewer_force_angle_backend = $null
     requested_angle_backend = $null
     viewer_disable_unneeded_blink_features = $false
     viewer_direct_gpu_presentation = $false
+    resource_warmup_enabled = $false
+    resource_warmup_precompile = $false
+    resource_warmup_prerender_frames = 0
     browser_flags = @("--disable-software-rasterizer")
   }
 }
@@ -396,6 +512,7 @@ function Invoke-AuditAndReadChecklist {
   $OldSkipRuntime = $env:THREE_BROWSER_SKIP_OFFICIAL_MANIFEST_RUNTIME_AUDIT_TEST
   $OldSkipTrace = $env:THREE_BROWSER_SKIP_OFFICIAL_MANIFEST_TRACE_AUDIT_TEST
   $OldSkipReport = $env:THREE_BROWSER_SKIP_OFFICIAL_MANIFEST_REPORT_AUDIT_TEST
+  $OldSkipRequiredOptions = $env:THREE_BROWSER_SKIP_OFFICIAL_MANIFEST_REQUIRED_OPTIONS_AUDIT_TEST
   $OldAllowManifestOverrides = $env:THREE_BROWSER_ALLOW_TEST_MANIFEST_OVERRIDES
   $OldOfficialManifestPath = $env:THREE_BROWSER_TEST_OFFICIAL_COMPARISON_MANIFEST
   $env:THREE_BROWSER_SKIP_MANIFEST_PACKAGE_AUDIT_TEST = "1"
@@ -407,6 +524,7 @@ function Invoke-AuditAndReadChecklist {
   $env:THREE_BROWSER_SKIP_OFFICIAL_MANIFEST_RUNTIME_AUDIT_TEST = "1"
   $env:THREE_BROWSER_SKIP_OFFICIAL_MANIFEST_TRACE_AUDIT_TEST = "1"
   $env:THREE_BROWSER_SKIP_OFFICIAL_MANIFEST_REPORT_AUDIT_TEST = "1"
+  $env:THREE_BROWSER_SKIP_OFFICIAL_MANIFEST_REQUIRED_OPTIONS_AUDIT_TEST = "1"
   $env:THREE_BROWSER_ALLOW_TEST_MANIFEST_OVERRIDES = "1"
   $env:THREE_BROWSER_TEST_OFFICIAL_COMPARISON_MANIFEST = $ManifestPath
   try {
@@ -457,6 +575,11 @@ function Invoke-AuditAndReadChecklist {
     } else {
       $env:THREE_BROWSER_SKIP_OFFICIAL_MANIFEST_REPORT_AUDIT_TEST = $OldSkipReport
     }
+    if ($null -eq $OldSkipRequiredOptions) {
+      Remove-Item Env:\THREE_BROWSER_SKIP_OFFICIAL_MANIFEST_REQUIRED_OPTIONS_AUDIT_TEST -ErrorAction SilentlyContinue
+    } else {
+      $env:THREE_BROWSER_SKIP_OFFICIAL_MANIFEST_REQUIRED_OPTIONS_AUDIT_TEST = $OldSkipRequiredOptions
+    }
     if ($null -eq $OldAllowManifestOverrides) {
       Remove-Item Env:\THREE_BROWSER_ALLOW_TEST_MANIFEST_OVERRIDES -ErrorAction SilentlyContinue
     } else {
@@ -479,8 +602,7 @@ if ($HadManifest) {
 
 try {
   $ChromiumRevision = Get-GitRevision (Join-Path $Root "src")
-  $PatchHash = Get-ShortSha256 (Join-Path $Root "chromium_patches\0001-draft-minimal-three-viewer-entrypoint.patch")
-  $ForkRevision = "$ChromiumRevision+viewerpatch-$PatchHash"
+  $ForkRevision = Get-ViewerForkRevisionForChromiumRevision -ChromiumRevision $ChromiumRevision -Root $Root
   $BaselineWebGl = New-ResultFiles "baseline-content-shell" "webgl2"
   $ForkWebGl = New-ResultFiles "fork-viewer-default" "webgl2"
   $RuntimeSmoke = @(
@@ -544,6 +666,7 @@ try {
       expected_fork_build_args_hash = "0123456789abcdef"
       forbid_smoke = $true
       reject_software_rendering = $true
+      reject_gpu_instability = $true
       require_gpu_metadata = $true
       require_frame_times = $true
       expected_measured_seconds = 120
@@ -555,8 +678,8 @@ try {
       expected_fork_revision = $ForkRevision
       exact_scene_output_files = $true
       expected_flag_metadata = [pscustomobject]@{
-        baseline = @("viewer_mode=false")
-        fork_default = @("viewer_mode=true")
+        baseline = @("viewer_mode=false", "resource_warmup_enabled=false", "resource_warmup_precompile=false", "resource_warmup_prerender_frames=0")
+        fork_default = @("viewer_mode=true", "resource_warmup_enabled=false", "resource_warmup_precompile=false", "resource_warmup_prerender_frames=0")
         aggressive = @()
         baseline_webgpu = @()
         fork_default_webgpu = @()
@@ -564,6 +687,8 @@ try {
       }
     }
     report_files = [pscustomobject]@{
+      baseline_webgl2_summary = "baseline-webgl2-summary.md"
+      fork_default_webgl2_summary = "fork-default-webgl2-summary.md"
       official_webgl2_comparison = "official-webgl2-comparison.md"
       official_webgpu_comparison = $null
       baseline_trace_summary = "baseline-trace-summary.md"
@@ -606,6 +731,8 @@ try {
         navigation_lock = New-MetadataList $NavigationLock
       }
       reports = [pscustomobject]@{
+        baseline_webgl2_summary = New-FileMetadata "baseline-webgl2-summary.md"
+        fork_default_webgl2_summary = New-FileMetadata "fork-default-webgl2-summary.md"
         official_webgl2_comparison = New-FileMetadata "official-webgl2-comparison.md"
         official_webgpu_comparison = New-MissingMetadata "official-webgpu-comparison.md"
         baseline_trace_summary = New-FileMetadata "baseline-trace-summary.md"
@@ -664,6 +791,8 @@ try {
   $ActualForkArgs = Write-ArtifactFile (Join-Path $TempDir "actual-fork-args.gn") "is_debug=false"
   $ActualBaselineArgsHash = Get-Sha256 $ActualBaselineArgs
   $ActualForkArgsHash = Get-Sha256 $ActualForkArgs
+  $ActualBaselineSummary = Write-ArtifactFile (Join-Path $TempDir "baseline-webgl2-summary.md") "# Baseline WebGL2 summary`n"
+  $ActualForkSummary = Write-ArtifactFile (Join-Path $TempDir "fork-default-webgl2-summary.md") "# Fork WebGL2 summary`n"
   $ActualOfficialReport = Write-ArtifactFile (Join-Path $TempDir "official-webgl2-comparison.md") (New-OfficialComparisonReportContent)
   $ActualBaselineTraceSummary = Write-ArtifactFile (Join-Path $TempDir "baseline-trace-summary.md") (New-TraceSummaryReportContent -TracePath $BaselineTrace)
   $ActualForkTraceSummary = Write-ArtifactFile (Join-Path $TempDir "fork-trace-summary.md") (New-TraceSummaryReportContent -TracePath $ForkTrace)
@@ -698,6 +827,14 @@ try {
     -ViewerMode $true `
     -ViewerBlockExternalNavigation $true `
     -ViewerTrustedContent $true
+  $null = Write-ArtifactFile $ActualBaselineSummary (New-SummaryReportContent `
+      -Variant "baseline-content-shell" `
+      -InputDigest (Get-ReportInputDigest $ActualBaselineWebGl))
+  $null = Write-ArtifactFile $ActualForkSummary (New-SummaryReportContent `
+      -Variant "fork-viewer-default" `
+      -InputDigest (Get-ReportInputDigest $ActualForkWebGl))
+  $null = Write-ArtifactFile $ActualOfficialReport (New-OfficialComparisonReportContent `
+      -InputDigest (Get-ReportInputDigest (@($ActualBaselineWebGl) + @($ActualForkWebGl))))
   Write-ValidSmokeFiles `
     -RuntimeSmoke $ActualRuntimeSmoke `
     -NavigationLock $ActualNavigationLock `
@@ -718,6 +855,8 @@ try {
   $Manifest.result_files.fork_default_webgl2 = $ActualForkWebGl
   $Manifest.result_files.runtime_smoke = $ActualRuntimeSmoke
   $Manifest.result_files.navigation_lock = $ActualNavigationLock
+  $Manifest.report_files.baseline_webgl2_summary = $ActualBaselineSummary
+  $Manifest.report_files.fork_default_webgl2_summary = $ActualForkSummary
   $Manifest.report_files.official_webgl2_comparison = $ActualOfficialReport
   $Manifest.report_files.baseline_trace_summary = $ActualBaselineTraceSummary
   $Manifest.report_files.fork_trace_summary = $ActualForkTraceSummary
@@ -730,6 +869,8 @@ try {
   $Manifest.artifact_metadata.results.fork_default_webgl2 = New-MetadataList $ActualForkWebGl
   $Manifest.artifact_metadata.runtime_tests.smoke = New-MetadataList $ActualRuntimeSmoke
   $Manifest.artifact_metadata.runtime_tests.navigation_lock = New-MetadataList $ActualNavigationLock
+  $Manifest.artifact_metadata.reports.baseline_webgl2_summary = New-FileMetadata $ActualBaselineSummary
+  $Manifest.artifact_metadata.reports.fork_default_webgl2_summary = New-FileMetadata $ActualForkSummary
   $Manifest.artifact_metadata.reports.official_webgl2_comparison = New-FileMetadata $ActualOfficialReport
   $Manifest.artifact_metadata.reports.baseline_trace_summary = New-FileMetadata $ActualBaselineTraceSummary
   $Manifest.artifact_metadata.reports.fork_trace_summary = New-FileMetadata $ActualForkTraceSummary

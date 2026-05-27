@@ -1,0 +1,2284 @@
+{
+  "generated_at": "2026-05-24T15:27:08.591Z",
+  "options": {
+    "min_measured_seconds": 30,
+    "min_scenes": 7,
+    "p99_regression_ms": 1,
+    "min_avg_fps_delta_pct": 0.5,
+    "scene_regression_pct": 1,
+    "low_regression_fps": 0.1,
+    "dropped_frames_regression": 0,
+    "cpu_frame_regression_ms": 0.5,
+    "render_submission_regression_ms": 0.5,
+    "pipeline_create_regression_ms": 1,
+    "shader_compile_regression_events": 0,
+    "include_attribution": false,
+    "include_diagnostic_texture_modes": false,
+    "require_frame_times": true,
+    "require_checkout": true,
+    "require_package_size": true,
+    "required_candidate_renderers": [
+      "webgl2",
+      "webgpu"
+    ],
+    "required_scenes": [
+      "many-draw-calls",
+      "instancing",
+      "shader-heavy",
+      "texture-streaming",
+      "postprocessing",
+      "large-static",
+      "gltf-loader-stress"
+    ],
+    "expected_chromium_revision": "3a94d90ec3c04556622c56944796dd76753e0581",
+    "expected_fork_revision": "3a94d90ec3c04556622c56944796dd76753e0581+viewerpatch-43dbf0b6871e",
+    "build_args_compatibility_policy": "same-build-args-hash",
+    "environment_compatibility_policy": "same-platform-driver-gpu-device",
+    "complexity_compatibility_policy": "same-explicit-benchmark-complexity",
+    "webgpu_bundle_mode_compatibility_policy": "same-webgpu-bundle-mode",
+    "webgpu_pipeline_instrumentation_compatibility_policy": "same-webgpu-pipeline-instrumentation-mode",
+    "resource_warmup_compatibility_policy": "same-precompile-prerender-compile-texture-render-target-count-gpu-settle-and-webgpu-pipeline-quiet-mode",
+    "profile_cache_compatibility_policy": "same-profile-cache-mode-and-key",
+    "warm_profile_speed_claim_policy": "explicit-reuse-is-cache-attribution-not-retained-candidate",
+    "required_benchmark_evidence_policy": "candidate-analysis-filters-missing-required-metric-fields",
+    "gpu_timing_evidence_policy": "candidate-analysis-requires-explicit-gpu-timing-mode",
+    "stability_evidence_policy": "candidate-analysis-filters-stability-artifacts",
+    "trace_instrumentation_policy": "candidate-analysis-filters-viewer-and-source-webgpu-attribution-runs",
+    "trusted_experiment_metadata_policy": "candidate-analysis-filters-unsafe-experiments-missing-viewer-trusted-content-metadata",
+    "webgpu_cpu_fallback_policy": "candidate-analysis-filters-webgpu-cpu-texture-fallback-and-missing-copyexternalimage-rejection",
+    "webgpu_pipeline_quiet_success_policy": "candidate-analysis-filters-unachieved-or-measured-pipeline-create-webgpu-pipeline-quiet-warmup",
+    "shader_compile_stall_policy": "candidate-analysis-blocks-shader-compile-event-and-webgpu-pipeline-create-time-regressions",
+    "dropped_frame_regression_policy": "candidate-analysis-blocks-dropped-frame-regressions",
+    "cpu_submission_regression_policy": "candidate-analysis-blocks-cpu-frame-and-render-submission-regressions",
+    "package_size_speed_claim_policy": "require-package-size-when-enabled",
+    "baseline_selection_policy": "fastest-compatible-baseline"
+  },
+  "params": {
+    "min_measured_seconds": 30,
+    "min_scenes": 7,
+    "p99_regression_ms": 1,
+    "min_avg_fps_delta_pct": 0.5,
+    "scene_regression_pct": 1,
+    "low_regression_fps": 0.1,
+    "dropped_frames_regression": 0,
+    "cpu_frame_regression_ms": 0.5,
+    "render_submission_regression_ms": 0.5,
+    "pipeline_create_regression_ms": 1,
+    "shader_compile_regression_events": 0,
+    "include_attribution": false,
+    "include_diagnostic_texture_modes": false,
+    "require_frame_times": true,
+    "require_checkout": true,
+    "require_package_size": true,
+    "required_candidate_renderers": [
+      "webgl2",
+      "webgpu"
+    ],
+    "required_scenes": [
+      "many-draw-calls",
+      "instancing",
+      "shader-heavy",
+      "texture-streaming",
+      "postprocessing",
+      "large-static",
+      "gltf-loader-stress"
+    ],
+    "expected_chromium_revision": "3a94d90ec3c04556622c56944796dd76753e0581",
+    "expected_fork_revision": "3a94d90ec3c04556622c56944796dd76753e0581+viewerpatch-43dbf0b6871e",
+    "build_args_compatibility_policy": "same-build-args-hash",
+    "environment_compatibility_policy": "same-platform-driver-gpu-device",
+    "complexity_compatibility_policy": "same-explicit-benchmark-complexity",
+    "webgpu_bundle_mode_compatibility_policy": "same-webgpu-bundle-mode",
+    "webgpu_pipeline_instrumentation_compatibility_policy": "same-webgpu-pipeline-instrumentation-mode",
+    "resource_warmup_compatibility_policy": "same-precompile-prerender-compile-texture-render-target-count-gpu-settle-and-webgpu-pipeline-quiet-mode",
+    "profile_cache_compatibility_policy": "same-profile-cache-mode-and-key",
+    "warm_profile_speed_claim_policy": "explicit-reuse-is-cache-attribution-not-retained-candidate",
+    "required_benchmark_evidence_policy": "candidate-analysis-filters-missing-required-metric-fields",
+    "gpu_timing_evidence_policy": "candidate-analysis-requires-explicit-gpu-timing-mode",
+    "stability_evidence_policy": "candidate-analysis-filters-stability-artifacts",
+    "trace_instrumentation_policy": "candidate-analysis-filters-viewer-and-source-webgpu-attribution-runs",
+    "trusted_experiment_metadata_policy": "candidate-analysis-filters-unsafe-experiments-missing-viewer-trusted-content-metadata",
+    "webgpu_cpu_fallback_policy": "candidate-analysis-filters-webgpu-cpu-texture-fallback-and-missing-copyexternalimage-rejection",
+    "webgpu_pipeline_quiet_success_policy": "candidate-analysis-filters-unachieved-or-measured-pipeline-create-webgpu-pipeline-quiet-warmup",
+    "shader_compile_stall_policy": "candidate-analysis-blocks-shader-compile-event-and-webgpu-pipeline-create-time-regressions",
+    "dropped_frame_regression_policy": "candidate-analysis-blocks-dropped-frame-regressions",
+    "cpu_submission_regression_policy": "candidate-analysis-blocks-cpu-frame-and-render-submission-regressions",
+    "package_size_speed_claim_policy": "require-package-size-when-enabled",
+    "baseline_selection_policy": "fastest-compatible-baseline"
+  },
+  "input_file_digest": "0604c0a4e1a04c27ec89e3290d62429c727ebb1af5399080a47a93be383b808c",
+  "input_files": [
+    {
+      "path": "benchmarks/raw/baseline-content-shell-gltf-loader-stress-webgl2.json",
+      "sha256": "64eacdea26efb9cd1a5529708d54f8cf6ff845643b753be4f51821c8e84f5b78",
+      "size_bytes": 61015
+    },
+    {
+      "path": "benchmarks/raw/baseline-content-shell-instancing-webgl2.json",
+      "sha256": "ebc76893e0f8bbd25e33621389f7952c040d46b02ee5f8fa1320ffd05d6c548d",
+      "size_bytes": 60160
+    },
+    {
+      "path": "benchmarks/raw/baseline-content-shell-large-static-webgl2.json",
+      "sha256": "b49a9bc6fcca37a1096bf5201cc7ee214ee98f6890d30491f0dab7cee3626dc2",
+      "size_bytes": 60059
+    },
+    {
+      "path": "benchmarks/raw/baseline-content-shell-long-stability-instancing-webgl2.json",
+      "sha256": "0564b8be56715bb61ba953307054d2c0549a3c6326e81dfdac3cc7c6f2dee1c9",
+      "size_bytes": 2153760
+    },
+    {
+      "path": "benchmarks/raw/baseline-content-shell-many-draw-calls-webgl2.json",
+      "sha256": "10909e4ef4aff90b0fb6ba031b1fccc9307d431a44d892f0c28a1fccda6fe120",
+      "size_bytes": 60096
+    },
+    {
+      "path": "benchmarks/raw/baseline-content-shell-postprocessing-webgl2.json",
+      "sha256": "367813ee4a3669491ccd2dcf2bc92648729938f86ceaa473faf9ee61022d5d00",
+      "size_bytes": 61151
+    },
+    {
+      "path": "benchmarks/raw/baseline-content-shell-runtime-smoke.json",
+      "sha256": "95c3d2f2cc828cd61a47cb05ff2926e3e66017329eeedefb3c9aaf86c2e688e1",
+      "size_bytes": 4880
+    },
+    {
+      "path": "benchmarks/raw/baseline-content-shell-shader-heavy-webgl2.json",
+      "sha256": "2b6d8f9b998619509f3c88d6c29cc0becc45837efbf144ab91e90ad11b0b3860",
+      "size_bytes": 61200
+    },
+    {
+      "path": "benchmarks/raw/baseline-content-shell-texture-streaming-webgl2.json",
+      "sha256": "78019d3bd75616ce91e47d725d36e8d4f5d649755dc660c66e22f3690a7821ba",
+      "size_bytes": 27560
+    },
+    {
+      "path": "benchmarks/raw/baseline-content-shell-webgpu-gltf-loader-stress-webgpu.json",
+      "sha256": "68d8b9b2263cdfc0f44ebb393cc573c434acde078f9fa5ecebc7e9c152074d20",
+      "size_bytes": 38447
+    },
+    {
+      "path": "benchmarks/raw/baseline-content-shell-webgpu-instancing-webgpu.json",
+      "sha256": "20ad4f3456bd2fba67fe503f7e04b83ada62f7488b401e404b9d67146c6d5dc4",
+      "size_bytes": 45464
+    },
+    {
+      "path": "benchmarks/raw/baseline-content-shell-webgpu-large-static-webgpu.json",
+      "sha256": "f04776c8461e5e51c773c09a6cb7091f54529010bab776fdfc9187b192ed285d",
+      "size_bytes": 48340
+    },
+    {
+      "path": "benchmarks/raw/baseline-content-shell-webgpu-many-draw-calls-webgpu.json",
+      "sha256": "2a67671814595ba8a84eb326d3de561b1fb6ec6e6f38b86d1a987913df8e36c0",
+      "size_bytes": 57762
+    },
+    {
+      "path": "benchmarks/raw/baseline-content-shell-webgpu-postprocessing-webgpu.json",
+      "sha256": "a2e258b98eec6d619b644658fbf6c0ef1c1a4a0339700a90e5eb53cefc14a771",
+      "size_bytes": 43473
+    },
+    {
+      "path": "benchmarks/raw/baseline-content-shell-webgpu-shader-heavy-webgpu.json",
+      "sha256": "e33d2431ec3e3a5c46501abfdf964d3e98981129c8e5f59b6818221eb0d35bc8",
+      "size_bytes": 38255
+    },
+    {
+      "path": "benchmarks/raw/baseline-content-shell-webgpu-texture-streaming-webgpu.json",
+      "sha256": "fd554838edc8f77705dee537451b001f046899cc820570e1d07c66f4a9c82ae7",
+      "size_bytes": 28090
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-aggressive-gpu-d3d11-gltf-loader-stress-webgl2.json",
+      "sha256": "a620269edf20780023300a470adeee6201012c4e78e8b02d3a23cf6b5a2f315f",
+      "size_bytes": 59682
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-aggressive-gpu-d3d11-instancing-webgl2.json",
+      "sha256": "7e5b17415978cafd3ee27cd7278789f6ce077df39ae1d3ce01b0ae6d5cf5fcd9",
+      "size_bytes": 60275
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-aggressive-gpu-d3d11-large-static-webgl2.json",
+      "sha256": "5eea8143ad278a9776203ea47d07a50f658520adae5b5c4353e8c2fb0a310188",
+      "size_bytes": 60106
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-aggressive-gpu-d3d11-many-draw-calls-webgl2.json",
+      "sha256": "74966bed25e0bab6f1bc8f071f08fd50a73603577f5bbc3b96c6bc870ed9f890",
+      "size_bytes": 59290
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-aggressive-gpu-d3d11-postprocessing-webgl2.json",
+      "sha256": "1a19409372696f8215ef27c1b57eac6a76e13d04894d762e52afac5c993da0c0",
+      "size_bytes": 59643
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-aggressive-gpu-d3d11-shader-heavy-webgl2.json",
+      "sha256": "002948e95263c82944c4242282223c7298cff3e1e733bd35db0e8d86e34183cc",
+      "size_bytes": 60890
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-aggressive-gpu-d3d11-texture-streaming-webgl2.json",
+      "sha256": "5ef55503b59ada7f109dbcb26c55288ce9a883c1ef0b033b9a50d5f3a7d4c5e0",
+      "size_bytes": 27260
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-aggressive-gpu-d3d11-webgpu-gltf-loader-stress-webgpu.json",
+      "sha256": "dc90ce42ada74001c74c22e3b629d66c417af9e2579813e688cfceba50f45e9a",
+      "size_bytes": 41399
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-aggressive-gpu-d3d11-webgpu-instancing-webgpu.json",
+      "sha256": "68abc4384a7eb761d93d4fc3b0f779284dca03012a020794f8b132d4efa18082",
+      "size_bytes": 38257
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-aggressive-gpu-d3d11-webgpu-large-static-webgpu.json",
+      "sha256": "5ded07eff17702839c158e89de59ed5fccf18fa3480a4128a5f63c83101cef8d",
+      "size_bytes": 28019
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-aggressive-gpu-d3d11-webgpu-many-draw-calls-webgpu.json",
+      "sha256": "cf80d38a88df93faf59a4aaf921adcb96fa769e14432292fbcfb3194e5316a3a",
+      "size_bytes": 41363
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-aggressive-gpu-d3d11-webgpu-postprocessing-webgpu.json",
+      "sha256": "83f63c8f42543ed984f5d71d815a188fd35e4937b6e8406b05db4f44d9054a01",
+      "size_bytes": 28214
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-aggressive-gpu-d3d11-webgpu-shader-heavy-webgpu.json",
+      "sha256": "28f20302d82955b06ce991c19fde9e704a81c301cae3fda71a81ab3825e91f00",
+      "size_bytes": 107531
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-aggressive-gpu-d3d11-webgpu-texture-streaming-webgpu.json",
+      "sha256": "555e425ff3e0a53fa2820f1896121c77aef62063ee856827307cf220751e5a7b",
+      "size_bytes": 27524
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-default-file-navigation-lock.json",
+      "sha256": "f35383ad471bb93799bb265fa157363859c3d08cb236a9fb69ee526b96c0bf7d",
+      "size_bytes": 1695
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-default-gltf-loader-stress-webgl2.json",
+      "sha256": "195431e177ea6ca45c1d4d05a968f407b3921c98906215c82c8d84202fabfc9e",
+      "size_bytes": 60271
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-default-instancing-webgl2.json",
+      "sha256": "962930e2f87389d781be74eb0a6266cfbf311bdf234f962d7c1e145eadea4cdc",
+      "size_bytes": 60032
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-default-large-static-webgl2.json",
+      "sha256": "b11a3753bfaf2acdc17ccb47c4654c21e04ac253e8090ced25191af982a0479b",
+      "size_bytes": 59696
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-default-long-stability-instancing-webgl2.json",
+      "sha256": "f14f33b4ca73f8e81e6df3ebb37851abd81c7956cedf3aa90ed8577b5ff120e7",
+      "size_bytes": 1275219
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-default-long-stability-smoke-instancing-webgl2.json",
+      "sha256": "e87843e2c35dcbb9e98b3792f412e1a3ffc994ef50beca311c961c2cffac426e",
+      "size_bytes": 27820
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-default-many-draw-calls-webgl2.json",
+      "sha256": "a69e115e2bb99345c311d46b2013b35aae2d8c90ac09602ef0fb723385b6e7ea",
+      "size_bytes": 59705
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-default-navigation-lock.json",
+      "sha256": "a60ac9b072860ac4770474f33aa802aee9bc2fec6bc91b4146897d89a85daa3c",
+      "size_bytes": 1406
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-default-postprocessing-webgl2.json",
+      "sha256": "73ab3f4629a4e883885ea63d5a5c755a39415b642c3f504f27322a1ef77c3067",
+      "size_bytes": 58274
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-default-runtime-smoke.json",
+      "sha256": "80f71c5a82a7e3d9cd1bb3a95640852bc52d4ee3f1e960c54f8b0e7daa44c3fb",
+      "size_bytes": 5016
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-default-shader-heavy-webgl2.json",
+      "sha256": "598d2ce08ed5e098e7c8d0295233e04389597cedc31c3321c8b8e3427b814a83",
+      "size_bytes": 60489
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-default-texture-streaming-webgl2.json",
+      "sha256": "a812a229392da2e942cb4cff946ad1ca362aa7dcc929497e76be259feb3be89a",
+      "size_bytes": 27775
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-default-webgpu-gltf-loader-stress-webgpu.json",
+      "sha256": "b89938f799ad1e107cc17a414d0258235d6a786a26ac767c2b4fdee0f7e3aea1",
+      "size_bytes": 30891
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-default-webgpu-instancing-webgpu.json",
+      "sha256": "4d135a7a5423b90791fa35c20f10b5962f57580d600273853cf2edbee7aceb21",
+      "size_bytes": 43389
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-default-webgpu-large-static-webgpu.json",
+      "sha256": "83f5e3d53f1561c0c6c53607835325b959219eb147466d008fc0e87b804f8e23",
+      "size_bytes": 22057
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-default-webgpu-many-draw-calls-webgpu.json",
+      "sha256": "82e86aa1e714b3ab2bfe8f07f17b711603bc4cf49b23755e032e710477ec4c81",
+      "size_bytes": 44877
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-default-webgpu-postprocessing-webgpu.json",
+      "sha256": "ab0e5e92d7657992fcd580c08172d02165678bf3371eded92c9b57a5a888ed14",
+      "size_bytes": 27453
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-default-webgpu-shader-heavy-webgpu.json",
+      "sha256": "2ade4263346b4ccc19b6dac3fd2548bfd74d97cb04fc6e9033a427bbc8c86edb",
+      "size_bytes": 29188
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-default-webgpu-texture-streaming-webgpu.json",
+      "sha256": "c0b730a6518d64dc25a92855e8b3d2705ffdbf1f583cd0c138b00fd07585de0c",
+      "size_bytes": 25737
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-aggressive-gpu-gltf-loader-stress-webgl2.json",
+      "sha256": "55c198ebba15fcc63cd5606a26c09f3ff9d58c2ecbb01c689b1422274420a2bf",
+      "size_bytes": 28426
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-aggressive-gpu-instancing-webgl2.json",
+      "sha256": "05185a46c406696cbfa146023d66f4c2bcdb765eccfc056a8e23637cbcd6e0f2",
+      "size_bytes": 27608
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-aggressive-gpu-large-static-webgl2.json",
+      "sha256": "3198a7d812883cfdfb58ccc7e1b6446acf2b06c0d1a6c4ae24850918e432c1a4",
+      "size_bytes": 28812
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-aggressive-gpu-many-draw-calls-webgl2.json",
+      "sha256": "a7c202a9607f8e33505d52c094c7ae56f866eb98dd5769a6a349e0fdb56d2a9a",
+      "size_bytes": 28664
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-aggressive-gpu-postprocessing-webgl2.json",
+      "sha256": "4cd8feaaf267e66da417443b726106843a0e75159658cb23018d2c8216426523",
+      "size_bytes": 29227
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-aggressive-gpu-shader-heavy-webgl2.json",
+      "sha256": "fbeb83459c2220b77c168cd59e5b214254006034d7ecea9779a21b6723eae574",
+      "size_bytes": 28633
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-aggressive-gpu-texture-streaming-webgl2.json",
+      "sha256": "c3340c4434f71b4f25720562279f2753d3abe7386285ca4febc7202ad1912e75",
+      "size_bytes": 15682
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-angle-d3d11-gltf-loader-stress-webgl2.json",
+      "sha256": "076648fa561b12422d3b74cbbfbb649663d442b5f0ea37d2dfa602bc99904b5d",
+      "size_bytes": 32915
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-angle-d3d11-instancing-webgl2.json",
+      "sha256": "c15a45c5d9e34d0b161fe3f4a485b6686f58a512c554f1bdf51fd2003132ba82",
+      "size_bytes": 34186
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-angle-d3d11-large-static-webgl2.json",
+      "sha256": "4b157637369af6372af45671466f747135e3eebf05c7d9674dda1693b29b2430",
+      "size_bytes": 33484
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-angle-d3d11-many-draw-calls-webgl2.json",
+      "sha256": "9f6fa7d4e880c85814bb7db4fc9b39e6a99549730d8a9842ce508d0acbc2ac6d",
+      "size_bytes": 35217
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-angle-d3d11-postprocessing-webgl2.json",
+      "sha256": "30b798c8fb60575d8dc0653ebaf98e57a68f84722a7dc7d052cb508ba6adce5f",
+      "size_bytes": 33679
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-angle-d3d11-shader-heavy-webgl2.json",
+      "sha256": "2ef41a3f5c16f52654d73029a9378d02003f9e6ca01e87c3d4eb823dbf9f2584",
+      "size_bytes": 34546
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-angle-d3d11-texture-streaming-webgl2.json",
+      "sha256": "61d87d6b04abe31a14e96b2ed2530acd6cbdad0492dc1061bcde7a9f703db94c",
+      "size_bytes": 16583
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-default-gltf-loader-stress-webgl2.json",
+      "sha256": "bad5b14d8dbfe387fc1b556d4d66f0527a7c7f8e95094445d9bb1057ac39b300",
+      "size_bytes": 28752
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-default-instancing-webgl2.json",
+      "sha256": "149ffc5ba83336c3e7ed09bd50dc83036fc61614cb0f557bbcc2321e14feac0b",
+      "size_bytes": 29237
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-default-large-static-webgl2.json",
+      "sha256": "0a17d1e0a0a434d48fc56b54d04fa5e9f8ff65eae8c4de1edb6ffb6173970e26",
+      "size_bytes": 28927
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-default-many-draw-calls-webgl2.json",
+      "sha256": "3e9d679f30ffc0c9e1085852f10e9542ea2abe449e66b0ac46a241c105e7a837",
+      "size_bytes": 30372
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-default-postprocessing-webgl2.json",
+      "sha256": "57a74cb83cb5ac30e269cfd2d03744b4805898a9787189dc4f7e46999dc55054",
+      "size_bytes": 28405
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-default-shader-heavy-webgl2.json",
+      "sha256": "84cf6e5ef5a9dcb5e8be2751b299ab64f65ef423cac4f45cfe494dc212459048",
+      "size_bytes": 28066
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-default-texture-streaming-webgl2.json",
+      "sha256": "a8b3dfb4a0789e9efaa7ba5ac85c1005b1ae90fc9cf518c83713dd91ca84ea45",
+      "size_bytes": 15517
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-direct-gpu-presentation-gate-gltf-loader-stress-webgl2.json",
+      "sha256": "661c3d6e0ebbcc02c2d0b7bb6c338ff11b358810b3077b134bed2f80662e16d1",
+      "size_bytes": 28570
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-direct-gpu-presentation-gate-instancing-webgl2.json",
+      "sha256": "a8d10c1b854d22474972cd373596716faaa1b194cd652c0832450470291bc827",
+      "size_bytes": 29276
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-direct-gpu-presentation-gate-large-static-webgl2.json",
+      "sha256": "1275b9f949f04f32617029309859634d749a7fa02999afc59b666075d477c3f2",
+      "size_bytes": 28090
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-direct-gpu-presentation-gate-many-draw-calls-webgl2.json",
+      "sha256": "eecf5835b290991b765d7bce52929699be34dbf43b9fcc19407f36ee738f1839",
+      "size_bytes": 30003
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-direct-gpu-presentation-gate-postprocessing-webgl2.json",
+      "sha256": "e4bc9d8018f49e131423cbfd625f32e5253446ca81e5c237a6ca75c2ab69bf05",
+      "size_bytes": 27423
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-direct-gpu-presentation-gate-shader-heavy-webgl2.json",
+      "sha256": "42115afe7e0b9fbf2fb3a85112505eef87346fba2e8aa230b12da2595357fc90",
+      "size_bytes": 28160
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-direct-gpu-presentation-gate-texture-streaming-webgl2.json",
+      "sha256": "675babf214c312ed4084065c9c6048327b7b57c366436d58a6f59cffc91ce97c",
+      "size_bytes": 13971
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-disable-unneeded-blink-features-gate-gltf-loader-stress-webgl2.json",
+      "sha256": "915e2abab9e3da568951b326840d07e747c89b01685d38ab2d2ceaf8cad548e9",
+      "size_bytes": 29141
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-disable-unneeded-blink-features-gate-instancing-webgl2.json",
+      "sha256": "d3d9ff750ac47ab46f57c2a78965f75d45a295e35993015a544fe2835222ce65",
+      "size_bytes": 33812
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-disable-unneeded-blink-features-gate-large-static-webgl2.json",
+      "sha256": "e0fe2c78dee0b83e7bda7039d089de301598534b6d167968104b23f4e4d69ab2",
+      "size_bytes": 33846
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-disable-unneeded-blink-features-gate-many-draw-calls-webgl2.json",
+      "sha256": "dcecb88ac47e7bb3bcf7ae28a40f92a7578f9fc43ed1b4d0076341bf8df014df",
+      "size_bytes": 34807
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-disable-unneeded-blink-features-gate-postprocessing-webgl2.json",
+      "sha256": "bf786292d3340eb1318b6f3a89166af32f9dbb736aa801d17fb14212ad716356",
+      "size_bytes": 33747
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-disable-unneeded-blink-features-gate-shader-heavy-webgl2.json",
+      "sha256": "acd4db6ba1b2a0df520922e5fe67170380c0f2d1e1c7884af03e242b9beb1253",
+      "size_bytes": 33991
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-disable-unneeded-blink-features-gate-texture-streaming-webgl2.json",
+      "sha256": "d1aa3f4ab3b80944bd7428057f2861607534f8261eb75d3f66bf75a402102c97",
+      "size_bytes": 16457
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-in-process-gpu-gltf-loader-stress-webgl2.json",
+      "sha256": "3713f7847644939f5160e935932ffcfcf6002ee05254a6483a407c6665f4952c",
+      "size_bytes": 112318
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-in-process-gpu-instancing-webgl2.json",
+      "sha256": "00df648935dadfa52a28b1a8be8f6c74dc117fe179afa99c4469f9cc914629f1",
+      "size_bytes": 108390
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-in-process-gpu-large-static-webgl2.json",
+      "sha256": "7786190ed96ca218bbdac60fc6b0a68c01b4830330e4a3fc45f911f0921b08be",
+      "size_bytes": 109362
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-in-process-gpu-many-draw-calls-webgl2.json",
+      "sha256": "fa852e8b43c1ddb909579480cc5dd8b90afbc363cc9325b68479e0416bcbaa50",
+      "size_bytes": 84054
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-in-process-gpu-postprocessing-webgl2.json",
+      "sha256": "11305de65146a1bef2967e9b881a81a6224056a724727c24ef4bbb730430b8a1",
+      "size_bytes": 110960
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-in-process-gpu-shader-heavy-webgl2.json",
+      "sha256": "d496d99c11be848c0fefc22f3d6c55ffcc9d35f1bd17b91dadc6a20e266a4759",
+      "size_bytes": 104674
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-in-process-gpu-texture-streaming-webgl2.json",
+      "sha256": "7721b11a9cd98e6eb8f373445f73ae1c539bde5d5c4479e641d7ba05105db17b",
+      "size_bytes": 16835
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-relaxed-webgl-validation-gate-gltf-loader-stress-webgl2.json",
+      "sha256": "2f7a384ef3b47a82172fb5d6750347276b11b86944e60dcfe7550803a1c56bb8",
+      "size_bytes": 33773
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-relaxed-webgl-validation-gate-instancing-webgl2.json",
+      "sha256": "4437572070214dd342d6935dea63df0f055408d3e5e927db9ce6d995475cf775",
+      "size_bytes": 33811
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-relaxed-webgl-validation-gate-large-static-webgl2.json",
+      "sha256": "72baa8cfe2315b3ca68182c4b8c025241d19dbfdde0cbe4adf5b19be9b5ba2b2",
+      "size_bytes": 33184
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-relaxed-webgl-validation-gate-many-draw-calls-webgl2.json",
+      "sha256": "8fa8151c015ab482a4b6f1a6baddd016bbd008639566fe526b62cf7532bad39e",
+      "size_bytes": 34627
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-relaxed-webgl-validation-gate-postprocessing-webgl2.json",
+      "sha256": "545f546dabaca6d5edc61ff839605517c089bc048c56e64603c4e19d93f0b558",
+      "size_bytes": 33696
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-relaxed-webgl-validation-gate-shader-heavy-webgl2.json",
+      "sha256": "d0d3b0a6fe2a9ad3e86e4f4544f6bac1b66095770f5ec9f6d0ea5981250d47f3",
+      "size_bytes": 33873
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-relaxed-webgl-validation-gate-texture-streaming-webgl2.json",
+      "sha256": "d6da56c5d60a75d446546a52f9da8bd855834f962090fb82e4f9579da8701a40",
+      "size_bytes": 16359
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-single-process-gltf-loader-stress-webgl2.json",
+      "sha256": "2d6ce2bd935f25466624be1c7819de2b3cef35f26397bee3a968feb02f00442f",
+      "size_bytes": 118101
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-single-process-instancing-webgl2.json",
+      "sha256": "2b3f557e3fb8f7eabb93c3fe743612fe66e1a22eea83ff41ff36b3255ff1e174",
+      "size_bytes": 119655
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-single-process-large-static-webgl2.json",
+      "sha256": "0e077b7522f3515d5403d64354fb281b75c6d16ae252693a18978f5108b98bac",
+      "size_bytes": 119006
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-single-process-many-draw-calls-webgl2.json",
+      "sha256": "8a04b18e472382bc2124292fdd787fb5bc78aae7c97cdd5a6d7d2b30e938237b",
+      "size_bytes": 76975
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-single-process-postprocessing-webgl2.json",
+      "sha256": "6bda2994939dcfe40e6aa9ddf47fdbfbe9107b3cb7bff6ace66dd7a63a3d7904",
+      "size_bytes": 121609
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-single-process-shader-heavy-webgl2.json",
+      "sha256": "134d3e2e16217d5f93a6541e1e77df5ff2fbfc492055714fc54382c15d36f7e9",
+      "size_bytes": 120239
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-exp-single-process-texture-streaming-webgl2.json",
+      "sha256": "4e7a0fc692612b5e342afcbf615215a9dfe2bf197bdd12a3234f17677ad0d7ee",
+      "size_bytes": 16762
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-safe-window-smoke-instancing-webgl2.json",
+      "sha256": "a90fdca8adb8c5dca077cc07f54a83707ce6b6f60184d1e216f8be7c52ba181a",
+      "size_bytes": 6644
+    },
+    {
+      "path": "benchmarks/raw/iter1-baseline-large-static-webgpu.json",
+      "sha256": "d3c784581ba7d2d4e4f7734b8d5d25b94fed48040b46609eebcc14b9eb35a5f6",
+      "size_bytes": 52656
+    },
+    {
+      "path": "benchmarks/raw/iter1-baseline-many-draw-calls-webgl2.json",
+      "sha256": "21ffbd07ec41946e0f84a138093ec71c2a2503265868189ba8879635fd830bcd",
+      "size_bytes": 38877
+    },
+    {
+      "path": "benchmarks/raw/iter1-baseline-shader-heavy-webgpu.json",
+      "sha256": "fa1a53e8b66f400eb574de8c2b77b7bea9423870c553b7050ba8e3489ba82611",
+      "size_bytes": 41284
+    },
+    {
+      "path": "benchmarks/raw/iter1-baseline-short-many-draw-calls-webgpu.json",
+      "sha256": "c284c8e394dedea1c6c8922a43ca538e5890c1bd70fdbeb011166103d69592b5",
+      "size_bytes": 19891
+    },
+    {
+      "path": "benchmarks/raw/iter1-baseline-short-texture-streaming-webgpu.json",
+      "sha256": "7e87299a721003a867b6349676a8015c671b39818fef24e8bd959bd2a9eeadc8",
+      "size_bytes": 6932
+    },
+    {
+      "path": "benchmarks/raw/iter1-baseline-texture-streaming-webgpu.json",
+      "sha256": "42bbfa8b17cdf45a6ee37393d581f8979c0c6f0b655a02c4500cf429111646e6",
+      "size_bytes": 7964
+    },
+    {
+      "path": "benchmarks/raw/iter1-fork-fast-many-draw-calls-webgl2.json",
+      "sha256": "3a5984907a87f8911c04429d461aafc1b9b1db9b8a5efb8a08a55bfa376441d9",
+      "size_bytes": 39684
+    },
+    {
+      "path": "benchmarks/raw/iter1-fork-inprocess-texture-streaming-webgpu.json",
+      "sha256": "d8cda19402081ff1a06cc19242294cb11ce815793f9566bd9ea1abbf277ce6fd",
+      "size_bytes": 6830
+    },
+    {
+      "path": "benchmarks/raw/iter1-fork-renderfix-large-static-webgpu.json",
+      "sha256": "25bd16b7324c68f805a4d8342912d36e36ff542d72be80bf663c5b22e960ae5e",
+      "size_bytes": 53157
+    },
+    {
+      "path": "benchmarks/raw/iter1-fork-renderfix-shader-heavy-webgpu.json",
+      "sha256": "cd13367f65c272ce72b60980fc349bf8e1070a87b178554e7bfa368892de270c",
+      "size_bytes": 40824
+    },
+    {
+      "path": "benchmarks/raw/iter1-fork-renderfix-short-many-draw-calls-webgpu.json",
+      "sha256": "7509e3a2f136d49cb7806056bfc0f98f9b798c85f72c5a088f2bf6e51703d3d4",
+      "size_bytes": 19836
+    },
+    {
+      "path": "benchmarks/raw/iter1-fork-renderfix-texture-streaming-webgpu.json",
+      "sha256": "e973ab2d002e90fb928ae38ebc04d0fcb176c7c6a761e61af74bcc5300b148cc",
+      "size_bytes": 7843
+    },
+    {
+      "path": "benchmarks/raw/iter1-fork-singleprocess-short-many-draw-calls-webgpu.json",
+      "sha256": "348477cc315588c66c121ea4ce39bb937009b11362970d03b8e5a92b5eace63b",
+      "size_bytes": 20948
+    },
+    {
+      "path": "benchmarks/raw/iter1-fork-singleprocess-texture-streaming-webgpu.json",
+      "sha256": "27ba558b94a607075b1f35715f19ec4337bfb398acebb426395fd6fbd54d7b5c",
+      "size_bytes": 6989
+    },
+    {
+      "path": "benchmarks/raw/iter2-baseline-long-many-draw-calls-webgl2.json",
+      "sha256": "05ae00f6eb8d5f382c03acb1d8bd36d5f8d2aa2f9367e373c5f4d8b6cbd13e5e",
+      "size_bytes": 57486
+    },
+    {
+      "path": "benchmarks/raw/iter2-baseline-long-notiming-texture-streaming-webgpu.json",
+      "sha256": "eb50832248e56d261e42112efe55d75a6861aedeb16caad5daedddc22fa30b0e",
+      "size_bytes": 10886
+    },
+    {
+      "path": "benchmarks/raw/iter2-baseline-notiming-many-draw-calls-webgpu.json",
+      "sha256": "5c0b4a4b336f8975722be3ea697062594689bd3688393cd14495124170d128c0",
+      "size_bytes": 19880
+    },
+    {
+      "path": "benchmarks/raw/iter2-baseline-notiming-texture-streaming-webgpu.json",
+      "sha256": "1ee04143b308a92818e850f67c3c78bbb115ba0eb35cd6ed6fd695d399c0cbc7",
+      "size_bytes": 6849
+    },
+    {
+      "path": "benchmarks/raw/iter2-baseline-short-instancing-webgpu.json",
+      "sha256": "b0d94ca3835fcd115b8610fc7e39bf5088d2d354efccc366775a168ebaeb2a51",
+      "size_bytes": 28998
+    },
+    {
+      "path": "benchmarks/raw/iter2-baseline-short-postprocessing-webgpu.json",
+      "sha256": "c1a325c4baca5780c3b9d0b6e5f771ba15bbb4680f124de62ad04c0a9b78ce57",
+      "size_bytes": 28834
+    },
+    {
+      "path": "benchmarks/raw/iter2-baseline-suite-gltf-loader-stress-webgl2.json",
+      "sha256": "62ce106c6f30bc99ebf9f96cf3833ed67b0ca548e4218822ca0cbf6aec17bb73",
+      "size_bytes": 28535
+    },
+    {
+      "path": "benchmarks/raw/iter2-baseline-suite-instancing-webgl2.json",
+      "sha256": "3f88f9eb23ba67eff192f30a165e903d2eeaa5230e7282e0b9214cecdb329d06",
+      "size_bytes": 28857
+    },
+    {
+      "path": "benchmarks/raw/iter2-baseline-suite-large-static-webgl2.json",
+      "sha256": "ac258e7e00a202f76a331785301633cf21f00482a68bcc9301e11910b2dca67f",
+      "size_bytes": 28652
+    },
+    {
+      "path": "benchmarks/raw/iter2-baseline-suite-many-draw-calls-webgl2.json",
+      "sha256": "6b24102df35e343eb30a63fbd1031b34090e4fdafcb6028a82eb5ad47b7ed383",
+      "size_bytes": 23110
+    },
+    {
+      "path": "benchmarks/raw/iter2-baseline-suite-notiming-gltf-loader-stress-webgpu.json",
+      "sha256": "b68eb54111cbe7ad03195462a6afeb2767d8fecd75d73a074e688000b504f67e",
+      "size_bytes": 24782
+    },
+    {
+      "path": "benchmarks/raw/iter2-baseline-suite-notiming-instancing-webgpu.json",
+      "sha256": "93eff90fab72c3a29a4ff16322b29f5f12e741c8d1fbb3f20fd7740dc75be0fc",
+      "size_bytes": 28343
+    },
+    {
+      "path": "benchmarks/raw/iter2-baseline-suite-notiming-large-static-webgpu.json",
+      "sha256": "01e0e196ea6e2d0d7f46f6e68c90fc8bf73accfce04ce4a473cffbcd49347ef8",
+      "size_bytes": 28694
+    },
+    {
+      "path": "benchmarks/raw/iter2-baseline-suite-notiming-many-draw-calls-webgpu.json",
+      "sha256": "d1a87a00c0c18e79d646e88212587371808a18cd38bc3d0e131d03759e4092b6",
+      "size_bytes": 19230
+    },
+    {
+      "path": "benchmarks/raw/iter2-baseline-suite-notiming-postprocessing-webgpu.json",
+      "sha256": "a3825211d4b327a97dff845ced06b19f3f3a5c1052d98d76048d822074acadd3",
+      "size_bytes": 28235
+    },
+    {
+      "path": "benchmarks/raw/iter2-baseline-suite-notiming-shader-heavy-webgpu.json",
+      "sha256": "18359c2e7868876027ff7e0c96acc7b3fcedbacd93f1abcf050e3e58b0889ff3",
+      "size_bytes": 28260
+    },
+    {
+      "path": "benchmarks/raw/iter2-baseline-suite-notiming-texture-streaming-webgpu.json",
+      "sha256": "43db3aef29ee328b326f9805915cd5dab45554f8c00cb2d3fcdfe96d06f25d8b",
+      "size_bytes": 6583
+    },
+    {
+      "path": "benchmarks/raw/iter2-baseline-suite-postprocessing-webgl2.json",
+      "sha256": "688a10b793f5c3b9f837a6fd644cfd2298745a5916ded33b58af986ddaed4112",
+      "size_bytes": 28802
+    },
+    {
+      "path": "benchmarks/raw/iter2-baseline-suite-shader-heavy-webgl2.json",
+      "sha256": "aa935a990d2fe21d49562ba3bfec1168b90a3d7fb5869ba172ffe91cc57159ee",
+      "size_bytes": 29148
+    },
+    {
+      "path": "benchmarks/raw/iter2-baseline-suite-texture-streaming-webgl2.json",
+      "sha256": "85d5c61febd2bbeab16552866b88bf1c7f2a12f63959791e448e51cf35cf0b52",
+      "size_bytes": 7073
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-browsermode-notiming-many-draw-calls-webgpu.json",
+      "sha256": "b22c05173a1d7dd66e3a95326629d1349ad67beb2a78ab1b57199cf7bbd7d6f4",
+      "size_bytes": 19761
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-browsermode-notiming-texture-streaming-webgpu.json",
+      "sha256": "f657bf532697b1480b66d45650a38022e1128aa7b851bad37c720631bc32f800",
+      "size_bytes": 6893
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-canvasgpu-long-notiming-texture-streaming-webgpu.json",
+      "sha256": "ea6dc6cbb1f50e5183b2a17f02f419cd8d51c726c4768b34868070b142ac4e31",
+      "size_bytes": 11325
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-canvasgpu-notiming-many-draw-calls-webgpu.json",
+      "sha256": "2c4f29fe541aab9d4b8c372eb0e9b5a2894a2fafb86907ad6d15169954dc5d37",
+      "size_bytes": 20758
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-canvasgpu-suite-notiming-gltf-loader-stress-webgpu.json",
+      "sha256": "413f830baaa8c15795e4d8c10de4b6c9067803a877ef0afc67e3d38debe60158",
+      "size_bytes": 19434
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-canvasgpu-suite-notiming-instancing-webgpu.json",
+      "sha256": "c7cc6d1590cbfae67761e5c15c629f23a6006129a120faa3c77201240951fdf3",
+      "size_bytes": 27535
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-canvasgpu-suite-notiming-large-static-webgpu.json",
+      "sha256": "6e671555c9775385ab429d975c69a9861c5955595937565696839bb6e491fe3c",
+      "size_bytes": 27671
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-canvasgpu-suite-notiming-many-draw-calls-webgpu.json",
+      "sha256": "2ccc6326c74750ba2896818ef7bc826f0bc9a7bbbb15d838c60d7c814d984624",
+      "size_bytes": 19983
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-canvasgpu-suite-notiming-postprocessing-webgpu.json",
+      "sha256": "bd5b1c40079928629afc67424220346ffe4d4e06b7f60316deca67bb2cd303a6",
+      "size_bytes": 27824
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-canvasgpu-suite-notiming-shader-heavy-webgpu.json",
+      "sha256": "3ad7f26bd169279c3a8e26d8afe202630dbdae10fe8c80e7d69235bc5fbd31ff",
+      "size_bytes": 27582
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-canvasgpu-suite-notiming-texture-streaming-webgpu.json",
+      "sha256": "2d26b2832400a6992145f93e8418b2489f3db68723ca137b0719a161405e1908",
+      "size_bytes": 6790
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-d3d12toggles-notiming-many-draw-calls-webgpu.json",
+      "sha256": "fa3994887f6daf57e2050da7ac98ec59b05233ce60bb78b2102a2fe9ba387613",
+      "size_bytes": 20718
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-d3d12toggles-notiming-texture-streaming-webgpu.json",
+      "sha256": "a00e51dd717043c9e87c7ac2321b92cb76fd6cee3d516c8f4a957f006ac0ec17",
+      "size_bytes": 7055
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-dawnskip-notiming-many-draw-calls-webgpu.json",
+      "sha256": "82a4e3fb8980a3cc4390319ba5e04a905a078f8a2a133cde7343e62e89c522ab",
+      "size_bytes": 20739
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-dawnskip-notiming-texture-streaming-webgpu.json",
+      "sha256": "83daf031e01b87f0e7cd7c1ce6ebc7213c97872a63dfcf46e057fb56837a67f2",
+      "size_bytes": 7213
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-default-suite-notiming-gltf-loader-stress-webgpu.json",
+      "sha256": "3a518f5a81b48d919ba9f85bf40370b7dc734e2a62bd95719eb19c64a1fa482c",
+      "size_bytes": 24778
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-default-suite-notiming-instancing-webgpu.json",
+      "sha256": "9935ee80c43e7957ff798f79b414e5d1de988fde46a6b438805c0b772a473ff7",
+      "size_bytes": 28565
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-default-suite-notiming-large-static-webgpu.json",
+      "sha256": "1f21ea9818828f62ecacbef9b8a0e52a240ff5664fde921ddcb10783f891d371",
+      "size_bytes": 28601
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-default-suite-notiming-many-draw-calls-webgpu.json",
+      "sha256": "54df3d2a51f370aafa71624c7fa54def09dea1be3e595f9b80461d3ee938a94a",
+      "size_bytes": 19776
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-default-suite-notiming-postprocessing-webgpu.json",
+      "sha256": "788a8b81f5db50c84c1991207fea3bf3b6f1cf3f5ce27b069ee98a1479dbba28",
+      "size_bytes": 28936
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-default-suite-notiming-shader-heavy-webgpu.json",
+      "sha256": "0c50971dc426022347565bfb5ff3607d08235e894bda9f656a18ee706f9a8916",
+      "size_bytes": 28758
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-default-suite-notiming-texture-streaming-webgpu.json",
+      "sha256": "85b9f139d79776882a8804856a23a465a09be43bd1362ff6e26733e3ec06bbc2",
+      "size_bytes": 6801
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-fast-long-many-draw-calls-webgl2.json",
+      "sha256": "a423d5d530a931aa571b3bdc7309753a7c31aa80995a2e23ade83c8dded62a86",
+      "size_bytes": 57410
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-fast-suite-gltf-loader-stress-webgl2.json",
+      "sha256": "18e7a941b82d69963c2933feb05e922670e286b5a36b8e619934847584df8eba",
+      "size_bytes": 28830
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-fast-suite-instancing-webgl2.json",
+      "sha256": "c7d7261abd3c97b7c01559ecad6cc8f7911e53527f78569366408cdbff72a2ce",
+      "size_bytes": 28544
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-fast-suite-large-static-webgl2.json",
+      "sha256": "41ccd40fd4512f790846b2397abc101206daf90c3815ef95a909e0ef5115558e",
+      "size_bytes": 28864
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-fast-suite-many-draw-calls-webgl2.json",
+      "sha256": "c3ba46ed62914beb1be5fd8590ba72b5fe1bbca84a6ae59c00e98273fa941e4a",
+      "size_bytes": 22830
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-fast-suite-postprocessing-webgl2.json",
+      "sha256": "65fe23391ee9a85c1bd3e5ff52af6e4ea5e58c182baf5904a57bdf15f4bf6c7b",
+      "size_bytes": 28736
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-fast-suite-shader-heavy-webgl2.json",
+      "sha256": "2bcf92795da55af4c30e5c7a4a97a6304921690c1535bb0ef9e084854f671209",
+      "size_bytes": 28983
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-fast-suite-texture-streaming-webgl2.json",
+      "sha256": "3adddd4ef1072da3d6616bbae46b4767486b5801d65e687ffbaf44812137a531",
+      "size_bytes": 7361
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-gl-many-draw-calls-webgl2.json",
+      "sha256": "569afe390baaa00ad15e387602f8109436f6c7a7b14f5d1ff3d7ac49128cc90d",
+      "size_bytes": 18331
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-inprocess-notiming-texture-streaming-webgpu.json",
+      "sha256": "211578d70cbb4fa191cfa5e2041310b641b331f90d499d77935a8e0caf424701",
+      "size_bytes": 6930
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-inprocess-short-instancing-webgpu.json",
+      "sha256": "9c1b26b544e1b70d44f143d2d78a33c3fd35a13259ac7f7318c999c1c2d35712",
+      "size_bytes": 27699
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-inprocess-short-postprocessing-webgpu.json",
+      "sha256": "24766f4a6ab7e2ab7390ea400efe3633949e845425de226498cb1ec6efd31edb",
+      "size_bytes": 27726
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-inprocess-suite-notiming-gltf-loader-stress-webgpu.json",
+      "sha256": "d7ee73a1945e65871ff17926241d95d5d1164d9f0629c92afd505b786a337bdb",
+      "size_bytes": 24591
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-inprocess-suite-notiming-instancing-webgpu.json",
+      "sha256": "814c22cc3940bdc8c91bc3a703c1f396621fd9dd649c229e99a588aefc66e6e0",
+      "size_bytes": 27411
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-inprocess-suite-notiming-large-static-webgpu.json",
+      "sha256": "3bc215f4e6a63d211988090a3ac0481b5a45345106d67563f911216d5dceb3eb",
+      "size_bytes": 27548
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-inprocess-suite-notiming-many-draw-calls-webgpu.json",
+      "sha256": "dd12ccba910d31781e79c2cbb9a62d76086fe536341a643c98bdd8bca80ac2f2",
+      "size_bytes": 20567
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-inprocess-suite-notiming-postprocessing-webgpu.json",
+      "sha256": "fea5b2e9f2893ac6fc6f658bb861190cbc4df2bfe4ace5d35c12a42f35be633d",
+      "size_bytes": 27705
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-inprocess-suite-notiming-shader-heavy-webgpu.json",
+      "sha256": "099158551be15b4d335bee6caed70c5f4f2a35714eea86da6dd2d681352f8694",
+      "size_bytes": 27364
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-inprocess-suite-notiming-texture-streaming-webgpu.json",
+      "sha256": "6e4a5d608cd4886772e97153c791d09b99f2d9a8ced232f95e428951e0ceff48",
+      "size_bytes": 6702
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-no-workarounds-many-draw-calls-webgl2.json",
+      "sha256": "d3e6559f9631aa414f179774266a391386a933dfa8796310ae503316b9f43d79",
+      "size_bytes": 22935
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-no-workarounds-many-draw-calls-webgpu.json",
+      "sha256": "a8d9e5c8ae1670e04c1f2afa89d876086fae5d8f66cb6de948e5c0193955d6c8",
+      "size_bytes": 20386
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-no-workarounds-suite-notiming-gltf-loader-stress-webgpu.json",
+      "sha256": "07dc3c2b27c8b4928bee30dae670da9ff9464365cb082c38af46596f9e63e871",
+      "size_bytes": 24521
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-no-workarounds-suite-notiming-instancing-webgpu.json",
+      "sha256": "929589c1574f0a58e97a6dac6105e0b6484cc0f2d9950a323b6e618d524cfe8a",
+      "size_bytes": 27647
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-no-workarounds-suite-notiming-large-static-webgpu.json",
+      "sha256": "714ae879de276b5be79c671b836154d04df8b33a0d591e8433320bed97cabb34",
+      "size_bytes": 27785
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-no-workarounds-suite-notiming-many-draw-calls-webgpu.json",
+      "sha256": "e2dd89fbda3e8f97408d7942e19f084b759937d7ae0a3486fe73ec54a2fe6c9c",
+      "size_bytes": 18686
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-no-workarounds-suite-notiming-postprocessing-webgpu.json",
+      "sha256": "e838429e82d0871ccee5102d7739aeb3c651fe914e62d0ca3cb780bd02be7148",
+      "size_bytes": 27724
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-no-workarounds-suite-notiming-shader-heavy-webgpu.json",
+      "sha256": "cd54cdd0028363edf01a3a93b2c3b11bedbd824fc317cf2dc52228c80d336f2f",
+      "size_bytes": 27507
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-no-workarounds-suite-notiming-texture-streaming-webgpu.json",
+      "sha256": "ee8830d55db8c6a8f11c837b82b685bd35177e6c066f14c0f601eaa3ac7da5a6",
+      "size_bytes": 6792
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-no-workarounds-texture-streaming-webgl2.json",
+      "sha256": "18dd70d476ccf86b6afc514f68330ba91e9c7d4f6f66b8d5080c018dec61f5e1",
+      "size_bytes": 7403
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-no-workarounds-texture-streaming-webgpu.json",
+      "sha256": "0ed9e1abcf54c211f219371e754aac32c284cb187780f94089bdf3a65a95d0d0",
+      "size_bytes": 7058
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-singleprocess-fast-many-draw-calls-webgl2.json",
+      "sha256": "1038b906c2e2b685ac7bbc9e5ae1efe09ed78ab35da865d62f0f0f24a54bcf6c",
+      "size_bytes": 23082
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-singleprocess-fast-texture-streaming-webgl2.json",
+      "sha256": "fd88496cec74540468038dbd5c01259b9209764b950617491a4a3b4354b15734",
+      "size_bytes": 7379
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-singleprocess-long-notiming-texture-streaming-webgpu.json",
+      "sha256": "d7e9aa86e30bd7e6926b911609874dfb58a755a976d3166427058b5a2558c051",
+      "size_bytes": 11562
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-singleprocess-notiming-many-draw-calls-webgpu.json",
+      "sha256": "309389e354d06857967d9022315eaca83efc759ca0a63358e8b6a227905df223",
+      "size_bytes": 20990
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-singleprocess-notiming-texture-streaming-webgpu.json",
+      "sha256": "9e987f82d71430aeace66586466f11c3887d13c45d5590c6df595d393ce46287",
+      "size_bytes": 6725
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-singleprocess-short-instancing-webgpu.json",
+      "sha256": "b98bfde048ce23be31d86ea95925442921c0f6f7506ca71d9798e2c347353bbc",
+      "size_bytes": 27897
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-singleprocess-short-postprocessing-webgpu.json",
+      "sha256": "d9e279799934325c9c6aca009f5c423fe4ac68e04e420af65651c3418d5b4cce",
+      "size_bytes": 27978
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-singleprocess-suite-notiming-gltf-loader-stress-webgpu.json",
+      "sha256": "d871c0600783a54be8dfe67c37d10f404c18129e472ae03537f6a06339273129",
+      "size_bytes": 24413
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-singleprocess-suite-notiming-instancing-webgpu.json",
+      "sha256": "46f745be6ecee7321c5f0018347837557b716ca8c9d5a9b26c6daca3dbe41c26",
+      "size_bytes": 27464
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-singleprocess-suite-notiming-large-static-webgpu.json",
+      "sha256": "4082f28ea0ce435ed35fc6fc4c7ea71dc1685f3dcacd2f3c3b4e6fc953cf3c5d",
+      "size_bytes": 27697
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-singleprocess-suite-notiming-many-draw-calls-webgpu.json",
+      "sha256": "d7f61f4e1f9282236e98faeefb4e26a501b04c31d04dbc82e2c9553a43fb41e6",
+      "size_bytes": 20467
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-singleprocess-suite-notiming-postprocessing-webgpu.json",
+      "sha256": "61b153bcdb78cc2e5949c91314cf2bab162b6d4754071f4ae4775c861bcfcf51",
+      "size_bytes": 27534
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-singleprocess-suite-notiming-shader-heavy-webgpu.json",
+      "sha256": "f462baacdb5d30ec856a180617ebc72ce00795dcad0d8b1e99e34fb8cf8db813",
+      "size_bytes": 27520
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-singleprocess-suite-notiming-texture-streaming-webgpu.json",
+      "sha256": "2b9477a860ff0b5de0c078f75ec3aacd05613eb432d4fc47c5ad8a1c65bd356f",
+      "size_bytes": 6935
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-vulkan-many-draw-calls-webgl2.json",
+      "sha256": "59201f86c8d1b188532fff6e9dcc8903b6cd59cf6581f7eb0658ff2deba1fd90",
+      "size_bytes": 34311
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-vulkan-suite-gltf-loader-stress-webgl2.json",
+      "sha256": "56f6b8e19062c38ad7ec650dd09a8c454599d944074d26b8a8e2231ad8481033",
+      "size_bytes": 22848
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-vulkan-suite-instancing-webgl2.json",
+      "sha256": "1934ae87848ccd68244ef9f923dae118e3e0790055626a61ec4f4c241b36b580",
+      "size_bytes": 27839
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-vulkan-suite-large-static-webgl2.json",
+      "sha256": "ba3da85c209ffdf8bca27f3341e94a04ddfeb81d88847072213148ebab6bb15b",
+      "size_bytes": 27505
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-vulkan-suite-many-draw-calls-webgl2.json",
+      "sha256": "9b8662f3bdd5f6710c7a10059839f608d6b54ee8604a84d5ed1773dd6a853de2",
+      "size_bytes": 20201
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-vulkan-suite-postprocessing-webgl2.json",
+      "sha256": "8782b32f7a806c9a5a338670a011759787713733291b264a178b0ae7a4a5e061",
+      "size_bytes": 27905
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-vulkan-suite-shader-heavy-webgl2.json",
+      "sha256": "ef225bd75fc8d2b21df5946b2e3df38d36714db9ee82b8aa3c2fe220e1f4aeae",
+      "size_bytes": 28455
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-vulkan-suite-texture-streaming-webgl2.json",
+      "sha256": "c14d6540b276d83ed51e1f3d768d2b831a96f2b3b44f125859733073bce97496",
+      "size_bytes": 18606
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-vulkan-texture-streaming-webgl2.json",
+      "sha256": "14a7e52778762e13f68fc47ce97e50c42058ff75dc2f5c3232fad6319ca16ae0",
+      "size_bytes": 32992
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-webgpu-d3d11-notiming-many-draw-calls-webgpu.json",
+      "sha256": "e92ad6b86959ea70bf2f795485e9e558a918010232464bb37dcab5f559acdc78",
+      "size_bytes": 20553
+    },
+    {
+      "path": "benchmarks/raw/iter2-fork-webgpu-d3d11-notiming-texture-streaming-webgpu.json",
+      "sha256": "8467c5ebf3216d959c3fda6482e6785e44d33eae0ae701258e2c666fa848e811",
+      "size_bytes": 6857
+    },
+    {
+      "path": "benchmarks/raw/iter3-baseline-c2-gltf-loader-stress-webgl2.json",
+      "sha256": "80e600f4449515e1baa649b37f418fa5a1a126cf2cfaa47f3fbf5836a1369eee",
+      "size_bytes": 55404
+    },
+    {
+      "path": "benchmarks/raw/iter3-baseline-c2-instancing-webgl2.json",
+      "sha256": "04941ec1494ffb24798a11ebe29c7196798f53f9ba3c2b003e98a7e3adb9e330",
+      "size_bytes": 76127
+    },
+    {
+      "path": "benchmarks/raw/iter3-baseline-c2-large-static-webgl2.json",
+      "sha256": "d8e150361bc92f9e3bc4f186fc27bc6ce26dab9356b257adcc704c58d1a2af58",
+      "size_bytes": 75559
+    },
+    {
+      "path": "benchmarks/raw/iter3-baseline-c2-many-draw-calls-webgl2.json",
+      "sha256": "c40d2314a1e0aa4ad1d2c1574fde15f7300abd957a8a4862b8b6b194e84515ad",
+      "size_bytes": 39770
+    },
+    {
+      "path": "benchmarks/raw/iter3-baseline-c2-notiming-gltf-loader-stress-webgpu.json",
+      "sha256": "565c719d5e5fbdf1dbd963e4f5202e3693f9ec366368b35ea4cad10f73bf423a",
+      "size_bytes": 44956
+    },
+    {
+      "path": "benchmarks/raw/iter3-baseline-c2-notiming-instancing-webgpu.json",
+      "sha256": "d65ec6661c3ad6e951cb9ff95af3c9096114ebdefbae8ffe37bd65ce3c894cbc",
+      "size_bytes": 75721
+    },
+    {
+      "path": "benchmarks/raw/iter3-baseline-c2-notiming-large-static-webgpu.json",
+      "sha256": "fa80d800c6f725646dd52f22ee4155b567131c1fe2a0791f90ba27a87fe271c5",
+      "size_bytes": 74648
+    },
+    {
+      "path": "benchmarks/raw/iter3-baseline-c2-notiming-many-draw-calls-webgpu.json",
+      "sha256": "b06632af35c36e4d798412b6a8fc8d133e43c43047759a7a5d7c0de1058aeb07",
+      "size_bytes": 32948
+    },
+    {
+      "path": "benchmarks/raw/iter3-baseline-c2-notiming-postprocessing-webgpu.json",
+      "sha256": "fa7333e3cc7fe634020d0996d8968be86ddd866ad7233e3dd92a1c5850c83896",
+      "size_bytes": 75433
+    },
+    {
+      "path": "benchmarks/raw/iter3-baseline-c2-notiming-shader-heavy-webgpu.json",
+      "sha256": "3dcc45b963224ab3fb57d166a9cc65c23119a3fdfe90a561fb358519881d72fc",
+      "size_bytes": 75691
+    },
+    {
+      "path": "benchmarks/raw/iter3-baseline-c2-notiming-texture-streaming-webgpu.json",
+      "sha256": "a0eea4f805067eef679c182bcff353e703a8e8155f18bda0ced3b367b5f62c11",
+      "size_bytes": 7704
+    },
+    {
+      "path": "benchmarks/raw/iter3-baseline-c2-postprocessing-webgl2.json",
+      "sha256": "aaf35945d43884ca9144aa9843cdfc7afc174158a7b8705eb0777f2ccfd07149",
+      "size_bytes": 75582
+    },
+    {
+      "path": "benchmarks/raw/iter3-baseline-c2-shader-heavy-webgl2.json",
+      "sha256": "f1886f1f0b12ebc15f1b01e274672591a2509c523093fa25f6858c83ee5d2e5c",
+      "size_bytes": 76162
+    },
+    {
+      "path": "benchmarks/raw/iter3-baseline-c2-texture-streaming-webgl2.json",
+      "sha256": "b45be64f3afd07ef61783b1df38eda66f8eec50a76311fb76ba23bae6dae6f9c",
+      "size_bytes": 8783
+    },
+    {
+      "path": "benchmarks/raw/iter3-baseline-notiming-gltf-loader-stress-webgpu.json",
+      "sha256": "2dbde82f757cea830512a021bcd8780a219300161969792edf5711601fe7b48b",
+      "size_bytes": 62006
+    },
+    {
+      "path": "benchmarks/raw/iter3-baseline-notiming-many-draw-calls-webgpu.json",
+      "sha256": "354233e66bb673382e3fa3f52a2c984c473cfcea372d8bb8d28c0fd8ea8a3760",
+      "size_bytes": 49717
+    },
+    {
+      "path": "benchmarks/raw/iter3-baseline-paired-many-draw-calls-webgl2.json",
+      "sha256": "2baf6a399624124f75587dc1f30b0fb1907e5b42b6a757e8eef0dfc1df927e98",
+      "size_bytes": 21777
+    },
+    {
+      "path": "benchmarks/raw/iter3-baseline-paired30-notiming-gltf-loader-stress-webgpu.json",
+      "sha256": "484ba2ffb6630b3e166ad4fa658c347ccacd3cc8f4fd7eed3c8f87310c2d1e08",
+      "size_bytes": 64602
+    },
+    {
+      "path": "benchmarks/raw/iter3-baseline-paired30-notiming-instancing-webgpu.json",
+      "sha256": "d80c8b2ef46f291a8dc2875ef4a681a3aa2723d8455e1fd716316b745f06e214",
+      "size_bytes": 74959
+    },
+    {
+      "path": "benchmarks/raw/iter3-baseline-paired30-notiming-large-static-webgpu.json",
+      "sha256": "79e41071ff914386c53282d02215e90dd7b6aa1154eaec7226eccbe1b912f580",
+      "size_bytes": 75145
+    },
+    {
+      "path": "benchmarks/raw/iter3-baseline-paired30-notiming-many-draw-calls-webgpu.json",
+      "sha256": "e12956d1609f6a9349dbb796a28c698c78c186a23aabe0fb24716a6cd3d12fe0",
+      "size_bytes": 50562
+    },
+    {
+      "path": "benchmarks/raw/iter3-baseline-paired30-notiming-postprocessing-webgpu.json",
+      "sha256": "6ad20e08021100c170f5a6e56b0a7647809868a1465083eb6590b1c01376fdba",
+      "size_bytes": 75893
+    },
+    {
+      "path": "benchmarks/raw/iter3-baseline-paired30-notiming-shader-heavy-webgpu.json",
+      "sha256": "db1bc0e78a387b24136e4cd65d37cd21d47af715eb8a497c523ea2bc8c16abe1",
+      "size_bytes": 76915
+    },
+    {
+      "path": "benchmarks/raw/iter3-baseline-paired30-notiming-texture-streaming-webgpu.json",
+      "sha256": "6b01277dcc74407465a7935ca3ca89b26ec9f6a93847f9c124f75576a2cd73ae",
+      "size_bytes": 10591
+    },
+    {
+      "path": "benchmarks/raw/iter3-baseline-prewarm-notiming-texture-streaming-webgpu.json",
+      "sha256": "481e67bcc5a95c3c9e7de7a0fbaca83dfca8535fd8bbded7dfd98f4ff5bc7355",
+      "size_bytes": 10679
+    },
+    {
+      "path": "benchmarks/raw/iter3-baseline-seq-gltf-loader-stress-webgl2.json",
+      "sha256": "d112b2ad12c4ed77c3247e25d25753f7c94a0aee3191007e9926cae1a41c1854",
+      "size_bytes": 74700
+    },
+    {
+      "path": "benchmarks/raw/iter3-baseline-seq-many-draw-calls-webgl2.json",
+      "sha256": "49269860fcbb3f34a5e90013a32ca7076650b82bb4cf714545315a226ace8485",
+      "size_bytes": 55923
+    },
+    {
+      "path": "benchmarks/raw/iter3-baseline-seq-texture-streaming-webgl2.json",
+      "sha256": "9f93328f52ee6f2365bd8e2fdb43449cb6b74d48c9fa47b53b63f443156b5f65",
+      "size_bytes": 12262
+    },
+    {
+      "path": "benchmarks/raw/iter3-baseline-suite-gltf-loader-stress-webgl2.json",
+      "sha256": "2abe65fc0575a3951309d2f79936bc4c14f66dcde4ef2557999b6188e040e7c3",
+      "size_bytes": 28183
+    },
+    {
+      "path": "benchmarks/raw/iter3-baseline-suite-instancing-webgl2.json",
+      "sha256": "9e639f7cdc8a956633b55d1c9eca25ced4940b3c8e96322418a042f12c23e4c6",
+      "size_bytes": 28613
+    },
+    {
+      "path": "benchmarks/raw/iter3-baseline-suite-large-static-webgl2.json",
+      "sha256": "14b33fc4d0ffe6ab301654944b2e2abcd2c457208036b0c136ffa5bb657b7e79",
+      "size_bytes": 28239
+    },
+    {
+      "path": "benchmarks/raw/iter3-baseline-suite-many-draw-calls-webgl2.json",
+      "sha256": "638b98124d768ec8111e90c0c38f501851949704703c2078957f57e8006e0033",
+      "size_bytes": 22389
+    },
+    {
+      "path": "benchmarks/raw/iter3-baseline-suite-notiming-gltf-loader-stress-webgpu.json",
+      "sha256": "54609b8e39f2791b6e59607d0d56bcb5ed41f1d1c0fbd831f80eb5990c53ba84",
+      "size_bytes": 25266
+    },
+    {
+      "path": "benchmarks/raw/iter3-baseline-suite-notiming-instancing-webgpu.json",
+      "sha256": "4ba83d647d0e295bbfb26ba286ce382989309078468f41af26a6a144ded6a64e",
+      "size_bytes": 28364
+    },
+    {
+      "path": "benchmarks/raw/iter3-baseline-suite-notiming-large-static-webgpu.json",
+      "sha256": "a7994f4749b4ad16fc0f81acdc7752021ff9c0eb81d5223d53feb9d6f4104ee6",
+      "size_bytes": 27777
+    },
+    {
+      "path": "benchmarks/raw/iter3-baseline-suite-notiming-many-draw-calls-webgpu.json",
+      "sha256": "50b044efaf4beb5864bf5f34102c9e8e64ede00768b181f600bee09f700eae76",
+      "size_bytes": 19143
+    },
+    {
+      "path": "benchmarks/raw/iter3-baseline-suite-notiming-postprocessing-webgpu.json",
+      "sha256": "93d4199700dfbc5929f4be9e4bbcaa1ff0d3c7a83ba767a6c2acbfe67073d6d3",
+      "size_bytes": 28933
+    },
+    {
+      "path": "benchmarks/raw/iter3-baseline-suite-notiming-shader-heavy-webgpu.json",
+      "sha256": "b94734cf6a203dadcc50d3632ec0dfff6f10c37ad4ce9a722fc7ffe92679cc63",
+      "size_bytes": 28877
+    },
+    {
+      "path": "benchmarks/raw/iter3-baseline-suite-notiming-texture-streaming-webgpu.json",
+      "sha256": "144c98578fdc923dbbd20ca04a623bc1f4fe274cee6ae2bfc699f3cdaac06f4f",
+      "size_bytes": 6911
+    },
+    {
+      "path": "benchmarks/raw/iter3-baseline-suite-postprocessing-webgl2.json",
+      "sha256": "5371d23c1a2b2994c435556c0ba368a736b278afe3fb313aac6abec748ebb84f",
+      "size_bytes": 28943
+    },
+    {
+      "path": "benchmarks/raw/iter3-baseline-suite-shader-heavy-webgl2.json",
+      "sha256": "80a626caac50f0f1904c2460c7af70a6ef84dc9ecc78b15f7abdb08323ad72c4",
+      "size_bytes": 28187
+    },
+    {
+      "path": "benchmarks/raw/iter3-baseline-suite-texture-streaming-webgl2.json",
+      "sha256": "aa6d699f24fffb85f611af579e2558650b6ac1fb4d426a22d57babc73d6e596a",
+      "size_bytes": 7351
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-d3d11-only-many-draw-calls-webgl2.json",
+      "sha256": "854ce1d11f7c47d488bca13e18ba085cfd86e623fb6fb871c9d3584c9608e0c7",
+      "size_bytes": 21049
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-d3d11-relaxed-zerocopy-seq-gltf-loader-stress-webgl2.json",
+      "sha256": "034b00027fee133ff713e2927e44fbcbf8d2eda2afcf339c4210fa2c6065352e",
+      "size_bytes": 75840
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-d3d11-relaxed-zerocopy-seq-many-draw-calls-webgl2.json",
+      "sha256": "4a7dccd07975f479bd8f7d81d8b5418dcb6447c6a35c8a2b7c8afdd8523bc609",
+      "size_bytes": 56223
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-d3d11-relaxed-zerocopy-seq-texture-streaming-webgl2.json",
+      "sha256": "7a64a628b90bfe8f56eb29cc25ac2de0bc8d7938454ce58e204e7c0662a101cc",
+      "size_bytes": 12409
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-default-c2-notiming-gltf-loader-stress-webgpu.json",
+      "sha256": "bdd7e93e31b8ab6a03144a93c3f7579b5d9f4a67a86aedd0373ca3d87fca9955",
+      "size_bytes": 44710
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-default-c2-notiming-instancing-webgpu.json",
+      "sha256": "c78bfbfd4146ee70039a16802f8bdf2735fcea78b5486ec5f4f78f3ce9208e5e",
+      "size_bytes": 75976
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-default-c2-notiming-large-static-webgpu.json",
+      "sha256": "3db3ad9b0b2c7e98fd925247dd1a3437459937ca117361af2ec4cef38d893ee9",
+      "size_bytes": 74729
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-default-c2-notiming-many-draw-calls-webgpu.json",
+      "sha256": "07f36bb3a49f56fc2fdbdf70ef5db8caf73f99cf9ac153d1bc5e401c998e6ee5",
+      "size_bytes": 32641
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-default-c2-notiming-postprocessing-webgpu.json",
+      "sha256": "db24c30c6cf735015cf05883f5e96246a2c59474fc9fbcc3c74d68a3d46bfce6",
+      "size_bytes": 74747
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-default-c2-notiming-shader-heavy-webgpu.json",
+      "sha256": "4be1c711c2702f4d29ecb455b242569f6e4b698426c8b57464e942215b95020b",
+      "size_bytes": 74920
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-default-c2-notiming-texture-streaming-webgpu.json",
+      "sha256": "9414beb7f520d1f10e192e1bfe6a199c2910d70ef05488f53c7355a70f70829f",
+      "size_bytes": 7914
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-default-paired-many-draw-calls-webgl2.json",
+      "sha256": "f3d162d121fbfa86be0e17cbb443827753f25bd342b45b2d83d89c4e5e2fdead",
+      "size_bytes": 21730
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-inprocess-c2-notiming-gltf-loader-stress-webgpu.json",
+      "sha256": "460cfe28cb6a0de270513c4346a6f2be4582a4d3d40cf975487e4431e8913be6",
+      "size_bytes": 47594
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-inprocess-c2-notiming-many-draw-calls-webgpu.json",
+      "sha256": "46485f133dda0677fef7c0d0b6cdb7d3d0b929697d278038a9a738143d7c1c5d",
+      "size_bytes": 34184
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-inprocess-c2-notiming-texture-streaming-webgpu.json",
+      "sha256": "cd007d99e4e24c879527ebc9964bf0ff150870383e212bd440b21345087997be",
+      "size_bytes": 7247
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-inprocess-d3d11-relaxed-many-draw-calls-webgl2.json",
+      "sha256": "a5df819674b3873f1902a21199d83e7c1cb034fa843f9087d8dfa8a565119509",
+      "size_bytes": 22348
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-relaxed-only-c2-many-draw-calls-webgl2.json",
+      "sha256": "696aa881595d35d3f6b02e5840946636fe2a7d7ec382d4c20aa479ef7005ef8a",
+      "size_bytes": 37848
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-relaxed-only-many-draw-calls-webgl2.json",
+      "sha256": "f73d27a0c443e02b5867527e93bf6ef6431fd1c2e78256d8c1201df367e8f98a",
+      "size_bytes": 22015
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-relaxed-only-seq-many-draw-calls-webgl2.json",
+      "sha256": "8979a2180e58664fcc656b24676cca49bf56b50cd98b7336128734269920ac90",
+      "size_bytes": 58172
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-relaxed-only-seq-texture-streaming-webgl2.json",
+      "sha256": "7b362f0081020be476da7a9a1bd37744a0b057986d055fcbc0e8ba55e7bb6548",
+      "size_bytes": 12210
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-relaxed-vulkan-c2-many-draw-calls-webgl2.json",
+      "sha256": "b025887ebeb15449b78c5f056212981c623781c38d972ed550caa4743f8c1c98",
+      "size_bytes": 29416
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-relaxed-zerocopy-c2-many-draw-calls-webgl2.json",
+      "sha256": "d3a14dd351df41f2bb0d92946b855abe8a87eecbf84168ddd5de51826edca5cb",
+      "size_bytes": 40276
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-relaxed-zerocopy-seq-gltf-loader-stress-webgl2.json",
+      "sha256": "c91b7af45174ca861ddbfb66a8c06c8d5fbebc4d0cb02b763ac726ed488d035b",
+      "size_bytes": 73592
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-relaxed-zerocopy-seq-many-draw-calls-webgl2.json",
+      "sha256": "d16788c51a2f69e74b09dbdb9138c886d29e7f37c2f86680d433ec88a698bd00",
+      "size_bytes": 58445
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-relaxed-zerocopy-seq-texture-streaming-webgl2.json",
+      "sha256": "f0c3878ac98946eb0758eeb3ce982dd3380a02b8c59ec38ec24019a1b9dd265c",
+      "size_bytes": 12136
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-relaxed-zerocopy-suite-gltf-loader-stress-webgl2.json",
+      "sha256": "b588b73d075b2ac6be72ec648f87e694d075355c2fa1bb4fefd1751684141ccf",
+      "size_bytes": 26941
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-relaxed-zerocopy-suite-instancing-webgl2.json",
+      "sha256": "408e7e9dff8fda4a92fbe13c4568660a6d97642156b9eac71a5d5f1c9c8c1767",
+      "size_bytes": 28651
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-relaxed-zerocopy-suite-large-static-webgl2.json",
+      "sha256": "ac17298c288ae9c62da5a4f4c18f1f1ca60d8eb0c37b30fa80db304127015347",
+      "size_bytes": 29116
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-relaxed-zerocopy-suite-many-draw-calls-webgl2.json",
+      "sha256": "d3ffc7485b250c0f595dffa71963031b22d7933a9542f62677adb6e45cf21b18",
+      "size_bytes": 23155
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-relaxed-zerocopy-suite-postprocessing-webgl2.json",
+      "sha256": "0f09ac71f22e33ed76ee0aacadb0dca939f894b40c3e13c4b7629b5604e2f85f",
+      "size_bytes": 28428
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-relaxed-zerocopy-suite-shader-heavy-webgl2.json",
+      "sha256": "7731dce07fdb0b01f27fe5f940f6c91d002a174f83d43bafa9e3d217cfd60f35",
+      "size_bytes": 28516
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-relaxed-zerocopy-suite-texture-streaming-webgl2.json",
+      "sha256": "f2c5df80603bd4d78f3cc6f589d1011bfdf66496eed3878f9854ec7a90652d5b",
+      "size_bytes": 7496
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-singleprocess-c2-notiming-gltf-loader-stress-webgpu.json",
+      "sha256": "876eda21d679d533141b7fcf81a7ccce76b0b8835ad64a077a8ffccf49465cc5",
+      "size_bytes": 47461
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-singleprocess-c2-notiming-instancing-webgpu.json",
+      "sha256": "c252a7828302b4f18fc094f49e18336a0e2178c2dcd4272211ed73a6360c7241",
+      "size_bytes": 72887
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-singleprocess-c2-notiming-large-static-webgpu.json",
+      "sha256": "275e41fc3683707f75513d9d07e0af8d61e870099692a77babcffe9d67dbb56c",
+      "size_bytes": 72926
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-singleprocess-c2-notiming-many-draw-calls-webgpu.json",
+      "sha256": "59790a073eee9f9058e65544487c9dca70d6b928039250a315ea3f5467e7c392",
+      "size_bytes": 34263
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-singleprocess-c2-notiming-postprocessing-webgpu.json",
+      "sha256": "fb5a81a489a441b963b1c406d093b43562ac4f8fb162197a68cfad13e94d07e4",
+      "size_bytes": 73472
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-singleprocess-c2-notiming-shader-heavy-webgpu.json",
+      "sha256": "3159535d24b0aa3772d1a18b0b39f35c5f2f2b19780e156262f76867b0d69013",
+      "size_bytes": 73636
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-singleprocess-c2-notiming-texture-streaming-webgpu.json",
+      "sha256": "0f50b7e53fc2d6623c655992b5a6b9d4ebf71e186e35bd054255cace28999820",
+      "size_bytes": 7658
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-singleprocess-d3d11-relaxed-many-draw-calls-webgl2.json",
+      "sha256": "33cef312a338c32eebde6cc68e1a03d7f9ca6dbf763c3da2389e0ce6886a1130",
+      "size_bytes": 22481
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-singleprocess-paired30-notiming-many-draw-calls-webgpu.json",
+      "sha256": "fc11366e2b0f54767aa57cbb2d3e9e1d16ebe12a81d35530b691e38a0e67d5ca",
+      "size_bytes": 52938
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-singleprocess-paired30-notiming-texture-streaming-webgpu.json",
+      "sha256": "890026954d46321f0feefa29e28f60f2788d17100f7e46bfc78f101589f3524a",
+      "size_bytes": 10492
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-singleprocess-prewarm-notiming-texture-streaming-webgpu.json",
+      "sha256": "f15642480f81e66648361b67cff385ed1e253c5c3838819b019594f667a675f7",
+      "size_bytes": 11143
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-singleprocess-zerocopy-c2-notiming-many-draw-calls-webgpu.json",
+      "sha256": "7dc3d97a915bd20fd09c536413ded172f86c59caccffee7236595ea51a2f0ae1",
+      "size_bytes": 31707
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-singleprocess-zerocopy-c2-notiming-texture-streaming-webgpu.json",
+      "sha256": "246f6c8f3a3d02c3e098c80ebf8ce7fa8fadb97da71c69a895f4886a034d202c",
+      "size_bytes": 7885
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-singleprocess-zerocopy-notiming-gltf-loader-stress-webgpu.json",
+      "sha256": "69e0f12496637f1f2571fd749e3abed0fd595ae524646dbcd13a9495c120e846",
+      "size_bytes": 65772
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-singleprocess-zerocopy-notiming-many-draw-calls-webgpu.json",
+      "sha256": "722a78d1932d614fa937058bc02fec050a3af722cb278c27c57170e691cb861d",
+      "size_bytes": 53515
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-singleprocess-zerocopy-notiming-texture-streaming-webgpu.json",
+      "sha256": "35acc3ce17082ce6b7e5091f6f9174f06e8203b40dc47f88dc9d9e6696b3e2d3",
+      "size_bytes": 11530
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-singleprocess-zerocopy-paired30-notiming-gltf-loader-stress-webgpu.json",
+      "sha256": "8183edbbf4ce3beb081b638cd2d439284efe7ba08adb16a4ac46c22e7f87d495",
+      "size_bytes": 64259
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-singleprocess-zerocopy-paired30-notiming-instancing-webgpu.json",
+      "sha256": "a54b412c0fed442e839e0d043615598554d1bb4bdb85ff0095caddd382531857",
+      "size_bytes": 73134
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-singleprocess-zerocopy-paired30-notiming-large-static-webgpu.json",
+      "sha256": "f4c0d4bfefa5f8328f4cc2234330d6d237f711b922fd8d6793f4763a0f8a5a3a",
+      "size_bytes": 73246
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-singleprocess-zerocopy-paired30-notiming-many-draw-calls-webgpu.json",
+      "sha256": "b63cf8aca9d108971ac31e8ec19f0c67eee0097c535433bab941b44bfe4549d7",
+      "size_bytes": 50595
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-singleprocess-zerocopy-paired30-notiming-postprocessing-webgpu.json",
+      "sha256": "cc992c48534d17d3ca90e9a9850659e4ad61f26ec1d35e35824aecdea078d8db",
+      "size_bytes": 73530
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-singleprocess-zerocopy-paired30-notiming-shader-heavy-webgpu.json",
+      "sha256": "c3cb4696d7660812a17bb58d51429450788486a8a897159ad0dd11422748b2eb",
+      "size_bytes": 73961
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-singleprocess-zerocopy-paired30-notiming-texture-streaming-webgpu.json",
+      "sha256": "7b2a17fc3c2c3fd962239ab1693ee781cd37933942fe3eb73807ffac54ce7109",
+      "size_bytes": 11243
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-singleprocess-zerocopy-suite-notiming-gltf-loader-stress-webgpu.json",
+      "sha256": "f5ad1c5edcf71ea7b95b4fc732ed3f5f01dfcfe7c998b74b138bb0474f1b8f13",
+      "size_bytes": 22345
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-singleprocess-zerocopy-suite-notiming-instancing-webgpu.json",
+      "sha256": "85fbc671b79e2d3bfaede0e460a4c3d778cf0063dc0cb4e20acf7fe9083543da",
+      "size_bytes": 27726
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-singleprocess-zerocopy-suite-notiming-large-static-webgpu.json",
+      "sha256": "ff1febb1da4d5417656c669e4ea2304c60d035da429a91b597f8c08b0cac7c6f",
+      "size_bytes": 27540
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-singleprocess-zerocopy-suite-notiming-many-draw-calls-webgpu.json",
+      "sha256": "d9d42e54fab3909d0882f417040f36c5b99cdbfbfab00b3f08f210c1a17933c8",
+      "size_bytes": 20869
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-singleprocess-zerocopy-suite-notiming-postprocessing-webgpu.json",
+      "sha256": "307c3482a1dcf1458d86e284c95d0042f7ae4583ae312624a399d2a4d0a598d0",
+      "size_bytes": 27616
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-singleprocess-zerocopy-suite-notiming-shader-heavy-webgpu.json",
+      "sha256": "7dc8a9e90280cd0952059fb5b3aeb144f7edfe65d4688846d4a43ba7d88d9994",
+      "size_bytes": 27611
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-singleprocess-zerocopy-suite-notiming-texture-streaming-webgpu.json",
+      "sha256": "62cbe17d01b3724c7ccdc84145faf9f4297ed3ee436e865e4cda1130a075ec26",
+      "size_bytes": 6988
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-zerocopy-only-c2-gltf-loader-stress-webgl2.json",
+      "sha256": "6b7f1ebb8559210f20f4dc0ab9f963188721ad4a1d04834ed70f7ba510928fed",
+      "size_bytes": 57222
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-zerocopy-only-c2-instancing-webgl2.json",
+      "sha256": "7c324769828f937ffe1a811c227cecf2d8e60f43039e49c66bbf1787d951801f",
+      "size_bytes": 76018
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-zerocopy-only-c2-large-static-webgl2.json",
+      "sha256": "ea68eb2a6cbd7b09615bb77309d6f19d36772e6c02adf8383d886b3c99af4579",
+      "size_bytes": 76471
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-zerocopy-only-c2-many-draw-calls-webgl2.json",
+      "sha256": "6cfeab6d0c747b19a7e9f6aea2d2cc20b3c4f9e42a710ea59c4c351ef54e9537",
+      "size_bytes": 41366
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-zerocopy-only-c2-notiming-texture-streaming-webgpu.json",
+      "sha256": "a182c5876b0d80736c1a2d95f4ccbe08f070944506ab34c019a86750ef75e8cb",
+      "size_bytes": 7561
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-zerocopy-only-c2-postprocessing-webgl2.json",
+      "sha256": "def20da1097db1b50bccdbc05929a91cc39960626f39768233cdac0f8d54009a",
+      "size_bytes": 77126
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-zerocopy-only-c2-shader-heavy-webgl2.json",
+      "sha256": "333d0763849cec22dcef1f84dfa0a973a8ee35761bf9af8ab8516bd963a02d4a",
+      "size_bytes": 76476
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-zerocopy-only-c2-texture-streaming-webgl2.json",
+      "sha256": "44f57223501c7ac597f9c202e96647fa69c310df5db74e8f1110f8d74aab0ef9",
+      "size_bytes": 9000
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-zerocopy-only-seq-gltf-loader-stress-webgl2.json",
+      "sha256": "da15943520d69b92cd0b5eac2f11d7b97c82465b207111766b420ec88e4a32e3",
+      "size_bytes": 75594
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-zerocopy-only-seq-many-draw-calls-webgl2.json",
+      "sha256": "8817596f5ba5d4dae3ab4a72b55870be1daa57da57ba1b6a89a4737af4817b1f",
+      "size_bytes": 57201
+    },
+    {
+      "path": "benchmarks/raw/iter3-fork-zerocopy-only-seq-texture-streaming-webgl2.json",
+      "sha256": "3b5bee7db73c9177911e8ec82310310d9ef126afd2d1acfb2e2181d99f74d160",
+      "size_bytes": 12348
+    },
+    {
+      "path": "benchmarks/raw/iter4-baseline-c2-data-notiming-texture-streaming-webgpu.json",
+      "sha256": "afccc9592ceb9fb8d0ed584711a113c985e076e0720187e9c53c25e2bbf00de9",
+      "size_bytes": 52711
+    },
+    {
+      "path": "benchmarks/raw/iter4-baseline-c2-data-texture-streaming-webgl2.json",
+      "sha256": "65cc7d57637b83e5240710b5b1954c28c62e15e814efbffb56b8313c0a680d00",
+      "size_bytes": 63168
+    },
+    {
+      "path": "benchmarks/raw/iter4-fork-browsermode-c2-data-notiming-texture-streaming-webgpu.json",
+      "sha256": "8ce2bf847d5220f62da3fe5d37d1913b1f9cadd034e33c3f3bc2d3d43209d260",
+      "size_bytes": 50320
+    },
+    {
+      "path": "benchmarks/raw/iter4-fork-dawnskip-c2-data-notiming-texture-streaming-webgpu.json",
+      "sha256": "66bd1b1a785b21b029be92d921d2e8d38e9c3ce3eb179563429c99e97c77c32e",
+      "size_bytes": 50253
+    },
+    {
+      "path": "benchmarks/raw/iter4-fork-default-c2-data-notiming-texture-streaming-webgpu.json",
+      "sha256": "69a8df8651b5b6ad69c539d7e177b3d1e4bf8bc345b848e371fe727cc94fd43c",
+      "size_bytes": 52294
+    },
+    {
+      "path": "benchmarks/raw/iter4-fork-singleprocess-c2-data-notiming-texture-streaming-webgpu.json",
+      "sha256": "e11ee17cd63a56a3a8b6d7aa8023453a8e913a3b719fd2cbed874edad87e0b2b",
+      "size_bytes": 49568
+    },
+    {
+      "path": "benchmarks/raw/iter4-fork-singleprocess-dawnskip-c2-data-notiming-texture-streaming-webgpu.json",
+      "sha256": "62b21900ab6b2fc49000e79e0615bda353adc9d8d4329cbca88aaa2fd429f149",
+      "size_bytes": 48182
+    },
+    {
+      "path": "benchmarks/raw/iter4-fork-zerocopy-only-c2-data-texture-streaming-webgl2.json",
+      "sha256": "9f2f9e47162ab0536df093f1506738e63b0e23db8f63fe5c6fd902c76a98a425",
+      "size_bytes": 62227
+    },
+    {
+      "path": "benchmarks/raw/iter5-baseline-c2-data-queueinst-notiming-texture-streaming-webgpu.json",
+      "sha256": "8fc25e2145291185e7ee2083f96c6ae1b635dc214fd92488d66c0dd15cdd9bbf",
+      "size_bytes": 50360
+    },
+    {
+      "path": "benchmarks/raw/iter5-baseline-c2-queueinst-notiming-texture-streaming-webgpu.json",
+      "sha256": "a25b36252d64d5715bc1ede50263a43adc1d34adb27d5fb649c25c10a655176b",
+      "size_bytes": 8702
+    },
+    {
+      "path": "benchmarks/raw/iter5-fork-default-c2-data-queueinst-notiming-texture-streaming-webgpu.json",
+      "sha256": "445b505b9bf76ae53fd777f9526596d7672eff6efab7d78082e8ff8e61771e30",
+      "size_bytes": 50121
+    },
+    {
+      "path": "benchmarks/raw/iter5-fork-default-c2-queueinst-notiming-texture-streaming-webgpu.json",
+      "sha256": "67859b51bd9119b21be705651be4d85301c763464039ac2a35cff883206f3b7c",
+      "size_bytes": 8796
+    },
+    {
+      "path": "benchmarks/raw/iter5-smoke-fork-c2-queueinst-notiming-texture-streaming-webgpu.json",
+      "sha256": "5cab78f298932fb2fc7c93dd27021e1185df659833fe42c57eb3bf731fbf9427",
+      "size_bytes": 6144
+    },
+    {
+      "path": "benchmarks/raw/iter5-smoke-fork-d3d11-delayflush-c2-data-notiming-texture-streaming-webgpu.json",
+      "sha256": "c8b1c5603e0e84985b01f5dad36b9c9c00d35e4429dee342f381f105fa71e07d",
+      "size_bytes": 12961
+    },
+    {
+      "path": "benchmarks/raw/iter5-smoke-fork-d3d12toggles-c2-data-notiming-texture-streaming-webgpu.json",
+      "sha256": "1492aaaf764a3b387193b601f962f4e4533f28e99debaff091f8c605d788918e",
+      "size_bytes": 12772
+    },
+    {
+      "path": "benchmarks/raw/iter5-smoke-fork-dawn-disable-robustness-c2-data-notiming-texture-streaming-webgpu.json",
+      "sha256": "71da939e245f78e1a3b0b7596c60856d9adf4453f01d926973a74a3a963184b1",
+      "size_bytes": 12894
+    },
+    {
+      "path": "benchmarks/raw/result.json",
+      "sha256": "c4406661decbb4cde8818d4781eea3db6acea390b72ddf22343736de5215ba23",
+      "size_bytes": 55804
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-instancing-webgl2.json",
+      "sha256": "3a37b07517684b19b1e36afdb38a1e0a522057c271e63976a20a75ba64410e8f",
+      "size_bytes": 13845
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-instancing-webgpu.json",
+      "sha256": "b751006e0c95675ebb1f754ffd1a49e4b6de252f92834f219ad6c5f4c5bb2c59",
+      "size_bytes": 19072
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-large-static-webgl2.json",
+      "sha256": "3a26c230577a13abc70e0d84f5c9fe68f262f533112979eca72d18ff63e9c668",
+      "size_bytes": 13960
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-many-draw-calls-webgl2.json",
+      "sha256": "a86ed3c51a23874a07887e4ca6ef6e1ce3ab3c14cf503a3a2b607b07c391a390",
+      "size_bytes": 13438
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-postprocessing-webgl2.json",
+      "sha256": "95eba0ef95a72626f80286500877095853df675bc6bb59310e5e0c173946b7bc",
+      "size_bytes": 13690
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-shader-heavy-webgl2.json",
+      "sha256": "5cf89e36534f7bd6e8b6aec567bced195c719c9806eeab89ddda7a767a350d20",
+      "size_bytes": 13506
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-texture-streaming-webgl2.json",
+      "sha256": "31d0f2d8183e2fff79a3b8427aa52b40e242613c0be47771ecfedaf88a460c17",
+      "size_bytes": 3012
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v10-resource-warmup-shader-heavy-webgl2.json",
+      "sha256": "f0a2a73c7ca64f901a1bbd076049eaab7c65147e651deb993692ec5936f6889f",
+      "size_bytes": 8574
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v11-stability-fields-many-draw-calls-webgl2.json",
+      "sha256": "8c4190c8a39476250ca8e1e19d90a366b787111d13c1598a0c3c7cdd4883af0d",
+      "size_bytes": 8880
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v11-stability-smoke.json",
+      "sha256": "7dcd8bacd28d94d845464ae7534b2ebc16e6a45ca03fb719c50bd0d52080fd40",
+      "size_bytes": 4256
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v12-gltf-loader-stress-webgl2.json",
+      "sha256": "02f2f5446093611d093d85be256f0d75336501f59b26dc165fca7a4fd6635f0c",
+      "size_bytes": 9140
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v12-gltf-loader-stress-webgpu.json",
+      "sha256": "39641ae84ea340d80bfad2b661bf5ef955030bf6b8aaeb2d2287de568730b9fd",
+      "size_bytes": 8765
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v13-file-gltf-loader-stress-webgl2-allow-file-access.json",
+      "sha256": "5231f90ed9c8b2fa23dab67d6dfd0493c431faeddbbc47f7d176646536d14540",
+      "size_bytes": 9260
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v13-file-gltf-loader-stress-webgpu-allow-file-access.json",
+      "sha256": "efc1df0a0c3e4ae3396a24b70483e468f0511512f946b7e0ccfbda3b9a47351a",
+      "size_bytes": 8728
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v14-webgpu-timestamp-instancing-webgpu.json",
+      "sha256": "d802fd3a45a39855924038cb6ba02a8f63d5a3bf651f9ca77dfddb1705644785",
+      "size_bytes": 15017
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v15-webgpu-postprocessing-render-target-webgpu.json",
+      "sha256": "be9a02fbfb96fcddf032a629a661069b282ea60e16656284f2c37af2e0dba709",
+      "size_bytes": 15111
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v16-webgpu-shader-heavy-wgsl-webgpu.json",
+      "sha256": "27afeb35547863b44d1d3f69b7d4988cd43649878f0ba837bcf6e9a384ff26c9",
+      "size_bytes": 14904
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v17-webgpu-current-gltf-loader-stress-webgpu.json",
+      "sha256": "74ba5df7682356cfc58654e28fbb119c6dc6c1533358df0a85040e8316e28d82",
+      "size_bytes": 14920
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v17-webgpu-current-instancing-webgpu.json",
+      "sha256": "cd8e32e0d251cb0f7b182d85dcec402c8c24b59757b40c7f2d98d068e340c31c",
+      "size_bytes": 14798
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v17-webgpu-current-large-static-webgpu.json",
+      "sha256": "e91a2636b5d6fb53e1cde5d5a504a13d5d09515e564545526767bcc6edf2e37e",
+      "size_bytes": 14972
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v17-webgpu-current-many-draw-calls-webgpu.json",
+      "sha256": "c2438c0495c7bf78549bd98948a4b620e28849c66740d6a10e691234422f6e02",
+      "size_bytes": 12011
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v17-webgpu-current-postprocessing-webgpu.json",
+      "sha256": "bf8664b2f1c5cbeb56576c3dc619a774aa794dff37af5c0b6c82a10bf026fdf3",
+      "size_bytes": 15173
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v17-webgpu-current-shader-heavy-webgpu.json",
+      "sha256": "c07df94923313500694c7aa37b12bd6092dc83bf920aa763ae2aac1cd7083f01",
+      "size_bytes": 15176
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v17-webgpu-current-texture-streaming-webgpu.json",
+      "sha256": "39300cc7fd03811c9ecb496964f95c09f002dbbc8da4874f88979c5a42cdeebd",
+      "size_bytes": 4157
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v18-renderer-resource-counters-instancing-webgl2.json",
+      "sha256": "44c08cb4cbfdac1afe6008a702183321889c8de5dde88f5eaf7d4ab4e943142f",
+      "size_bytes": 15645
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v18-renderer-resource-counters-instancing-webgpu.json",
+      "sha256": "6674961e70ff52c233c2ba797223a11c8d668693109f67f3c02afe72187704d7",
+      "size_bytes": 15279
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v19-runtime-pipeline-telemetry-webgpu.json",
+      "sha256": "f00336ea88746b046df76b91bd248963a74278a89342c5ff63069b029978fad5",
+      "size_bytes": 13547
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v19-runtime-shader-telemetry-webgl2.json",
+      "sha256": "33243785ca231641f3d53db04501577b3e969aa797b7c0b1b647d7481641e2a0",
+      "size_bytes": 13632
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v2-instancing-webgl2.json",
+      "sha256": "8d8eb0303b7acf4bca302855f97b6b154fc77388c5e097c5f49118b66bb44fa0",
+      "size_bytes": 7837
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v2-large-static-webgl2.json",
+      "sha256": "29f867e200a27d8223de51e1d1b78589d3eec10b366cca174267d0771227585c",
+      "size_bytes": 8067
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v2-many-draw-calls-webgl2.json",
+      "sha256": "80167c721af76da219eaff063fce3b3f31b283f6a30e641df82ec1181ae44164",
+      "size_bytes": 7710
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v2-postprocessing-webgl2.json",
+      "sha256": "18df92edef856dd40ee3c95da1b25f2ecdbb37408586455592e4b39eeec181f9",
+      "size_bytes": 7745
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v2-shader-heavy-webgl2.json",
+      "sha256": "4b7f4e8e09ded5443a6f51ec65bb8cd7062923a59b9de441ea1f44a09a0b4c78",
+      "size_bytes": 7877
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v2-texture-streaming-webgl2.json",
+      "sha256": "ca8f18e1067007e7d889f57a7f11c566a86add5b170337edcaf9515b6d0139ca",
+      "size_bytes": 2740
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v3-instancing-webgl2.json",
+      "sha256": "60b0734874edad7c221e581fb0a94e5afa180c79f6f3c5b4d79b4cefaeab46f0",
+      "size_bytes": 7921
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v3-large-static-webgl2.json",
+      "sha256": "217ce704c22035be3c370ec918c0cccae11c69d63a0672d0669ce879e05bfad7",
+      "size_bytes": 7831
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v3-many-draw-calls-webgl2.json",
+      "sha256": "84979dfb00965633f3a5d1f423b4d3f3916d6d9d06f5e5674ff029d5b784f3b8",
+      "size_bytes": 7824
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v3-postprocessing-webgl2.json",
+      "sha256": "5f76f2c1351a56ca95a6b2c4f896064424eb9c0d755f77ac96a3565777a77223",
+      "size_bytes": 7921
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v3-shader-heavy-webgl2.json",
+      "sha256": "3fbf1abf201280fcabd149d656c1ce3c7acdd110be634d6d7a4b3659d20d1a50",
+      "size_bytes": 7984
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v3-texture-streaming-webgl2.json",
+      "sha256": "70ac42c37e10c2f1d45c8651145833372496edbd830ac483c6baa2f9de11242b",
+      "size_bytes": 2798
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v4-instancing-webgl2.json",
+      "sha256": "abf49162445102fe653b8eada4a1963444190ec5dbc6383641596b333af03402",
+      "size_bytes": 8029
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v4-instancing-webgpu.json",
+      "sha256": "8b8667f422091fc9e28baa3ecc0c65c8f2192e94a1f50352ac3b07d8f8dda74e",
+      "size_bytes": 7602
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v4-large-static-webgl2.json",
+      "sha256": "1f88418dbc6ed7fc81d5b7cd898829ffdfd5269f7dc92b88e99c125dd3ce657d",
+      "size_bytes": 7993
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v4-many-draw-calls-webgl2.json",
+      "sha256": "4411876dad1eec371e0fe1da54bd018c180910b56431875e08369da171279a56",
+      "size_bytes": 7975
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v4-postprocessing-webgl2.json",
+      "sha256": "6d2045ad76063e84183ea30acfa57656ac2311c257b01691602f925efa8d0e9e",
+      "size_bytes": 8145
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v4-shader-heavy-webgl2.json",
+      "sha256": "8d8128024262f5b4b8dc5bcc647722aa41144b2d539169a092f4fcb0cffa9c64",
+      "size_bytes": 8037
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v4-texture-streaming-webgl2.json",
+      "sha256": "c5040ed7927ccf9d6eac01465538ddd567855ae4301c24c64ca8c1dde5d58a44",
+      "size_bytes": 2815
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v5-runtime-smoke.json",
+      "sha256": "d44b343e6a9c768215f6927fd8d57e0980e680cf5d0006ce2b83b0eb6f6a8a1a",
+      "size_bytes": 2816
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v5-short-stability-instancing-webgl2.json",
+      "sha256": "5c10faf2033fcdd2e8e2aa9b10304ac101482b321c9ea50049aa6701b49bf932",
+      "size_bytes": 19856
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v6-instancing-webgl2.json",
+      "sha256": "0042cc65376d14b633f36de9cc99481d6ff56c237ea0c60f108bc2b172c90808",
+      "size_bytes": 8243
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v6-instancing-webgpu.json",
+      "sha256": "4e9f451e19f278eaa733d04207a43de0bbc009506ef4e856e66f261c124462e6",
+      "size_bytes": 8001
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v6-large-static-webgl2.json",
+      "sha256": "e00e2bd4e5fd3a15de66208bb0facd49946456fd790fe60b6bb7176b2415fb7b",
+      "size_bytes": 8190
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v6-many-draw-calls-webgl2.json",
+      "sha256": "c59543f921b7f094c879aa73a3a4a8e375ffdce436547fc1e6e287b1c3895f66",
+      "size_bytes": 7981
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v6-postprocessing-webgl2.json",
+      "sha256": "9d44ddfcf671d2a3d82f3f0e3bf1f3f96795ab527c32c97b425f3750989c3795",
+      "size_bytes": 8211
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v6-shader-heavy-webgl2.json",
+      "sha256": "43c0420cc8f31879a8be5a8ec09b1916e38888b48c29d35032edeaf2212c5060",
+      "size_bytes": 8258
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v6-short-stability-instancing-webgl2.json",
+      "sha256": "770fc3525a225ae320566a3c982bfd6e9e42cc189ab3a31bca03473fc01f6bd6",
+      "size_bytes": 19593
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v6-texture-streaming-webgl2.json",
+      "sha256": "b8c80543ee037fdfffb7467c292ac660f59b4612fd78e84ba3a01df15806093f",
+      "size_bytes": 3065
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v7-webgpu-instancing-webgpu.json",
+      "sha256": "4fe51011621ab950fa996e63b38a64f4a8b11f38b9e5a4bf4e66b0c6cef469b5",
+      "size_bytes": 7854
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v7-webgpu-large-static-webgpu.json",
+      "sha256": "8c788b63ae24a9d50f245bb4627ed17703581701ef9b834f04c32615be07a758",
+      "size_bytes": 7932
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v7-webgpu-many-draw-calls-webgpu.json",
+      "sha256": "fcff4dcec291e3d2001808fc5270c8c86d11b3d1cefc8606e01c229b0294841b",
+      "size_bytes": 6680
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v7-webgpu-postprocessing-webgpu.json",
+      "sha256": "1cf41c98780146368e2af7c95a52af99212339813d384904bdcf3b50fb8afe16",
+      "size_bytes": 8229
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v7-webgpu-shader-heavy-webgpu.json",
+      "sha256": "8f4529053043802e2448436c591de66150ee23c0f1495ec0db76814dffc3738d",
+      "size_bytes": 8035
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v7-webgpu-texture-streaming-webgpu.json",
+      "sha256": "a6463bcb68325bfc179c3648e7a7a736438ab04cd13a2391438abe1bd81e34fd",
+      "size_bytes": 2554
+    },
+    {
+      "path": "benchmarks/raw/smoke-installed-chrome-v8-runner-parser-many-draw-calls-webgl2.json",
+      "sha256": "3dc026bd1fc120e1af97aa416d1e0ddd073114fe79589eba1c175cfcdb3eb4d5",
+      "size_bytes": 8165
+    }
+  ],
+  "input_count": 413,
+  "accepted_count": 0,
+  "filtered_count": 413,
+  "filtered_reason_counts": [
+    {
+      "reason": "missing evidence complexity",
+      "count": 184
+    },
+    {
+      "reason": "measured_seconds 10 below 30",
+      "count": 130
+    },
+    {
+      "reason": "measured_seconds 1 below 30",
+      "count": 39
+    },
+    {
+      "reason": "measured_seconds 2 below 30",
+      "count": 20
+    },
+    {
+      "reason": "missing evidence gpu_name",
+      "count": 7
+    },
+    {
+      "reason": "measured_seconds 20 below 30",
+      "count": 6
+    },
+    {
+      "reason": "missing avg_fps",
+      "count": 6
+    },
+    {
+      "reason": "missing evidence build_args_hash",
+      "count": 6
+    },
+    {
+      "reason": "measured_seconds 5 below 30",
+      "count": 5
+    },
+    {
+      "reason": "measured_seconds 15 below 30",
+      "count": 4
+    },
+    {
+      "reason": "measured_seconds 3 below 30",
+      "count": 3
+    },
+    {
+      "reason": "stability benchmark artifact",
+      "count": 3
+    }
+  ],
+  "baseline_selection_diagnostics": [],
+  "required_candidate_gate": {
+    "required_renderers": [
+      "webgl2",
+      "webgpu"
+    ],
+    "ok": false,
+    "renderers": [
+      {
+        "renderer": "webgl2",
+        "ok": false,
+        "candidate_count": 0,
+        "best_status": "missing",
+        "best_candidate_family": "",
+        "best_baseline_family": "",
+        "best_scenes": 0,
+        "best_avg_fps_delta_pct": null,
+        "best_min_fps_delta_pct": null,
+        "best_p99_frame_ms_delta": null,
+        "best_dropped_frames_delta": null,
+        "best_shader_compile_events_delta": null,
+        "best_webgpu_pipeline_create_measured_ms_delta": null,
+        "best_avg_cpu_frame_ms_delta": null,
+        "best_avg_render_submission_ms_delta": null,
+        "failure": "webgl2: no comparable fork-over-baseline family",
+        "candidate_families": []
+      },
+      {
+        "renderer": "webgpu",
+        "ok": false,
+        "candidate_count": 0,
+        "best_status": "missing",
+        "best_candidate_family": "",
+        "best_baseline_family": "",
+        "best_scenes": 0,
+        "best_avg_fps_delta_pct": null,
+        "best_min_fps_delta_pct": null,
+        "best_p99_frame_ms_delta": null,
+        "best_dropped_frames_delta": null,
+        "best_shader_compile_events_delta": null,
+        "best_webgpu_pipeline_create_measured_ms_delta": null,
+        "best_avg_cpu_frame_ms_delta": null,
+        "best_avg_render_submission_ms_delta": null,
+        "failure": "webgpu: no comparable fork-over-baseline family",
+        "candidate_families": []
+      }
+    ],
+    "failures": [
+      "webgl2: no comparable fork-over-baseline family",
+      "webgpu: no comparable fork-over-baseline family"
+    ]
+  },
+  "blocker_diagnostics": [],
+  "families": []
+}

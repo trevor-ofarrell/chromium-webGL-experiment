@@ -21,12 +21,14 @@ function parseArgs(argv) {
     viewerTrustedContent: false,
     browserFlag: [],
     unsafeFullSizeWindow: false,
+    allowSoftwareRendering: false,
   };
   const booleanArgs = new Set([
     'requireWebGPU',
     'viewerMode',
     'viewerTrustedContent',
     'unsafeFullSizeWindow',
+    'allowSoftwareRendering',
   ]);
 
   for (let i = 2; i < argv.length; i += 1) {
@@ -77,6 +79,53 @@ function addSafeDesktopFlags(flags, extraFlags) {
   pushDefaultFlag(flags, extraFlags, '--window-size=640,480');
   pushDefaultFlag(flags, extraFlags, '--window-position=40,40');
   pushDefaultFlag(flags, extraFlags, '--force-device-scale-factor=1');
+}
+
+function softwareRendererReason(metadata) {
+  const haystack = [
+    metadata?.gpu_name,
+    metadata?.driver_version,
+    metadata?.angle_backend,
+  ]
+    .filter((value) => typeof value === 'string')
+    .join(' ')
+    .toLowerCase();
+
+  if (!haystack) return '';
+
+  const patterns = [
+    ['swiftshader', 'SwiftShader'],
+    ['llvmpipe', 'llvmpipe'],
+    ['softpipe', 'softpipe'],
+    ['software rasterizer', 'software rasterizer'],
+    ['software renderer', 'software renderer'],
+    ['microsoft basic render driver', 'Microsoft Basic Render Driver'],
+    ['microsoft basic renderer', 'Microsoft Basic Renderer'],
+    ['warp', 'WARP'],
+  ];
+
+  const match = patterns.find(([pattern]) => haystack.includes(pattern));
+  return match ? match[1] : '';
+}
+
+function gpuMetadataFromSystemInfo(systemInfo) {
+  const gpuDevice = systemInfo?.gpu?.devices?.[0] || null;
+  return {
+    gpu_name: gpuDevice?.deviceString || null,
+    driver_version: gpuDevice?.driverVendor || gpuDevice?.driverVersion || null,
+    angle_backend: null,
+  };
+}
+
+function assertNoSoftwareRenderer(metadata, context, allowSoftwareRendering) {
+  const reason = softwareRendererReason(metadata);
+  if (!reason || allowSoftwareRendering) return;
+
+  throw new Error(
+    `${context} reported software-rendered GPU path (${reason}). ` +
+    'Smoke evidence must use hardware GPU acceleration; rerun after fixing the driver/GPU path, ' +
+    'or pass --allowSoftwareRendering only for diagnostic failure-mode smoke runs.',
+  );
 }
 
 function commandText(command, args, options = {}) {
@@ -831,10 +880,17 @@ async function main() {
 
   let cdp = null;
   const tests = [];
+  let launchGpuMetadata = { gpu_name: null, driver_version: null, angle_backend: null };
   try {
     const page = await waitForPageTarget(debugPort, 30000);
     cdp = new CdpClient(page.webSocketDebuggerUrl);
     await cdp.connect();
+    launchGpuMetadata = gpuMetadataFromSystemInfo(await cdp.send('SystemInfo.getInfo').catch(() => null));
+    assertNoSoftwareRenderer(
+      launchGpuMetadata,
+      'Hardware-GPU smoke launch preflight',
+      args.allowSoftwareRendering,
+    );
     await cdp.send('Runtime.enable');
     await cdp.send('Page.enable');
     await cdp.send('Page.bringToFront').catch(() => {});
@@ -870,8 +926,12 @@ async function main() {
     platform: `${os.type()} ${os.release()} ${os.arch()}`,
     browser_executable: browser,
     browser_version: getBrowserVersion(browser),
+    gpu_name: launchGpuMetadata.gpu_name,
+    driver_version: launchGpuMetadata.driver_version,
+    angle_backend: launchGpuMetadata.angle_backend,
     browser_flags: browserArgs,
     browser_extra_flags: args.browserFlag,
+    allow_software_rendering: args.allowSoftwareRendering,
     viewer_dir: viewerDir,
     viewer_mode: args.viewerMode,
     viewer_trusted_content: args.viewerTrustedContent,

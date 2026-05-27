@@ -41,6 +41,8 @@ public static class ThreeBrowserCodeIntegrityProbe {
     verified_and_reputable_policy_state = $null
     sample_dlls = @()
     blocked_sample_dll_count = 0
+    siso_code_integrity_blocks = @()
+    siso_code_integrity_block_count = 0
     recent_block_count = 0
     recent_active_policy_block_count = 0
     recent_policy_ids = @()
@@ -87,6 +89,42 @@ public static class ThreeBrowserCodeIntegrityProbe {
         }
       })
     $Result.blocked_sample_dll_count = @($Result.sample_dlls | Where-Object { $_.blocked_by_code_integrity }).Count
+
+    $SisoBlocks = @()
+    foreach ($OutDir in @(Get-ChildItem $OutRoot -Directory -ErrorAction SilentlyContinue)) {
+      $SisoOutput = Join-Path $OutDir.FullName "siso_output"
+      if (-not (Test-Path $SisoOutput)) {
+        continue
+      }
+      $OutputLastWrite = (Get-Item -LiteralPath $SisoOutput).LastWriteTimeUtc
+      $BuildNinja = Join-Path $OutDir.FullName "build.ninja"
+      $BuildNinjaStamp = Join-Path $OutDir.FullName "build.ninja.stamp"
+      $BuildTimes = @($BuildNinja, $BuildNinjaStamp) |
+        Where-Object { Test-Path $_ } |
+        ForEach-Object { (Get-Item -LiteralPath $_).LastWriteTimeUtc }
+      $NewestBuildTime = if (@($BuildTimes).Count -gt 0) {
+        $BuildTimes | Sort-Object -Descending | Select-Object -First 1
+      } else {
+        $null
+      }
+      if ($NewestBuildTime -and $OutputLastWrite -lt $NewestBuildTime) {
+        continue
+      }
+      $FirstBlockLine = Get-Content -LiteralPath $SisoOutput -ErrorAction SilentlyContinue |
+        Where-Object { $_ -match "WinError 4551|Application Control policy|Enterprise signing level|did not meet" } |
+        Select-Object -First 1
+      if (-not $FirstBlockLine) {
+        continue
+      }
+      $SisoBlocks += [pscustomobject]@{
+        out_dir = $OutDir.FullName
+        siso_output = $SisoOutput
+        siso_output_last_write_utc = $OutputLastWrite.ToString("o")
+        first_block_line = $FirstBlockLine.Trim()
+      }
+    }
+    $Result.siso_code_integrity_blocks = @($SisoBlocks)
+    $Result.siso_code_integrity_block_count = @($Result.siso_code_integrity_blocks).Count
   }
 
   try {
@@ -94,8 +132,8 @@ public static class ThreeBrowserCodeIntegrityProbe {
     $RepoPathForEventMatch = ($Root.ProviderPath -replace "\\", "\\")
     $Events = @(Get-WinEvent -FilterHashtable @{ LogName = "Microsoft-Windows-CodeIntegrity/Operational"; StartTime = $StartTime } -ErrorAction Stop |
       Where-Object {
-        $_.Message -match "rustc\.exe" -and
         $_.Message -match "three-browser" -and
+        $_.Message -match "rustc\.exe|win_clang_x64_for_rust_host_build_tools|build_script|proc-macro|proc_macro" -and
         $_.Message -match "Application Control policy|Enterprise signing level|did not meet"
       })
     $Result.recent_block_count = $Events.Count
@@ -169,11 +207,14 @@ $DbgHelp = "C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\dbghelp.dll"
 Add-Check "windows_sdk_debuggers" (Test-Path $DbgHelp) $DbgHelp
 
 $CodeIntegrityBlock = Get-CodeIntegrityChromiumRustBlock
-$CodeIntegrityOk = $CodeIntegrityBlock.blocked_sample_dll_count -eq 0
+$CodeIntegrityBlockedHostToolCount = $CodeIntegrityBlock.blocked_sample_dll_count + $CodeIntegrityBlock.siso_code_integrity_block_count
+$CodeIntegrityOk = $CodeIntegrityBlockedHostToolCount -eq 0
 $CodeIntegrityDetail = if ($CodeIntegrityOk) {
-  "no current Code Integrity block when probing existing Chromium Rust proc-macro DLLs; active_policies=$(@($CodeIntegrityBlock.active_policy_ids).Count); recent_block_events=$($CodeIntegrityBlock.recent_block_count); verified_and_reputable_policy_state=$($CodeIntegrityBlock.verified_and_reputable_policy_state)"
+  "no current Code Integrity block when probing existing Chromium Rust host tools; active_policies=$(@($CodeIntegrityBlock.active_policy_ids).Count); recent_block_events=$($CodeIntegrityBlock.recent_block_count); current_siso_blocks=$($CodeIntegrityBlock.siso_code_integrity_block_count); verified_and_reputable_policy_state=$($CodeIntegrityBlock.verified_and_reputable_policy_state)"
 } else {
-  "current Code Integrity block for Chromium Rust proc-macro DLLs; blocked_samples=$($CodeIntegrityBlock.blocked_sample_dll_count); policy_ids=$(@($CodeIntegrityBlock.recent_policy_ids) -join ','); unblock WDAC/Smart App Control for generated Chromium build DLLs, then rerun the failed build"
+  $FirstSisoBlock = @($CodeIntegrityBlock.siso_code_integrity_blocks | Select-Object -First 1)
+  $FirstSisoDetail = if ($FirstSisoBlock.Count -gt 0) { "; first_siso_block=$($FirstSisoBlock[0].first_block_line)" } else { "" }
+  "current Code Integrity block for Chromium Rust host tools; blocked_sample_dlls=$($CodeIntegrityBlock.blocked_sample_dll_count); current_siso_blocks=$($CodeIntegrityBlock.siso_code_integrity_block_count); policy_ids=$(@($CodeIntegrityBlock.recent_policy_ids) -join ',')$FirstSisoDetail; unblock WDAC/Smart App Control for generated Chromium build DLLs/EXEs, then rerun the failed build"
 }
 Add-Check "windows_code_integrity_chromium_rust" $CodeIntegrityOk $CodeIntegrityDetail
 
@@ -181,16 +222,30 @@ $ViewerDist = Join-Path $Root "viewer\dist\index.html"
 Add-Check "viewer_dist" (Test-Path $ViewerDist) $ViewerDist
 
 $checks | Format-Table -AutoSize
-if ($checks | Where-Object { -not $_.OK }) {
+$FailingChecks = @($checks | Where-Object { -not $_.OK })
+if ($FailingChecks.Count -gt 0) {
   Write-Host ""
   Write-Host "One or more prerequisites are missing."
+  Write-Host ""
+  Write-Host "Failing checks:"
+  foreach ($Check in $FailingChecks) {
+    Write-Host "  - $($Check.Check): $($Check.Detail)"
+  }
   if (-not $Atldef) {
+    Write-Host ""
     Write-Host "ATL/MFC remediation:"
     Write-Host "  1. Open PowerShell as Administrator."
     Write-Host "  2. cd `"$Root`""
     Write-Host "  3. .\scripts\install_vs_atl.ps1"
     Write-Host "  4. .\scripts\verify_prebuild.ps1"
-    Write-Host "  5. .\scripts\run_post_atl_pipeline.ps1 -RefreshChromiumPin -IncludeWebGPU -IncludeAggressiveGpu -AggressiveAngleBackend d3d11 -CaptureTrace -RunTrustedExperimentMatrix -TrustedMatrixInProcessGpu -TrustedMatrixSingleProcess -TrustedMatrixAngleBackend d3d11 -TrustedMatrixReservedNoopGates -RunLongStability -MaxRssDeltaMb 128 -MaxRendererResourceDelta 0 -FinalGate"
+    Write-Host "  5. .\scripts\run_post_atl_pipeline.ps1 -RefreshChromiumPin -IncludeWebGPU -IncludeAggressiveGpu -AggressiveAngleBackend d3d11 -AggressiveWebGl2RelaxedValidation -AggressiveWebGpuSourceFastPath -AggressiveWebGpuUploadFastPath -CaptureTrace -DisableWebGpuTiming -DisableForkWebGpuTiming -RunTrustedExperimentMatrix -RunTrustedWebGpuDawnMatrix -RunTargetedBlockerExperiments -TrustedMatrixZeroCopy -TrustedMatrixWebGlCompositorExperiments -TrustedMatrixWebGpuChromiumFeatureExperiments -TrustedMatrixWebGpuUploadExperiments -TrustedMatrixInProcessGpu -TrustedMatrixSingleProcess -TrustedMatrixAngleBackend d3d11 -TrustedMatrixReservedNoopGates -RunLongStability -MaxRssDeltaMb 128 -MaxRendererResourceDelta 0 -FinalGate"
+  }
+  if (-not $CodeIntegrityOk) {
+    Write-Host ""
+    Write-Host "Windows Code Integrity remediation:"
+    Write-Host "  1. Allow generated Chromium Rust host tools under `"$Src\out`" through WDAC/Smart App Control/Application Control, or disable the blocking policy for this build host."
+    Write-Host "  2. Rerun .\scripts\check_prereqs.ps1 and confirm windows_code_integrity_chromium_rust is True."
+    Write-Host "  3. Resume the Chromium build with .\scripts\build_viewer_fork.ps1 or the documented post-ATL pipeline."
   }
   exit 1
 }

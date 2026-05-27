@@ -1,0 +1,26 @@
+﻿{
+    "generated_at":  "2026-05-24T10:57:53.1522969Z",
+    "dry_run":  true,
+    "phase":  "planned",
+    "note":  "Dry-run placeholder written so suite-promotion handoff stays revision-synchronized; real triage analysis is generated after targeted runs.",
+    "families":  [
+
+                 ],
+    "required_candidate_gate":  {
+                                    "required_renderers":  [
+                                                               "webgl2",
+                                                               "webgpu"
+                                                           ],
+                                    "ok":  false,
+                                    "renderers":  [
+
+                                                  ],
+                                    "failures":  [
+                                                     "dry-run placeholder; targeted runs not executed"
+                                                 ]
+                                },
+    "input_file_digest":  null,
+    "input_files":  [
+
+                    ]
+}

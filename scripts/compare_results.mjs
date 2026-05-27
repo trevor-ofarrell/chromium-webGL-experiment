@@ -1,6 +1,11 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
+
+function readJson(file) {
+  return JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, ''));
+}
 
 function wildcardToRegExp(pattern) {
   const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&');
@@ -27,6 +32,7 @@ function parseArgs(argv) {
     files: [],
     strictSameRevision: false,
     strictOfficial: false,
+    strictEvidence: false,
   };
   for (let i = 2; i < argv.length; i += 1) {
     if (argv[i] === '--output') {
@@ -35,19 +41,50 @@ function parseArgs(argv) {
       args.strictSameRevision = true;
     } else if (argv[i] === '--strictOfficial') {
       args.strictOfficial = true;
+    } else if (argv[i] === '--strictEvidence') {
+      args.strictEvidence = true;
     } else {
       args.files.push(...expandFileArg(argv[i]));
     }
   }
   if (!args.files.length) {
-    throw new Error('Usage: node scripts/compare_results.mjs <result.json...> [--output report.md] [--strictSameRevision] [--strictOfficial]');
+    throw new Error('Usage: node scripts/compare_results.mjs <result.json...> [--output report.md] [--strictSameRevision] [--strictOfficial] [--strictEvidence]');
   }
-  if (args.strictOfficial) args.strictSameRevision = true;
+  if (args.strictOfficial) {
+    args.strictSameRevision = true;
+    args.strictEvidence = true;
+  }
   return args;
 }
 
 function round(value, digits = 2) {
   return Number.isFinite(value) ? value.toFixed(digits) : '';
+}
+
+function normalizeInputPath(file) {
+  const resolved = path.resolve(file);
+  const relative = path.relative(process.cwd(), resolved);
+  const displayPath = relative && !relative.startsWith('..') && !path.isAbsolute(relative)
+    ? relative
+    : resolved;
+  return displayPath.split(path.sep).join('/');
+}
+
+function inputDigest(files) {
+  const entries = files
+    .map((file) => {
+      const content = fs.readFileSync(file);
+      return {
+        path: normalizeInputPath(file),
+        sha256: crypto.createHash('sha256').update(content).digest('hex'),
+        size: content.length,
+      };
+    })
+    .sort((a, b) => a.path.localeCompare(b.path));
+  const manifest = entries
+    .map((entry) => `${entry.path}\t${entry.sha256}\t${entry.size}`)
+    .join('\n');
+  return crypto.createHash('sha256').update(manifest).digest('hex');
 }
 
 function pct(delta, baseline) {
@@ -65,6 +102,24 @@ function keyOf(result) {
 
 function variantOf(result) {
   return result.benchmark_variant || 'unknown';
+}
+
+function profileCacheModeOf(result) {
+  const mode = typeof result.profile_cache_mode === 'string' ? result.profile_cache_mode.trim() : '';
+  return mode || 'fresh-temp';
+}
+
+function profileCacheKeyOf(result) {
+  const mode = profileCacheModeOf(result);
+  if (mode === 'fresh-temp') return 'fresh-temp';
+  const key = typeof result.profile_cache_key === 'string' ? result.profile_cache_key.trim() : '';
+  return key || 'missing-profile-cache-key';
+}
+
+function evidenceClassOf(result) {
+  return profileCacheModeOf(result) === 'explicit-reuse'
+    ? 'cache-attribution'
+    : 'fresh-profile-evidence';
 }
 
 function compareRows(results) {
@@ -86,6 +141,9 @@ function compareRows(results) {
         scene,
         renderer,
         variant: variantOf(result),
+        evidenceClass: evidenceClassOf(result),
+        profileCacheMode: profileCacheModeOf(result),
+        profileCacheKey: profileCacheKeyOf(result),
         avgFps: result.avg_fps,
         avgFpsDelta: delta(result.avg_fps, baseline.avg_fps),
         oneLowFps: result.one_percent_low_fps,
@@ -144,6 +202,56 @@ function compareRows(results) {
   return rows;
 }
 
+function average(values) {
+  const finite = values.filter((value) => Number.isFinite(value));
+  if (!finite.length) return null;
+  return finite.reduce((sum, value) => sum + value, 0) / finite.length;
+}
+
+function variantFamilyOf(row) {
+  const suffix = `-${row.scene}-${row.renderer}`;
+  return row.variant.endsWith(suffix) ? row.variant.slice(0, -suffix.length) : row.variant;
+}
+
+function aggregateRows(rows) {
+  const byVariant = new Map();
+  for (const row of rows) {
+    const key = `${row.renderer}|${variantFamilyOf(row)}|${row.evidenceClass}|${row.profileCacheMode}|${row.profileCacheKey}`;
+    if (!byVariant.has(key)) byVariant.set(key, []);
+    byVariant.get(key).push(row);
+  }
+
+  return [...byVariant.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, variantRows]) => {
+      const [renderer, variant, evidenceClass, profileCacheMode, profileCacheKey] = key.split('|');
+      const avgFps = average(variantRows.map((row) => row.avgFps));
+      const avgFpsDelta = average(variantRows.map((row) => row.avgFpsDelta));
+      return {
+        renderer,
+        variant,
+        evidenceClass,
+        profileCacheMode,
+        profileCacheKey,
+        scenes: variantRows.length,
+        avgFps,
+        avgFpsDelta,
+        avgFpsDeltaPct: avgFps !== null && avgFpsDelta !== null ? pct(avgFpsDelta, avgFps - avgFpsDelta) : '',
+        oneLowFpsDelta: average(variantRows.map((row) => row.oneLowFpsDelta)),
+        pointOneLowFpsDelta: average(variantRows.map((row) => row.pointOneLowFpsDelta)),
+        p95Delta: average(variantRows.map((row) => row.p95Delta)),
+        p99Delta: average(variantRows.map((row) => row.p99Delta)),
+        maxDelta: average(variantRows.map((row) => row.maxDelta)),
+        cpuDelta: average(variantRows.map((row) => row.cpuDelta)),
+        jsDelta: average(variantRows.map((row) => row.jsDelta)),
+        submitDelta: average(variantRows.map((row) => row.submitDelta)),
+        droppedFramesDelta: average(variantRows.map((row) => row.droppedFramesDelta)),
+        startupDelta: average(variantRows.map((row) => row.startupDelta)),
+        rssDelta: average(variantRows.map((row) => row.rssDelta)),
+      };
+    });
+}
+
 function unique(values) {
   return [...new Set(values)];
 }
@@ -154,6 +262,10 @@ function hasBaselineVariant(results) {
 
 function hasForkVariant(results) {
   return results.some((item) => /fork/i.test(variantOf(item)));
+}
+
+function hasExplicitProfileReuse(results) {
+  return results.some((item) => profileCacheModeOf(item) === 'explicit-reuse');
 }
 
 function softwareRendererReason(result) {
@@ -183,9 +295,357 @@ function softwareRendererReason(result) {
   return match ? match[1] : '';
 }
 
+function softwareRenderingDiagnosticOptIn(result) {
+  return result.allow_software_rendering === true || result.allowSoftwareRendering === true;
+}
+
 function hasGpuMetadata(result) {
   return [result.gpu_name, result.driver_version, result.angle_backend]
     .some((value) => typeof value === 'string' && value.trim().length > 0);
+}
+
+const requiredTextEvidenceFields = [
+  'chromium_revision',
+  'build_args_hash',
+  'platform',
+  'gpu_name',
+  'driver_version',
+  'angle_backend',
+  'renderer_type',
+  'scene_name',
+];
+
+const requiredFiniteEvidenceFields = [
+  'warmup_seconds',
+  'measured_seconds',
+  'avg_fps',
+  'p50_frame_ms',
+  'p95_frame_ms',
+  'p99_frame_ms',
+  'one_percent_low_fps',
+  'point_one_percent_low_fps',
+  'avg_cpu_frame_ms',
+  'avg_js_frame_ms',
+  'avg_render_submission_ms',
+  'max_frame_ms',
+  'dropped_frames',
+  'draw_calls',
+  'triangles',
+  'texture_upload_mb',
+  'buffer_upload_mb',
+  'shader_compile_events',
+  'process_rss_mb',
+  'startup_ms_to_first_frame',
+  'browser_binary_size_mb',
+  'viewer_bundle_size_mb',
+];
+
+const requiredNullableEvidenceFields = [
+  'avg_gpu_frame_ms',
+  'avg_compositor_latency_ms',
+  'avg_presentation_latency_ms',
+  'js_heap_mb',
+  'gpu_memory_mb',
+];
+
+function requiredBenchmarkEvidenceInvalidReason(result) {
+  for (const field of requiredTextEvidenceFields) {
+    if (typeof result[field] !== 'string' || result[field].trim().length === 0) {
+      return `missing evidence ${field}`;
+    }
+  }
+  for (const field of requiredFiniteEvidenceFields) {
+    if (!Number.isFinite(result[field])) {
+      return `missing evidence ${field}`;
+    }
+    if (result[field] < 0) {
+      return `negative evidence ${field}`;
+    }
+  }
+  for (const field of requiredNullableEvidenceFields) {
+    if (!Object.prototype.hasOwnProperty.call(result, field)) {
+      return `missing evidence ${field}`;
+    }
+    if (result[field] !== null && !Number.isFinite(result[field])) {
+      return `invalid evidence ${field}`;
+    }
+    if (Number.isFinite(result[field]) && result[field] < 0) {
+      return `negative evidence ${field}`;
+    }
+  }
+  if (!Number.isFinite(result.package_size_mb) || result.package_size_mb <= 0) {
+    return 'package_size_mb missing or non-positive';
+  }
+  if (typeof result.gpu_timing_enabled !== 'boolean') {
+    return 'missing evidence gpu_timing_enabled';
+  }
+  if (!['webgl2', 'webgpu'].includes(result.renderer_type)) {
+    return `unsupported renderer_type ${result.renderer_type}`;
+  }
+  return '';
+}
+
+function gpuInstabilityReason(result) {
+  if (typeof result.webgpu_device_lost !== 'boolean') return 'missing webgpu_device_lost';
+  if (typeof result.webgl_context_currently_lost !== 'boolean') return 'missing webgl_context_currently_lost';
+  if (typeof result.webgl_context_lost_count !== 'number' || !Number.isFinite(result.webgl_context_lost_count)) {
+    return 'missing webgl_context_lost_count';
+  }
+  if (typeof result.render_error_count !== 'number' || !Number.isFinite(result.render_error_count)) {
+    return 'missing render_error_count';
+  }
+  if (result.webgpu_device_lost === true) return 'WebGPU device loss';
+  if (result.webgl_context_currently_lost === true) return 'WebGL context is currently lost';
+  if (result.webgl_context_lost_count > 0) {
+    return `WebGL context loss count ${result.webgl_context_lost_count}`;
+  }
+  if (result.render_error_count > 0) {
+    return `render_error_count ${result.render_error_count}`;
+  }
+  return '';
+}
+
+function attributionInstrumentationReason(result) {
+  if (result.webgpu_queue_instrumentation_enabled === true) {
+    return 'WebGPU queue instrumentation attribution run';
+  }
+  if (result.webgpu_bind_group_instrumentation_enabled === true) {
+    return 'WebGPU bind-group instrumentation attribution run';
+  }
+  if (result.webgpu_pipeline_state_instrumentation_enabled === true) {
+    return 'WebGPU pipeline-state instrumentation attribution run';
+  }
+  if (result.webgpu_buffer_state_instrumentation_enabled === true) {
+    return 'WebGPU buffer-state instrumentation attribution run';
+  }
+  if (result.webgpu_render_state_instrumentation_enabled === true) {
+    return 'WebGPU render-state instrumentation attribution run';
+  }
+  if (result.webgpu_immediate_instrumentation_enabled === true) {
+    return 'WebGPU immediate instrumentation attribution run';
+  }
+  if (result.viewer_trace_webgpu_queue === true) {
+    return 'source WebGPU queue trace attribution run';
+  }
+  return '';
+}
+
+const webGpuCpuFallbackCountFields = [
+  'webgpu_cpu_texture_fallback_count',
+  'webgpu_cpu_texture_readback_count',
+  'webgpu_forced_texture_readback_count',
+  'webgpu_copy_external_image_cpu_fallback_count',
+  'webgpu_copy_external_image_cpu_readback_count',
+  'webgpu_copy_external_image_forced_readback_count',
+];
+
+const copyExternalImageExperimentFields = [
+  'viewer_skip_webgpu_copy_external_image_color_conversion',
+  'viewer_skip_webgpu_copy_external_image_color_space_validation',
+  'viewer_skip_webgpu_copy_external_image_dest_validation',
+  'viewer_skip_webgpu_copy_external_image_source_validation',
+  'viewer_skip_webgpu_copy_external_image_copy_size_validation',
+];
+
+function isCopyExternalImageUploadExperiment(result) {
+  if (result.renderer_type !== 'webgpu') return false;
+  if (copyExternalImageExperimentFields.some((field) => result[field] === true)) return true;
+  const variant = variantOf(result).toLowerCase();
+  return variant.includes('copy-external-image') ||
+    variant.includes('copy-ext-image') ||
+    variant.includes('aggressive-upload-fast-path');
+}
+
+function webGpuCpuFallbackReason(result) {
+  if (result.renderer_type !== 'webgpu') return '';
+  if (isCopyExternalImageUploadExperiment(result) &&
+      result.viewer_reject_webgpu_cpu_texture_fallback !== true) {
+    return 'WebGPU copyExternalImage upload experiment missing CPU texture fallback rejection';
+  }
+  if (result.webgpu_cpu_texture_fallback_detected === true) {
+    return 'WebGPU CPU texture fallback/readback detected';
+  }
+  const verdict = typeof result.webgpu_texture_copy_path_verdict === 'string'
+    ? result.webgpu_texture_copy_path_verdict.trim().toLowerCase()
+    : '';
+  if (verdict === 'cpu-fallback-detected' || verdict === 'cpu-fallback-rejected' || verdict === 'forced-readback-detected') {
+    return `WebGPU CPU texture fallback/readback verdict ${result.webgpu_texture_copy_path_verdict}`;
+  }
+  for (const field of webGpuCpuFallbackCountFields) {
+    if (Number.isFinite(result[field]) && result[field] > 0) {
+      return `WebGPU CPU texture fallback/readback ${field}=${result[field]}`;
+    }
+  }
+  return '';
+}
+
+const trustedViewerExperimentFields = [
+  'viewer_aggressive_gpu',
+  'viewer_relaxed_webgl_validation',
+  'viewer_zero_copy',
+  'viewer_in_process_gpu',
+  'viewer_single_process',
+  'viewer_disable_unneeded_blink_features',
+  'viewer_direct_gpu_presentation',
+  'viewer_defer_webgpu_pipeline_flush',
+  'viewer_defer_webgpu_queue_flush',
+  'viewer_defer_webgpu_submit_flush',
+  'viewer_skip_webgpu_canvas_texture_validation',
+  'viewer_skip_webgpu_canvas_memory_accounting',
+  'viewer_skip_webgpu_copy_external_image_color_conversion',
+  'viewer_skip_webgpu_copy_external_image_color_space_validation',
+  'viewer_skip_webgpu_copy_external_image_dest_validation',
+  'viewer_skip_webgpu_copy_external_image_source_validation',
+  'viewer_skip_webgpu_copy_external_image_copy_size_validation',
+  'viewer_skip_webgpu_write_texture_layout_validation',
+  'viewer_reject_webgpu_cpu_texture_fallback',
+  'viewer_skip_webgpu_use_counters',
+  'viewer_cache_webgpu_bind_group_layouts',
+  'viewer_skip_webgpu_command_labels',
+  'viewer_skip_webgpu_resource_labels',
+  'viewer_skip_webgpu_shader_source_null_check',
+  'viewer_skip_webgpu_shader_memory_accounting',
+  'viewer_skip_webgpu_redundant_pipeline_sets',
+  'viewer_skip_webgpu_redundant_bind_group_sets',
+  'viewer_skip_webgpu_redundant_buffer_sets',
+  'viewer_skip_webgpu_redundant_render_state_sets',
+  'viewer_trace_webgpu_queue',
+];
+
+const webGpuOnlyTrustedViewerExperimentFields = [
+  'viewer_defer_webgpu_pipeline_flush',
+  'viewer_defer_webgpu_queue_flush',
+  'viewer_defer_webgpu_submit_flush',
+  'viewer_skip_webgpu_canvas_texture_validation',
+  'viewer_skip_webgpu_canvas_memory_accounting',
+  'viewer_skip_webgpu_copy_external_image_color_conversion',
+  'viewer_skip_webgpu_copy_external_image_color_space_validation',
+  'viewer_skip_webgpu_copy_external_image_dest_validation',
+  'viewer_skip_webgpu_copy_external_image_source_validation',
+  'viewer_skip_webgpu_copy_external_image_copy_size_validation',
+  'viewer_skip_webgpu_write_texture_layout_validation',
+  'viewer_reject_webgpu_cpu_texture_fallback',
+  'viewer_skip_webgpu_use_counters',
+  'viewer_cache_webgpu_bind_group_layouts',
+  'viewer_skip_webgpu_command_labels',
+  'viewer_skip_webgpu_resource_labels',
+  'viewer_skip_webgpu_shader_source_null_check',
+  'viewer_skip_webgpu_shader_memory_accounting',
+  'viewer_skip_webgpu_redundant_pipeline_sets',
+  'viewer_skip_webgpu_redundant_bind_group_sets',
+  'viewer_skip_webgpu_redundant_buffer_sets',
+  'viewer_skip_webgpu_redundant_render_state_sets',
+  'viewer_trace_webgpu_queue',
+];
+
+const webGl2OnlyTrustedViewerExperimentFields = [
+  'viewer_relaxed_webgl_validation',
+  'viewer_zero_copy',
+];
+
+const trustedBrowserExperimentSwitches = [
+  '--use-webgpu-adapter',
+  '--enable-dawn-features',
+  '--disable-dawn-features',
+  '--enable-features',
+  '--disable-features',
+  '--enable-gpu-memory-buffer-compositor-resources',
+  '--ui-enable-zero-copy',
+  '--enable-gpu-rasterization',
+  '--disable-frame-rate-limit',
+  '--disable-gpu-vsync',
+];
+
+function hasSwitchValue(result, field) {
+  const value = result[field];
+  if (typeof value !== 'string') return false;
+  const normalized = value.trim().toLowerCase();
+  return normalized.length > 0 && normalized !== 'default' && normalized !== 'null';
+}
+
+function trustedBrowserExperimentFlags(result) {
+  if (!Array.isArray(result.browser_flags)) return [];
+  return result.browser_flags.filter((rawFlag) => {
+    const flag = String(rawFlag);
+    return trustedBrowserExperimentSwitches.some((switchName) => (
+      flag === switchName || flag.startsWith(`${switchName}=`)
+    ));
+  });
+}
+
+function trustedExperimentInvalidReason(result) {
+  const enabledMetadata = trustedViewerExperimentFields.filter((field) => result[field] === true);
+  if (hasSwitchValue(result, 'viewer_force_angle_backend')) {
+    enabledMetadata.push('viewer_force_angle_backend');
+  }
+  const enabledBrowserFlags = trustedBrowserExperimentFlags(result);
+  if (!enabledMetadata.length && !enabledBrowserFlags.length) return '';
+
+  const enabled = [...enabledMetadata, ...enabledBrowserFlags];
+  if (result.viewer_mode !== true || result.viewer_trusted_content !== true) {
+    return `trusted experiment requires viewer_mode=true and viewer_trusted_content=true (${enabled.join(', ')})`;
+  }
+
+  const webGpuOnly = webGpuOnlyTrustedViewerExperimentFields.find((field) => result[field] === true);
+  if (webGpuOnly && result.renderer_type !== 'webgpu') {
+    return `WebGPU trusted experiment ${webGpuOnly} used with renderer_type=${result.renderer_type}`;
+  }
+  const webGl2Only = webGl2OnlyTrustedViewerExperimentFields.find((field) => result[field] === true);
+  if (webGl2Only && result.renderer_type !== 'webgl2') {
+    return `WebGL2 trusted experiment ${webGl2Only} used with renderer_type=${result.renderer_type}`;
+  }
+  return '';
+}
+
+function flagValues(flags, switchName) {
+  if (!Array.isArray(flags)) return [];
+  const values = [];
+  const prefix = `${switchName}=`;
+  for (let index = 0; index < flags.length; index += 1) {
+    const flag = String(flags[index]);
+    if (flag === switchName && index + 1 < flags.length) {
+      values.push(String(flags[index + 1]));
+      index += 1;
+    } else if (flag.startsWith(prefix)) {
+      values.push(flag.slice(prefix.length));
+    }
+  }
+  return values;
+}
+
+function flagTokenListIncludes(flags, switchName, token) {
+  return flagValues(flags, switchName).some((value) => value.split(',').some((part) => {
+    const normalized = part.trim().split(':', 1)[0];
+    return normalized === token;
+  }));
+}
+
+function isWebGpuBlobCacheHashValidationExperiment(result) {
+  if (result.renderer_type !== 'webgpu') return false;
+  if (result.webgpu_blob_cache_hash_validation_disabled === true) return true;
+  if (/blob-cache-hash-validation/i.test(variantOf(result))) return true;
+  return flagTokenListIncludes(result.browser_flags, '--disable-dawn-features', 'blob_cache_hash_validation');
+}
+
+function webGpuBlobCacheInvalidReason(result) {
+  if (!isWebGpuBlobCacheHashValidationExperiment(result)) return '';
+  if (result.webgpu_blob_cache_expected_available !== true) {
+    return 'missing webgpu_blob_cache_expected_available=true';
+  }
+  if (result.webgpu_blob_cache_origin_eligible !== true) {
+    return 'missing webgpu_blob_cache_origin_eligible=true';
+  }
+  if (result.webgpu_blob_cache_disabled_by_explicit_toggle === true ||
+      flagTokenListIncludes(result.browser_flags, '--enable-dawn-features', 'disable_blob_cache')) {
+    return 'Dawn disable_blob_cache enabled';
+  }
+  if (!['http', 'https'].includes(result.viewer_url_scheme)) {
+    return 'missing HTTP(S) viewer_url_scheme';
+  }
+  if (typeof result.viewer_origin !== 'string' || result.viewer_origin.trim().length === 0) {
+    return 'missing viewer_origin';
+  }
+  return '';
 }
 
 function numericEquals(left, right) {
@@ -200,9 +660,53 @@ function validateComparisonInputs(results, args) {
   const errors = [];
   const revisions = unique(results.map((result) => result.chromium_revision).filter(Boolean));
 
+  const cacheIneligibleWebGpu = results
+    .map((result) => ({ result, reason: webGpuBlobCacheInvalidReason(result) }))
+    .filter((entry) => entry.reason)
+    .map((entry) => `${variantOf(entry.result)} ${entry.result.scene_name}/${entry.result.renderer_type} (${entry.reason})`);
+  if (cacheIneligibleWebGpu.length) {
+    errors.push(`Comparison inputs cannot use cache-ineligible WebGPU blob-cache hash-validation results. Disallowed: ${cacheIneligibleWebGpu.join(', ')}`);
+  }
+
+  const webGpuCpuFallbackResults = results
+    .map((result) => ({ result, reason: webGpuCpuFallbackReason(result) }))
+    .filter((entry) => entry.reason)
+    .map((entry) => `${variantOf(entry.result)} ${entry.result.scene_name}/${entry.result.renderer_type} (${entry.reason})`);
+  if (webGpuCpuFallbackResults.length) {
+    errors.push(`Comparison inputs cannot use WebGPU CPU texture fallback/readback results. Disallowed: ${webGpuCpuFallbackResults.join(', ')}`);
+  }
+
+  const untrustedExperiments = results
+    .map((result) => ({ result, reason: trustedExperimentInvalidReason(result) }))
+    .filter((entry) => entry.reason)
+    .map((entry) => `${variantOf(entry.result)} ${entry.result.scene_name}/${entry.result.renderer_type} (${entry.reason})`);
+  if (untrustedExperiments.length) {
+    errors.push(`Comparison inputs cannot use trusted-only experiment metadata or browser flags without trusted viewer provenance. Disallowed: ${untrustedExperiments.join(', ')}`);
+  }
+
   if (args.strictSameRevision) {
     if (revisions.length !== 1) {
       errors.push(`Expected exactly one chromium_revision across comparison inputs, found ${revisions.length || 0}: ${revisions.join(', ') || 'none'}`);
+    }
+  }
+
+  if (args.strictEvidence) {
+    const missingRequiredEvidence = results
+      .map((result) => ({ result, reason: requiredBenchmarkEvidenceInvalidReason(result) }))
+      .filter((entry) => entry.reason)
+      .map((entry) => `${variantOf(entry.result)} ${entry.result.scene_name || 'missing-scene'}/${entry.result.renderer_type || 'missing-renderer'} (${entry.reason})`);
+    if (missingRequiredEvidence.length) {
+      const label = args.strictOfficial ? 'Official comparisons' : 'Strict comparison reports';
+      errors.push(`${label} require complete benchmark metric and positive package-size evidence on every result. Missing/invalid: ${missingRequiredEvidence.join(', ')}`);
+    }
+
+    const attributionRuns = results
+      .map((result) => ({ result, reason: attributionInstrumentationReason(result) }))
+      .filter((entry) => entry.reason)
+      .map((entry) => `${variantOf(entry.result)} ${entry.result.scene_name || 'missing-scene'}/${entry.result.renderer_type || 'missing-renderer'} (${entry.reason})`);
+    if (attributionRuns.length) {
+      const label = args.strictOfficial ? 'Official comparisons' : 'Strict comparison reports';
+      errors.push(`${label} cannot use attribution-instrumented results as clean speed evidence. Disallowed: ${attributionRuns.join(', ')}`);
     }
   }
 
@@ -234,11 +738,26 @@ function validateComparisonInputs(results, args) {
       errors.push(`Official comparisons cannot use known software-rendered GPU paths. Disallowed: ${softwareRendered.join(', ')}`);
     }
 
+    const softwareRenderingOptIns = results
+      .filter((result) => softwareRenderingDiagnosticOptIn(result))
+      .map((result) => `${variantOf(result)} ${result.scene_name}/${result.renderer_type}`);
+    if (softwareRenderingOptIns.length) {
+      errors.push(`Official comparisons cannot use diagnostic software-rendering opt-in results. Disallowed: ${softwareRenderingOptIns.join(', ')}`);
+    }
+
     const missingGpuMetadata = results
       .filter((result) => !hasGpuMetadata(result))
       .map((result) => `${variantOf(result)} ${result.scene_name}/${result.renderer_type}`);
     if (missingGpuMetadata.length) {
       errors.push(`Official comparisons require GPU/backend metadata on every result. Missing: ${missingGpuMetadata.join(', ')}`);
+    }
+
+    const unstableGpuResults = results
+      .map((result) => ({ result, reason: gpuInstabilityReason(result) }))
+      .filter((entry) => entry.reason)
+      .map((entry) => `${variantOf(entry.result)} ${entry.result.scene_name}/${entry.result.renderer_type} (${entry.reason})`);
+    if (unstableGpuResults.length) {
+      errors.push(`Official comparisons cannot use GPU-unstable results. Disallowed: ${unstableGpuResults.join(', ')}`);
     }
 
     const forkResults = results.filter((result) => /fork/i.test(variantOf(result)));
@@ -264,7 +783,7 @@ function validateComparisonInputs(results, args) {
       const chromiumRevision = revisions[0];
       const mismatchedForkRevisions = forkRevisions.filter((revision) => !revision.startsWith(`${chromiumRevision}+viewerpatch-`));
       if (mismatchedForkRevisions.length) {
-        errors.push(`Official fork_revision values must be derived from chromium_revision ${chromiumRevision} and the viewer patch hash. Mismatched: ${mismatchedForkRevisions.join(', ')}`);
+        errors.push(`Official fork_revision values must be derived from chromium_revision ${chromiumRevision} and the viewer patch-series hash. Mismatched: ${mismatchedForkRevisions.join(', ')}`);
       }
     }
 
@@ -291,6 +810,17 @@ function validateComparisonInputs(results, args) {
       if (mismatchedWarmup.length) {
         errors.push(`Official comparison inputs for ${key} must use the same warmup_seconds. Values: ${unique(caseResults.map((result) => result.warmup_seconds)).join(', ')}`);
       }
+      const profileCacheModes = unique(caseResults.map(profileCacheModeOf));
+      if (profileCacheModes.length > 1) {
+        errors.push(`Official comparison inputs for ${key} must use the same profile_cache_mode. Values: ${profileCacheModes.join(', ')}`);
+      }
+      const profileCacheKeys = unique(caseResults.map(profileCacheKeyOf));
+      if (profileCacheKeys.length > 1) {
+        errors.push(`Official comparison inputs for ${key} must use the same profile_cache_key. Values: ${profileCacheKeys.join(', ')}`);
+      }
+      if (profileCacheModeOf(first) === 'explicit-reuse' && profileCacheKeyOf(first) === 'missing-profile-cache-key') {
+        errors.push(`Official comparison inputs for ${key} using explicit profile reuse must include profile_cache_key.`);
+      }
     }
   }
 
@@ -300,22 +830,29 @@ function validateComparisonInputs(results, args) {
 }
 
 const args = parseArgs(process.argv);
-const results = args.files.map((file) => JSON.parse(fs.readFileSync(file, 'utf8')));
+const results = args.files.map((file) => readJson(file));
+const digest = inputDigest(args.files);
 validateComparisonInputs(results, args);
 const rows = compareRows(results);
+const aggregates = aggregateRows(rows);
 
 const lines = [
   '# Benchmark Comparison',
   '',
   `Generated from ${results.length} result file(s). Baseline per scene/renderer is the first variant whose name contains stock or baseline, falling back to the first result.`,
-  args.strictOfficial ? 'Strict official input validation was enabled: all inputs must come from checkout-built binaries, share one Chromium revision, include build-args hashes, include patch-derived fork revisions for fork variants, contain baseline plus fork variants for every scene/renderer, use matching measured/warmup seconds per case, include GPU/backend metadata, and avoid known software-rendered GPU paths.' : '',
+  `Input file digest: \`${digest}\``,
+  args.strictOfficial ? 'Strict official input validation was enabled: all inputs must come from checkout-built binaries, share one Chromium revision, include complete benchmark metric evidence with explicit GPU timing mode and positive package-size evidence, include build-args hashes, include patch-series-derived fork revisions for fork variants, contain baseline plus fork variants for every scene/renderer, use matching measured/warmup seconds and profile-cache mode/key per case, include GPU/backend metadata, reject cache-ineligible WebGPU blob-cache experiments, reject explicit WebGPU CPU texture fallback/readback metadata or copyExternalImage upload experiments missing CPU-fallback rejection, reject trusted-only experiment metadata or browser flags without trusted viewer provenance, and avoid known software-rendered GPU paths.' : '',
+  args.strictEvidence && !args.strictOfficial ? 'Strict comparison evidence validation was enabled: all rows must include complete benchmark metric evidence, explicit GPU timing mode, and positive package-size evidence before this report is written.' : '',
+  hasExplicitProfileReuse(results) ? 'Profile-cache note: this report includes explicit profile-reuse results. Treat these rows as cache-attribution only; retained speed claims still require a matching fresh-profile candidate-analysis gate.' : '',
   '',
-  '| Scene | Renderer | Variant | Avg FPS | FPS Delta | FPS Delta % | 1% Low | 1% Low Delta | 0.1% Low | 0.1% Low Delta | P50 ms | P50 Delta | P95 ms | P95 Delta | P99 ms | P99 Delta | Max ms | Max Delta | CPU ms | CPU Delta | JS ms | JS Delta | Submit ms | Submit Delta | Compositor ms | Compositor Delta | Present ms | Present Delta | GPU ms | GPU Delta | Dropped | Dropped Delta | Startup ms | Startup Delta | RSS MB | RSS Delta | JS heap MB | JS heap Delta | GPU memory MB | GPU memory Delta | Draw calls | Draw calls Delta | Triangles | Triangles Delta | Texture MB | Texture Delta | Buffer MB | Buffer Delta | Shader events | Shader events Delta | Binary MB | Binary Delta | Viewer MB | Viewer Delta | Package MB | Package Delta |',
-  '| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |',
+  '| Scene | Renderer | Variant | Evidence | Profile Cache | Avg FPS | FPS Delta | FPS Delta % | 1% Low | 1% Low Delta | 0.1% Low | 0.1% Low Delta | P50 ms | P50 Delta | P95 ms | P95 Delta | P99 ms | P99 Delta | Max ms | Max Delta | CPU ms | CPU Delta | JS ms | JS Delta | Submit ms | Submit Delta | Compositor ms | Compositor Delta | Present ms | Present Delta | GPU ms | GPU Delta | Dropped | Dropped Delta | Startup ms | Startup Delta | RSS MB | RSS Delta | JS heap MB | JS heap Delta | GPU memory MB | GPU memory Delta | Draw calls | Draw calls Delta | Triangles | Triangles Delta | Texture MB | Texture Delta | Buffer MB | Buffer Delta | Shader events | Shader events Delta | Binary MB | Binary Delta | Viewer MB | Viewer Delta | Package MB | Package Delta |',
+  '| --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |',
   ...rows.map((row) => [
     row.scene,
     row.renderer,
     row.variant,
+    row.evidenceClass,
+    `${row.profileCacheMode}/${row.profileCacheKey}`,
     round(row.avgFps, 1),
     round(row.avgFpsDelta, 1),
     pct(row.avgFpsDelta, row.avgFps - row.avgFpsDelta),
@@ -369,6 +906,34 @@ const lines = [
     round(row.viewerBundleSizeDelta, 1),
     round(row.packageSize, 1),
     round(row.packageSizeDelta, 1),
+  ].join(' | ')).map((line) => `| ${line} |`),
+  '',
+  '## Aggregate Averages',
+  '',
+  'Averages are arithmetic means across the scene rows included in this report. Delta columns are relative to each scene/renderer baseline before averaging.',
+  '',
+  '| Renderer | Variant | Evidence | Profile Cache | Scenes | Avg FPS | Avg FPS Delta | Avg FPS Delta % | Avg 1% Low Delta | Avg 0.1% Low Delta | Avg P95 Delta ms | Avg P99 Delta ms | Avg Max Delta ms | Avg CPU Delta ms | Avg JS Delta ms | Avg Submit Delta ms | Avg Dropped Delta | Avg Startup Delta ms | Avg RSS Delta MB |',
+  '| --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |',
+  ...aggregates.map((row) => [
+    row.renderer,
+    row.variant,
+    row.evidenceClass,
+    `${row.profileCacheMode}/${row.profileCacheKey}`,
+    row.scenes,
+    round(row.avgFps, 2),
+    round(row.avgFpsDelta, 2),
+    row.avgFpsDeltaPct,
+    round(row.oneLowFpsDelta, 2),
+    round(row.pointOneLowFpsDelta, 2),
+    round(row.p95Delta, 2),
+    round(row.p99Delta, 2),
+    round(row.maxDelta, 2),
+    round(row.cpuDelta, 2),
+    round(row.jsDelta, 2),
+    round(row.submitDelta, 2),
+    round(row.droppedFramesDelta, 2),
+    round(row.startupDelta, 2),
+    round(row.rssDelta, 2),
   ].join(' | ')).map((line) => `| ${line} |`),
   '',
 ];

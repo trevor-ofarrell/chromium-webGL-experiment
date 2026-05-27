@@ -50,6 +50,7 @@ $SmokeValidator = Read-RepoFile "scripts\validate_smoke_result.mjs"
 $TraceValidator = Read-RepoFile "scripts\validate_trace_result.mjs"
 $OfficialRunner = Read-RepoFile "scripts\run_official_comparison.ps1"
 $TrustedRunner = Read-RepoFile "scripts\run_trusted_experiment_matrix.ps1"
+$BlockerRunner = Read-RepoFile "scripts\run_blocker_experiments.ps1"
 $LongStabilityRunner = Read-RepoFile "scripts\run_long_stability.ps1"
 
 Assert-LaunchListContains "scripts\run_benchmark.mjs" $BenchmarkRunner
@@ -63,10 +64,21 @@ Assert-Contains "scripts\run_smoke_tests.mjs" $SmokeRunner "browser_flags:\s*bro
 Assert-Contains "scripts\run_smoke_tests.mjs" $SmokeRunner "browser_extra_flags:\s*args\.browserFlag" "smoke pass-through extra-flag metadata"
 Assert-Contains "scripts\run_trace_capture.mjs" $TraceRunner "browser_flags:\s*browserArgs" "effective trace launch-argument metadata"
 Assert-Contains "scripts\run_trace_capture.mjs" $TraceRunner "browser_extra_flags:\s*args\.browserFlag" "trace pass-through extra-flag metadata"
+Assert-Contains "scripts\run_benchmark.mjs" $BenchmarkRunner "Hardware-GPU launch preflight" "benchmark hardware-GPU launch preflight"
+Assert-Contains "scripts\run_benchmark.mjs" $BenchmarkRunner "Benchmark result.*software-rendered GPU path|softwareRendererReason" "benchmark result software-renderer rejection"
+Assert-Contains "scripts\run_benchmark.mjs" $BenchmarkRunner "allowSoftwareRendering" "benchmark diagnostic software-rendering opt-in"
+Assert-Contains "scripts\run_smoke_tests.mjs" $SmokeRunner "Hardware-GPU smoke launch preflight" "smoke hardware-GPU launch preflight"
+Assert-Contains "scripts\run_smoke_tests.mjs" $SmokeRunner "allowSoftwareRendering" "smoke diagnostic software-rendering opt-in"
+Assert-Contains "scripts\run_trace_capture.mjs" $TraceRunner "Hardware-GPU trace launch preflight" "trace hardware-GPU launch preflight"
+Assert-Contains "scripts\run_trace_capture.mjs" $TraceRunner "Trace benchmark result.*software-rendered GPU path|softwareRendererReason" "trace result software-renderer rejection"
+Assert-Contains "scripts\run_trace_capture.mjs" $TraceRunner "allowSoftwareRendering" "trace diagnostic software-rendering opt-in"
 Assert-Contains "scripts\validate_benchmark_suite.mjs" $SuiteValidator "--requiredBrowserFlag" "required effective benchmark launch-flag validation"
 Assert-Contains "scripts\validate_stability_result.mjs" $StabilityValidator "--requiredBrowserFlag" "required effective stability launch-flag validation"
 Assert-Contains "scripts\validate_smoke_result.mjs" $SmokeValidator "--required-browser-flag" "required effective smoke launch-flag validation"
 Assert-Contains "scripts\validate_trace_result.mjs" $TraceValidator "--requiredBrowserFlag" "required effective trace launch-flag validation"
+Assert-Contains "scripts\validate_trace_result.mjs" $TraceValidator "--rejectSoftwareRendering" "trace sidecar software-renderer rejection option"
+Assert-Contains "scripts\run_official_comparison.ps1" $OfficialRunner "--rejectSoftwareRendering" "official trace sidecar software-renderer rejection handoff"
+Assert-Contains "scripts\run_blocker_experiments.ps1" $BlockerRunner "--rejectSoftwareRendering" "targeted trace sidecar software-renderer rejection handoff"
 Assert-Contains "scripts\run_official_comparison.ps1" $OfficialRunner "required_browser_flags" "official manifest required launch-flag metadata"
 Assert-Contains "scripts\run_official_comparison.ps1" $OfficialRunner "--requiredBrowserFlag" "official suite/trace required launch-flag handoff"
 Assert-Contains "scripts\run_official_comparison.ps1" $OfficialRunner "--required-browser-flag" "official runtime smoke required launch-flag handoff"
@@ -89,4 +101,4 @@ foreach ($LabelAndText in @(
   }
 }
 
-Write-Host "Primary launchers disable software rasterizer fallback, record required launch flags, and validators reject software-rendered evidence."
+Write-Host "Primary launchers disable software rasterizer fallback, fail closed on known software-rendered GPU paths unless explicitly diagnostic, record required launch flags, and validators reject software-rendered evidence."

@@ -5,12 +5,17 @@ $ErrorActionPreference = "Stop"
 $Root = Resolve-Path (Join-Path $PSScriptRoot "..")
 $Src = Join-Path $Root "src"
 $Patch = Join-Path $Root "chromium_patches\0001-draft-minimal-three-viewer-entrypoint.patch"
+$PatchSeries = @(
+  "chromium_patches\0001-draft-minimal-three-viewer-entrypoint.patch",
+  "chromium_patches\0002-draft-webgpu-queue-trace-attribution.patch"
+)
 $TempDir = Join-Path $Root "benchmarks\tmp\patch-state-audit-test"
 $TempManifest = Join-Path $TempDir "prebuild-environment-already-applied.json"
 $TempAudit = Join-Path $TempDir "patch-state-checklist.md"
 
 function Test-GitApply {
   param(
+    [string]$PatchPath = $Patch,
     [switch]$Reverse
   )
 
@@ -21,7 +26,7 @@ function Test-GitApply {
     if ($Reverse) {
       $Arguments += "--reverse"
     }
-    $Arguments += @("--check", $Patch)
+    $Arguments += @("--check", $PatchPath)
     $null = (& git @Arguments 2>$null)
     return $LASTEXITCODE -eq 0
   } finally {
@@ -30,15 +35,26 @@ function Test-GitApply {
 }
 
 function Get-PatchState {
+  $States = @($PatchSeries | ForEach-Object {
+      $PatchPath = Join-Path $Root $_
+      [pscustomobject]@{
+        Path = $_
+        Applies = Test-GitApply -PatchPath $PatchPath
+        AlreadyApplied = Test-GitApply -PatchPath $PatchPath -Reverse
+      }
+    })
   return [pscustomobject]@{
-    Applies = Test-GitApply
-    AlreadyApplied = Test-GitApply -Reverse
+    Applies = @($States | Where-Object { -not $_.Applies }).Count -eq 0
+    AlreadyApplied = @($States | Where-Object { $_.AlreadyApplied }).Count -gt 0
+    Blocked = @($States | Where-Object { -not $_.Applies -and -not $_.AlreadyApplied }).Count -gt 0
+    States = $States
   }
 }
 
 $InitialState = Get-PatchState
-if (-not $InitialState.Applies -and -not $InitialState.AlreadyApplied) {
-  throw "Patch-state audit test requires the viewer patch to either apply cleanly or already be applied."
+if ($InitialState.Blocked) {
+  $BlockedPatches = @($InitialState.States | Where-Object { -not $_.Applies -and -not $_.AlreadyApplied } | ForEach-Object { $_.Path }) -join ", "
+  throw "Patch-state audit test requires each viewer patch series entry to either apply cleanly or already be applied. Blocked: $BlockedPatches"
 }
 
 if (Test-Path -LiteralPath $TempDir) {
@@ -61,6 +77,12 @@ try {
   $Manifest = Get-Content -LiteralPath $TempManifest -Raw | ConvertFrom-Json
   if (-not $Manifest.patch.already_applied) {
     throw "Expected manifest to record patch.already_applied=true under the test hook."
+  }
+  if (@($Manifest.patch_series).Count -lt 2) {
+    throw "Expected manifest to record the full viewer patch series."
+  }
+  if (-not (@($Manifest.checks | Where-Object { $_.name -eq "viewer_patch_series_state" -and $_.ok }).Count)) {
+    throw "Expected manifest checks to record viewer_patch_series_state=true under the test hook."
   }
   if ($Manifest.patch.applies_cleanly) {
     throw "Expected manifest to record patch.applies_cleanly=false under the test hook."

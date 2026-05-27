@@ -8,20 +8,34 @@ param(
   [string]$ForkPackageDir = "",
   [int]$Duration = 120,
   [int]$Warmup = 20,
+  [double]$Complexity = 2.0,
   [switch]$IncludeWebGPU,
   [switch]$IncludeAggressiveGpu,
   [string]$AggressiveAngleBackend = "",
+  [switch]$AggressiveWebGl2RelaxedValidation,
+  [switch]$AggressiveWebGl2ZeroCopy,
+  [switch]$AggressiveWebGpuSourceFastPath,
+  [switch]$AggressiveWebGpuUploadFastPath,
   [switch]$CaptureTrace,
   [string]$TraceScene = "many-draw-calls",
   [string]$TraceRenderer = "webgl2",
   [int]$TraceDuration = 10,
   [int]$TraceWarmup = 2,
   [int]$TraceStartDelayMs = 2000,
+  [switch]$RejectWebGpuCpuFallbackTrace,
   [switch]$Precompile,
   [switch]$DisableWebGpuTiming,
   [switch]$DisableForkWebGpuTiming,
   [switch]$ReuseValidResults,
   [int]$PrerenderFrames = 0,
+  [switch]$SettleGpuAfterWarmup,
+  [int]$WebGpuPipelineQuietFrames = 0,
+  [int]$WebGpuPipelineQuietMaxFrames = 30,
+  [ValidateSet("off", "static")]
+  [string]$WebGpuBundleMode = "off",
+  [string]$WebGpuProfileCacheKey = "",
+  [string]$ProfileCacheRoot = "",
+  [switch]$PrimeWebGpuProfileCache,
   [switch]$SkipSmoke,
   [switch]$SkipNavigationLock,
   [switch]$DryRun
@@ -29,6 +43,10 @@ param(
 
 $ErrorActionPreference = "Stop"
 $Root = Resolve-Path (Join-Path $PSScriptRoot "..")
+$ViewerPatchSeries = @(
+  "chromium_patches\0001-draft-minimal-three-viewer-entrypoint.patch",
+  "chromium_patches\0002-draft-webgpu-queue-trace-attribution.patch"
+)
 
 function Resolve-RepoPath {
   param([string]$PathValue)
@@ -99,6 +117,13 @@ function Require-PackageDirectory {
   return $Resolved
 }
 
+function Resolve-ProfileCacheRoot {
+  if ($ProfileCacheRoot) {
+    return Resolve-RepoPath $ProfileCacheRoot
+  }
+  return Join-Path $Root "benchmarks\tmp\official-profile-cache"
+}
+
 function Run-Command {
   param([object[]]$Command)
   if ($DryRun) {
@@ -120,11 +145,27 @@ function Run-Command {
 function Add-ResourceWarmupArgs {
   param([object[]]$Command)
   $Result = @($Command)
+  $RendererIndex = [array]::IndexOf($Command, "-Renderer")
+  $CommandRenderer = if ($RendererIndex -ge 0 -and $RendererIndex + 1 -lt $Command.Count) {
+    [string]$Command[$RendererIndex + 1]
+  } else {
+    ""
+  }
   if ($Precompile) {
     $Result += "-Precompile"
   }
   if ($PrerenderFrames -gt 0) {
     $Result += @("-PrerenderFrames", [string]$PrerenderFrames)
+  }
+  if ($SettleGpuAfterWarmup) {
+    $Result += "-SettleGpuAfterWarmup"
+  }
+  if ($CommandRenderer -eq "webgpu" -and $WebGpuPipelineQuietFrames -gt 0) {
+    $Result += @("-WebGpuPipelineQuietFrames", [string]$WebGpuPipelineQuietFrames)
+    $Result += @("-WebGpuPipelineQuietMaxFrames", [string]([Math]::Max($WebGpuPipelineQuietFrames, $WebGpuPipelineQuietMaxFrames)))
+  }
+  if ($CommandRenderer -eq "webgpu" -and $WebGpuBundleMode -ne "off") {
+    $Result += @("-WebGpuBundleMode", $WebGpuBundleMode)
   }
   return $Result
 }
@@ -137,6 +178,16 @@ function Add-TraceResourceWarmupArgs {
   }
   if ($PrerenderFrames -gt 0) {
     $Result += @("--prerenderFrames", [string]$PrerenderFrames)
+  }
+  if ($SettleGpuAfterWarmup) {
+    $Result += "--settleGpuAfterWarmup"
+  }
+  if ($TraceRenderer -eq "webgpu" -and $WebGpuPipelineQuietFrames -gt 0) {
+    $Result += @("--pipelineQuietFrames", [string]$WebGpuPipelineQuietFrames)
+    $Result += @("--pipelineQuietMaxFrames", [string]([Math]::Max($WebGpuPipelineQuietFrames, $WebGpuPipelineQuietMaxFrames)))
+  }
+  if ($TraceRenderer -eq "webgpu" -and $WebGpuBundleMode -ne "off") {
+    $Result += @("--webgpuBundleMode", $WebGpuBundleMode)
   }
   return $Result
 }
@@ -172,10 +223,32 @@ function Get-Sha256 {
   return (Get-FileHash -Algorithm SHA256 -LiteralPath $PathValue).Hash.ToLowerInvariant()
 }
 
+function Get-ShortSha256Text {
+  param([string]$Text)
+  $Bytes = [System.Text.Encoding]::UTF8.GetBytes($Text)
+  $Sha = [System.Security.Cryptography.SHA256]::Create()
+  try {
+    return (([System.BitConverter]::ToString($Sha.ComputeHash($Bytes)) -replace "-", "").Substring(0, 12)).ToLowerInvariant()
+  } finally {
+    $Sha.Dispose()
+  }
+}
+
+function Get-ViewerPatchSeriesHash {
+  $Entries = @($ViewerPatchSeries | ForEach-Object {
+      $PatchPath = Join-Path $Root $_
+      if (-not (Test-Path $PatchPath)) {
+        throw "Viewer patch not found for fork revision hash: $PatchPath"
+      }
+      $CanonicalPath = $_ -replace "\\", "/"
+      "$CanonicalPath=$((Get-FileHash -Algorithm SHA256 -LiteralPath $PatchPath).Hash.ToLowerInvariant())"
+    })
+  return Get-ShortSha256Text ($Entries -join "`n")
+}
+
 function Get-ViewerForkRevision {
   $ChromiumRevision = Get-GitRevision (Join-Path $Root "src")
-  $PatchPath = Join-Path $Root "chromium_patches\0001-draft-minimal-three-viewer-entrypoint.patch"
-  $PatchHash = Get-ShortSha256 $PatchPath
+  $PatchHash = Get-ViewerPatchSeriesHash
   return "$ChromiumRevision+viewerpatch-$PatchHash"
 }
 
@@ -204,10 +277,12 @@ function Invoke-BenchmarkSuiteValidation {
     "--requireBuildArgs",
     "--forbidSmoke",
     "--rejectSoftwareRendering",
+    "--rejectGpuInstability",
     "--requireGpuMetadata",
     "--requireFrameTimes",
     "--expectedMeasuredSeconds", [string]$Duration,
-    "--expectedWarmupSeconds", [string]$Warmup
+    "--expectedWarmupSeconds", [string]$Warmup,
+    "--expectedComplexity", [string]$Complexity
   )
   if ($ExpectedChromiumRevision) {
     $Command += @("--expectedChromiumRevision", $ExpectedChromiumRevision)
@@ -253,7 +328,36 @@ function Get-ViewerFlagMetadata {
     [bool]$ViewerMode = $false,
     [bool]$ViewerTrustedContent = $false,
     [bool]$ViewerAggressiveGpu = $false,
-    [string]$ViewerForceAngleBackend = ""
+    [bool]$ViewerRelaxedWebglValidation = $false,
+    [bool]$ViewerZeroCopy = $false,
+    [string]$ViewerForceAngleBackend = "",
+    [bool]$ViewerDeferWebgpuPipelineFlush = $false,
+    [bool]$ViewerDeferWebgpuQueueFlush = $false,
+    [bool]$ViewerDeferWebgpuSubmitFlush = $false,
+    [bool]$ViewerSkipWebgpuCanvasTextureValidation = $false,
+    [bool]$ViewerSkipWebgpuCanvasMemoryAccounting = $false,
+    [bool]$ViewerSkipWebgpuCopyExternalImageColorConversion = $false,
+    [bool]$ViewerSkipWebgpuCopyExternalImageColorSpaceValidation = $false,
+    [bool]$ViewerSkipWebgpuCopyExternalImageDestValidation = $false,
+    [bool]$ViewerSkipWebgpuCopyExternalImageSourceValidation = $false,
+    [bool]$ViewerSkipWebgpuCopyExternalImageCopySizeValidation = $false,
+    [bool]$ViewerSkipWebgpuWriteTextureLayoutValidation = $false,
+    [bool]$ViewerRejectWebgpuCpuTextureFallback = $false,
+    [bool]$ViewerSkipWebgpuUseCounters = $false,
+    [bool]$ViewerCacheWebgpuBindGroupLayouts = $false,
+    [bool]$ViewerSkipWebgpuCommandLabels = $false,
+    [bool]$ViewerSkipWebgpuResourceLabels = $false,
+    [bool]$ViewerSkipWebgpuShaderSourceNullCheck = $false,
+    [bool]$ViewerSkipWebgpuShaderMemoryAccounting = $false,
+    [bool]$ViewerSkipWebgpuRedundantPipelineSets = $false,
+    [bool]$ViewerSkipWebgpuRedundantBindGroupSets = $false,
+    [bool]$ViewerSkipWebgpuRedundantBufferSets = $false,
+    [bool]$ViewerSkipWebgpuRedundantRenderStateSets = $false,
+    [bool]$ViewerTraceWebgpuQueue = $false,
+    [bool]$UseWebGpuPipelineQuiet = $false,
+    [bool]$UseWebGpuBundleMode = $false,
+    [bool]$IncludeProfileCacheMetadata = $false,
+    [string]$ProfileCacheKey = ""
   )
 
   $Metadata = [ordered]@{
@@ -261,13 +365,52 @@ function Get-ViewerFlagMetadata {
     viewer_block_external_navigation = $ViewerMode
     viewer_trusted_content = $ViewerTrustedContent
     viewer_aggressive_gpu = $ViewerAggressiveGpu
-    viewer_relaxed_webgl_validation = $false
+    viewer_relaxed_webgl_validation = $ViewerRelaxedWebglValidation
+    viewer_zero_copy = $ViewerZeroCopy
     viewer_in_process_gpu = $false
     viewer_single_process = $false
     viewer_force_angle_backend = if ($ViewerForceAngleBackend) { $ViewerForceAngleBackend } else { $null }
     requested_angle_backend = if ($ViewerForceAngleBackend) { $ViewerForceAngleBackend } else { $null }
     viewer_disable_unneeded_blink_features = $false
     viewer_direct_gpu_presentation = $false
+    viewer_defer_webgpu_pipeline_flush = $ViewerDeferWebgpuPipelineFlush
+    viewer_defer_webgpu_queue_flush = $ViewerDeferWebgpuQueueFlush
+    viewer_defer_webgpu_submit_flush = $ViewerDeferWebgpuSubmitFlush
+    viewer_skip_webgpu_canvas_texture_validation = $ViewerSkipWebgpuCanvasTextureValidation
+    viewer_skip_webgpu_canvas_memory_accounting = $ViewerSkipWebgpuCanvasMemoryAccounting
+    viewer_skip_webgpu_copy_external_image_color_conversion = $ViewerSkipWebgpuCopyExternalImageColorConversion
+    viewer_skip_webgpu_copy_external_image_color_space_validation = $ViewerSkipWebgpuCopyExternalImageColorSpaceValidation
+    viewer_skip_webgpu_copy_external_image_dest_validation = $ViewerSkipWebgpuCopyExternalImageDestValidation
+    viewer_skip_webgpu_copy_external_image_source_validation = $ViewerSkipWebgpuCopyExternalImageSourceValidation
+    viewer_skip_webgpu_copy_external_image_copy_size_validation = $ViewerSkipWebgpuCopyExternalImageCopySizeValidation
+    viewer_skip_webgpu_write_texture_layout_validation = $ViewerSkipWebgpuWriteTextureLayoutValidation
+    viewer_reject_webgpu_cpu_texture_fallback = $ViewerRejectWebgpuCpuTextureFallback
+    viewer_skip_webgpu_use_counters = $ViewerSkipWebgpuUseCounters
+    viewer_cache_webgpu_bind_group_layouts = $ViewerCacheWebgpuBindGroupLayouts
+    viewer_skip_webgpu_command_labels = $ViewerSkipWebgpuCommandLabels
+    viewer_skip_webgpu_resource_labels = $ViewerSkipWebgpuResourceLabels
+    viewer_skip_webgpu_shader_source_null_check = $ViewerSkipWebgpuShaderSourceNullCheck
+    viewer_skip_webgpu_shader_memory_accounting = $ViewerSkipWebgpuShaderMemoryAccounting
+    viewer_skip_webgpu_redundant_pipeline_sets = $ViewerSkipWebgpuRedundantPipelineSets
+    viewer_skip_webgpu_redundant_bind_group_sets = $ViewerSkipWebgpuRedundantBindGroupSets
+    viewer_skip_webgpu_redundant_buffer_sets = $ViewerSkipWebgpuRedundantBufferSets
+    viewer_skip_webgpu_redundant_render_state_sets = $ViewerSkipWebgpuRedundantRenderStateSets
+    viewer_trace_webgpu_queue = $ViewerTraceWebgpuQueue
+    benchmark_hud_enabled = $false
+    resource_warmup_enabled = [bool]($Precompile -or $PrerenderFrames -gt 0 -or $SettleGpuAfterWarmup -or ($UseWebGpuPipelineQuiet -and $WebGpuPipelineQuietFrames -gt 0))
+    resource_warmup_precompile = [bool]$Precompile
+    resource_warmup_prerender_frames = $PrerenderFrames
+    resource_warmup_settle_gpu = [bool]$SettleGpuAfterWarmup
+    resource_warmup_pipeline_quiet_frames = if ($UseWebGpuPipelineQuiet) { $WebGpuPipelineQuietFrames } else { 0 }
+    resource_warmup_pipeline_quiet_max_frames = if ($UseWebGpuPipelineQuiet -and $WebGpuPipelineQuietFrames -gt 0) { [Math]::Max($WebGpuPipelineQuietFrames, $WebGpuPipelineQuietMaxFrames) } else { 0 }
+  }
+  if ($UseWebGpuBundleMode) {
+    $Metadata.webgpu_bundle_mode = $WebGpuBundleMode
+  }
+  if ($IncludeProfileCacheMetadata -or $ProfileCacheKey) {
+    $Metadata.profile_cache_mode = if ($ProfileCacheKey) { "explicit-reuse" } else { "fresh-temp" }
+    $Metadata.profile_cache_key = if ($ProfileCacheKey) { $ProfileCacheKey } else { $null }
+    $Metadata.profile_reuse_enabled = [bool]$ProfileCacheKey
   }
 
   return @($Metadata.GetEnumerator() | ForEach-Object {
@@ -275,19 +418,106 @@ function Get-ViewerFlagMetadata {
   })
 }
 
+function Get-AggressiveWebGpuSuiteArgs {
+  $Args = @()
+  if ($AggressiveWebGpuSourceFastPath) {
+    $Args += @(
+      "-ViewerDeferWebgpuPipelineFlush",
+      "-ViewerDeferWebgpuQueueFlush",
+      "-ViewerDeferWebgpuSubmitFlush",
+      "-ViewerSkipWebgpuCanvasTextureValidation",
+      "-ViewerSkipWebgpuCanvasMemoryAccounting",
+      "-ViewerSkipWebgpuWriteTextureLayoutValidation",
+      "-ViewerSkipWebgpuUseCounters",
+      "-ViewerCacheWebgpuBindGroupLayouts",
+      "-ViewerSkipWebgpuCommandLabels",
+      "-ViewerSkipWebgpuResourceLabels",
+      "-ViewerSkipWebgpuShaderSourceNullCheck",
+      "-ViewerSkipWebgpuShaderMemoryAccounting",
+      "-ViewerSkipWebgpuRedundantPipelineSets",
+      "-ViewerSkipWebgpuRedundantBindGroupSets",
+      "-ViewerSkipWebgpuRedundantBufferSets",
+      "-ViewerSkipWebgpuRedundantRenderStateSets"
+    )
+  }
+  if ($AggressiveWebGpuUploadFastPath) {
+    $Args += @(
+      "-ViewerSkipWebgpuCopyExternalImageColorConversion",
+      "-ViewerSkipWebgpuCopyExternalImageColorSpaceValidation",
+      "-ViewerSkipWebgpuCopyExternalImageDestValidation",
+      "-ViewerSkipWebgpuCopyExternalImageSourceValidation",
+      "-ViewerSkipWebgpuCopyExternalImageCopySizeValidation",
+      "-ViewerSkipWebgpuWriteTextureLayoutValidation",
+      "-ViewerRejectWebgpuCpuTextureFallback"
+    )
+  }
+  return @($Args | Select-Object -Unique)
+}
+
+function Get-AggressiveWebGpuExpectedFlagMetadata {
+  $MetadataArgs = @{
+    ViewerMode = $true
+    ViewerTrustedContent = $true
+    ViewerAggressiveGpu = $true
+    UseWebGpuPipelineQuiet = $true
+    UseWebGpuBundleMode = $true
+    IncludeProfileCacheMetadata = $true
+    ProfileCacheKey = $WebGpuProfileCacheKey
+  }
+  if ($AggressiveWebGpuSourceFastPath) {
+    $MetadataArgs.ViewerDeferWebgpuPipelineFlush = $true
+    $MetadataArgs.ViewerDeferWebgpuQueueFlush = $true
+    $MetadataArgs.ViewerDeferWebgpuSubmitFlush = $true
+    $MetadataArgs.ViewerSkipWebgpuCanvasTextureValidation = $true
+    $MetadataArgs.ViewerSkipWebgpuCanvasMemoryAccounting = $true
+    $MetadataArgs.ViewerSkipWebgpuWriteTextureLayoutValidation = $true
+    $MetadataArgs.ViewerSkipWebgpuUseCounters = $true
+    $MetadataArgs.ViewerCacheWebgpuBindGroupLayouts = $true
+    $MetadataArgs.ViewerSkipWebgpuCommandLabels = $true
+    $MetadataArgs.ViewerSkipWebgpuResourceLabels = $true
+    $MetadataArgs.ViewerSkipWebgpuShaderSourceNullCheck = $true
+    $MetadataArgs.ViewerSkipWebgpuShaderMemoryAccounting = $true
+    $MetadataArgs.ViewerSkipWebgpuRedundantPipelineSets = $true
+    $MetadataArgs.ViewerSkipWebgpuRedundantBindGroupSets = $true
+    $MetadataArgs.ViewerSkipWebgpuRedundantBufferSets = $true
+    $MetadataArgs.ViewerSkipWebgpuRedundantRenderStateSets = $true
+  }
+  if ($AggressiveWebGpuUploadFastPath) {
+    $MetadataArgs.ViewerSkipWebgpuCopyExternalImageColorConversion = $true
+    $MetadataArgs.ViewerSkipWebgpuCopyExternalImageColorSpaceValidation = $true
+    $MetadataArgs.ViewerSkipWebgpuCopyExternalImageDestValidation = $true
+    $MetadataArgs.ViewerSkipWebgpuCopyExternalImageSourceValidation = $true
+    $MetadataArgs.ViewerSkipWebgpuCopyExternalImageCopySizeValidation = $true
+    $MetadataArgs.ViewerSkipWebgpuWriteTextureLayoutValidation = $true
+    $MetadataArgs.ViewerRejectWebgpuCpuTextureFallback = $true
+  }
+  return @(Get-ViewerFlagMetadata @MetadataArgs)
+}
+
 function Get-TraceFlagMetadata {
   param(
     [bool]$ViewerMode = $false,
     [bool]$ViewerTrustedContent = $false,
     [bool]$ViewerAggressiveGpu = $false,
-    [string]$ViewerForceAngleBackend = ""
+    [string]$ViewerForceAngleBackend = "",
+    [bool]$ViewerSkipWebgpuCanvasTextureValidation = $false,
+    [bool]$ViewerRejectWebgpuCpuTextureFallback = $false,
+    [bool]$ViewerTraceWebgpuQueue = $false,
+    [bool]$GpuTimingEnabled = $true
   )
 
-  return @(Get-ViewerFlagMetadata `
+  $Metadata = @(Get-ViewerFlagMetadata `
     -ViewerMode $ViewerMode `
     -ViewerTrustedContent $ViewerTrustedContent `
     -ViewerAggressiveGpu $ViewerAggressiveGpu `
-    -ViewerForceAngleBackend $ViewerForceAngleBackend)
+    -ViewerForceAngleBackend $ViewerForceAngleBackend `
+    -ViewerSkipWebgpuCanvasTextureValidation $ViewerSkipWebgpuCanvasTextureValidation `
+    -ViewerRejectWebgpuCpuTextureFallback $ViewerRejectWebgpuCpuTextureFallback `
+    -ViewerTraceWebgpuQueue $ViewerTraceWebgpuQueue `
+    -UseWebGpuPipelineQuiet:($TraceRenderer -eq "webgpu") `
+    -UseWebGpuBundleMode:($TraceRenderer -eq "webgpu"))
+  $Metadata += "gpu_timing_enabled=$(Convert-MetadataValue $GpuTimingEnabled)"
+  return @($Metadata)
 }
 
 function Get-TraceResultPath {
@@ -300,15 +530,26 @@ function Invoke-TraceArtifactValidation {
     [string]$TracePath,
     [string]$ExpectedBrowser,
     [string[]]$ExpectedFlagMetadata,
-    [string[]]$RequiredBrowserFlags = @()
+    [string[]]$RequiredBrowserFlags = @(),
+    [switch]$RejectWebGpuCpuFallback
   )
 
-  Run-Command @(
+  $TraceValidationCommand = @(
     "node",
     (Join-Path $Root "scripts\validate_trace_file.mjs"),
     "--minEvents", "1",
     $TracePath
   )
+  if ($RejectWebGpuCpuFallback) {
+    $TraceValidationCommand = @(
+      "node",
+      (Join-Path $Root "scripts\validate_trace_file.mjs"),
+      "--minEvents", "1",
+      "--rejectWebGpuCpuFallback",
+      $TracePath
+    )
+  }
+  Run-Command $TraceValidationCommand
 
   $TraceResultPath = Get-TraceResultPath $TracePath
   $Command = @(
@@ -319,7 +560,8 @@ function Invoke-TraceArtifactValidation {
     "--expectedRenderer", $TraceRenderer,
     "--expectedDuration", [string]$TraceDuration,
     "--expectedWarmup", [string]$TraceWarmup,
-    "--expectedStartDelayMs", [string]$TraceStartDelayMs
+    "--expectedStartDelayMs", [string]$TraceStartDelayMs,
+    "--rejectSoftwareRendering"
   )
   foreach ($Metadata in $ExpectedFlagMetadata) {
     $Command += @("--expectedFlagMetadata", $Metadata)
@@ -340,6 +582,31 @@ function Get-SuiteResultFiles {
   return @($SceneNames | ForEach-Object {
     Join-Path $RawDir "$Label-$_-$Renderer.json"
   })
+}
+
+function Add-WebGpuProfileCacheArgs {
+  param([object[]]$Command)
+  if (-not $WebGpuProfileCacheKey) {
+    return @($Command)
+  }
+  return @($Command + @(
+      "-ProfileCacheKey", $WebGpuProfileCacheKey,
+      "-UserDataDirRoot", $ResolvedProfileCacheRoot
+    ))
+}
+
+function Invoke-WebGpuSuiteCommand {
+  param(
+    [object[]]$Command,
+    [string]$Label
+  )
+
+  $ResolvedCommand = Add-WebGpuProfileCacheArgs (Add-ResourceWarmupArgs $Command)
+  if ($PrimeWebGpuProfileCache) {
+    Write-Host "Priming WebGPU profile cache for $Label"
+    Run-Command $ResolvedCommand
+  }
+  Run-Command $ResolvedCommand
 }
 
 function Get-FileMetadata {
@@ -426,27 +693,42 @@ function Write-OfficialComparisonManifest {
     options = [pscustomobject]@{
       duration = $Duration
       warmup = $Warmup
+      complexity = $Complexity
       include_webgpu = [bool]$IncludeWebGPU
       include_aggressive_gpu = [bool]$IncludeAggressiveGpu
       aggressive_angle_backend = $AggressiveAngleBackend
+      aggressive_webgl2_relaxed_validation = [bool]$AggressiveWebGl2RelaxedValidation
+      aggressive_webgl2_zero_copy = [bool]$AggressiveWebGl2ZeroCopy
+      aggressive_webgpu_source_fast_path = [bool]$AggressiveWebGpuSourceFastPath
+      aggressive_webgpu_upload_fast_path = [bool]$AggressiveWebGpuUploadFastPath
       capture_trace = [bool]$CaptureTrace
       trace_scene = $TraceScene
       trace_renderer = $TraceRenderer
       trace_duration = $TraceDuration
       trace_warmup = $TraceWarmup
       trace_start_delay_ms = $TraceStartDelayMs
+      reject_webgpu_cpu_fallback_trace = [bool]$RejectWebGpuCpuFallbackTrace
       precompile = [bool]$Precompile
       disable_webgpu_timing = [bool]$DisableWebGpuTiming
       disable_fork_webgpu_timing = [bool]$DisableForkWebGpuTiming
       reuse_valid_results = [bool]$ReuseValidResults
       prerender_frames = $PrerenderFrames
+      settle_gpu_after_warmup = [bool]$SettleGpuAfterWarmup
+      webgpu_pipeline_quiet_frames = $WebGpuPipelineQuietFrames
+      webgpu_pipeline_quiet_max_frames = if ($WebGpuPipelineQuietFrames -gt 0) { [Math]::Max($WebGpuPipelineQuietFrames, $WebGpuPipelineQuietMaxFrames) } else { 0 }
+      webgpu_bundle_mode = $WebGpuBundleMode
+      webgpu_profile_cache_key = if ($WebGpuProfileCacheKey) { $WebGpuProfileCacheKey } else { $null }
+      webgpu_profile_cache_mode = if ($WebGpuProfileCacheKey) { "explicit-reuse" } else { "fresh-temp" }
+      profile_cache_root = $ResolvedProfileCacheRoot
+      prime_webgpu_profile_cache = [bool]$PrimeWebGpuProfileCache
       skip_smoke = [bool]$SkipSmoke
       skip_navigation_lock = [bool]$SkipNavigationLock
     }
     labels = [pscustomobject]@{
       baseline = $BaselineLabel
       fork_default = $ForkDefaultLabel
-      aggressive = $AggressiveLabel
+      aggressive = $AggressiveWebGlLabel
+      aggressive_webgpu = if ($IncludeWebGPU -and $IncludeAggressiveGpu) { $AggressiveWebGpuLabel } else { $null }
     }
     scenes = $SceneNames
     result_files = [pscustomobject]@{
@@ -478,16 +760,16 @@ function Write-OfficialComparisonManifest {
       fork_default_webgl2_summary = Join-Path $ReportDir "$ForkDefaultLabel-webgl2-summary.md"
       official_webgl2_comparison = Join-Path $ReportDir "official-webgl2-comparison.md"
       official_webgpu_comparison = if ($IncludeWebGPU) { Join-Path $ReportDir "official-webgpu-comparison.md" } else { $null }
-      baseline_trace_summary = if ($CaptureTrace) { Join-Path $ReportDir "$BaselineLabel-$TraceScene-$TraceRenderer-trace-summary.md" } else { $null }
-      fork_trace_summary = if ($CaptureTrace) { Join-Path $ReportDir "$ForkDefaultLabel-$TraceScene-$TraceRenderer-trace-summary.md" } else { $null }
+      baseline_trace_summary = if ($CaptureTrace) { Join-Path $ReportDir "$BaselineTraceLabel-$TraceScene-$TraceRenderer-trace-summary.md" } else { $null }
+      fork_trace_summary = if ($CaptureTrace) { Join-Path $ReportDir "$ForkTraceLabel-$TraceScene-$TraceRenderer-trace-summary.md" } else { $null }
     }
     trace_files = [pscustomobject]@{
-      baseline = if ($CaptureTrace) { Join-Path $Root "benchmarks\traces\$BaselineLabel-$TraceScene-$TraceRenderer-trace.json" } else { $null }
-      fork = if ($CaptureTrace) { Join-Path $Root "benchmarks\traces\$ForkDefaultLabel-$TraceScene-$TraceRenderer-trace.json" } else { $null }
+      baseline = if ($CaptureTrace) { Join-Path $Root "benchmarks\traces\$BaselineTraceLabel-$TraceScene-$TraceRenderer-trace.json" } else { $null }
+      fork = if ($CaptureTrace) { Join-Path $Root "benchmarks\traces\$ForkTraceLabel-$TraceScene-$TraceRenderer-trace.json" } else { $null }
     }
     trace_result_files = [pscustomobject]@{
-      baseline = if ($CaptureTrace) { Join-Path $Root "benchmarks\traces\$BaselineLabel-$TraceScene-$TraceRenderer-trace.result.json" } else { $null }
-      fork = if ($CaptureTrace) { Join-Path $Root "benchmarks\traces\$ForkDefaultLabel-$TraceScene-$TraceRenderer-trace.result.json" } else { $null }
+      baseline = if ($CaptureTrace) { Join-Path $Root "benchmarks\traces\$BaselineTraceLabel-$TraceScene-$TraceRenderer-trace.result.json" } else { $null }
+      fork = if ($CaptureTrace) { Join-Path $Root "benchmarks\traces\$ForkTraceLabel-$TraceScene-$TraceRenderer-trace.result.json" } else { $null }
     }
     artifact_metadata = [pscustomobject]@{
       inputs = [pscustomobject]@{
@@ -496,6 +778,7 @@ function Write-OfficialComparisonManifest {
         baseline_build_args = Get-FileMetadata $BaselineBuildArgs
         fork_build_args = Get-FileMetadata $ForkBuildArgs
         viewer_patch = Get-FileMetadata (Join-Path $Root "chromium_patches\0001-draft-minimal-three-viewer-entrypoint.patch")
+        viewer_patch_series = Get-FileMetadataList $ViewerPatchSeries
         baseline_package = Get-DirectoryMetadata $BaselinePackageDir
         fork_package = Get-DirectoryMetadata $ForkPackageDir
       }
@@ -530,14 +813,14 @@ function Write-OfficialComparisonManifest {
         fork_default_webgl2_summary = Get-FileMetadata (Join-Path $ReportDir "$ForkDefaultLabel-webgl2-summary.md")
         official_webgl2_comparison = Get-FileMetadata (Join-Path $ReportDir "official-webgl2-comparison.md")
         official_webgpu_comparison = if ($IncludeWebGPU) { Get-FileMetadata (Join-Path $ReportDir "official-webgpu-comparison.md") } else { Get-FileMetadata "" }
-        baseline_trace_summary = if ($CaptureTrace) { Get-FileMetadata (Join-Path $ReportDir "$BaselineLabel-$TraceScene-$TraceRenderer-trace-summary.md") } else { Get-FileMetadata "" }
-        fork_trace_summary = if ($CaptureTrace) { Get-FileMetadata (Join-Path $ReportDir "$ForkDefaultLabel-$TraceScene-$TraceRenderer-trace-summary.md") } else { Get-FileMetadata "" }
+        baseline_trace_summary = if ($CaptureTrace) { Get-FileMetadata (Join-Path $ReportDir "$BaselineTraceLabel-$TraceScene-$TraceRenderer-trace-summary.md") } else { Get-FileMetadata "" }
+        fork_trace_summary = if ($CaptureTrace) { Get-FileMetadata (Join-Path $ReportDir "$ForkTraceLabel-$TraceScene-$TraceRenderer-trace-summary.md") } else { Get-FileMetadata "" }
       }
       traces = [pscustomobject]@{
-        baseline = if ($CaptureTrace) { Get-FileMetadata (Join-Path $Root "benchmarks\traces\$BaselineLabel-$TraceScene-$TraceRenderer-trace.json") } else { Get-FileMetadata "" }
-        fork = if ($CaptureTrace) { Get-FileMetadata (Join-Path $Root "benchmarks\traces\$ForkDefaultLabel-$TraceScene-$TraceRenderer-trace.json") } else { Get-FileMetadata "" }
-        baseline_result = if ($CaptureTrace) { Get-FileMetadata (Join-Path $Root "benchmarks\traces\$BaselineLabel-$TraceScene-$TraceRenderer-trace.result.json") } else { Get-FileMetadata "" }
-        fork_result = if ($CaptureTrace) { Get-FileMetadata (Join-Path $Root "benchmarks\traces\$ForkDefaultLabel-$TraceScene-$TraceRenderer-trace.result.json") } else { Get-FileMetadata "" }
+        baseline = if ($CaptureTrace) { Get-FileMetadata (Join-Path $Root "benchmarks\traces\$BaselineTraceLabel-$TraceScene-$TraceRenderer-trace.json") } else { Get-FileMetadata "" }
+        fork = if ($CaptureTrace) { Get-FileMetadata (Join-Path $Root "benchmarks\traces\$ForkTraceLabel-$TraceScene-$TraceRenderer-trace.json") } else { Get-FileMetadata "" }
+        baseline_result = if ($CaptureTrace) { Get-FileMetadata (Join-Path $Root "benchmarks\traces\$BaselineTraceLabel-$TraceScene-$TraceRenderer-trace.result.json") } else { Get-FileMetadata "" }
+        fork_result = if ($CaptureTrace) { Get-FileMetadata (Join-Path $Root "benchmarks\traces\$ForkTraceLabel-$TraceScene-$TraceRenderer-trace.result.json") } else { Get-FileMetadata "" }
       }
     }
     suite_validation = [pscustomobject]@{
@@ -545,6 +828,7 @@ function Write-OfficialComparisonManifest {
       require_build_args = $true
       forbid_smoke = $true
       reject_software_rendering = $true
+      reject_gpu_instability = $true
       require_gpu_metadata = $true
       require_frame_times = $true
       expected_baseline_build_args_hash = $BaselineBuildArgsHash
@@ -552,6 +836,7 @@ function Write-OfficialComparisonManifest {
       require_webgpu_runtime_smoke = [bool]$IncludeWebGPU
       expected_measured_seconds = $Duration
       expected_warmup_seconds = $Warmup
+      expected_complexity = $Complexity
       expected_chromium_revision = $ChromiumRevision
       expected_baseline_browser = $BaselineBrowser
       expected_fork_browser = $ForkBrowser
@@ -559,13 +844,16 @@ function Write-OfficialComparisonManifest {
       expected_fork_revision = $ViewerForkRevision
       exact_scene_output_files = $true
       required_browser_flags = @($RequiredBrowserFlags)
+      profile_cache_policy = "same-profile-cache-mode-and-key"
+      profile_cache_prime_policy = if ($PrimeWebGpuProfileCache) { "prime-before-measured-run" } else { "none" }
+      webgpu_bundle_mode_policy = "same-webgpu-bundle-mode"
       expected_flag_metadata = [pscustomobject]@{
-        baseline = @(Get-ViewerFlagMetadata)
-        fork_default = @(Get-ViewerFlagMetadata -ViewerMode $true -ViewerTrustedContent $true)
-        aggressive = if ($IncludeAggressiveGpu) { @(Get-ViewerFlagMetadata -ViewerMode $true -ViewerTrustedContent $true -ViewerAggressiveGpu $true -ViewerForceAngleBackend $AggressiveAngleBackend) } else { @() }
-        baseline_webgpu = if ($IncludeWebGPU) { @(Get-ViewerFlagMetadata) } else { @() }
-        fork_default_webgpu = if ($IncludeWebGPU) { @(Get-ViewerFlagMetadata -ViewerMode $true -ViewerTrustedContent $true) } else { @() }
-        aggressive_webgpu = if ($IncludeWebGPU -and $IncludeAggressiveGpu) { @(Get-ViewerFlagMetadata -ViewerMode $true -ViewerTrustedContent $true -ViewerAggressiveGpu $true -ViewerForceAngleBackend $AggressiveAngleBackend) } else { @() }
+        baseline = @(Get-ViewerFlagMetadata -IncludeProfileCacheMetadata $true)
+        fork_default = @(Get-ViewerFlagMetadata -ViewerMode $true -ViewerTrustedContent $true -IncludeProfileCacheMetadata $true)
+        aggressive = if ($IncludeAggressiveGpu) { @(Get-ViewerFlagMetadata -ViewerMode $true -ViewerTrustedContent $true -ViewerAggressiveGpu $true -ViewerRelaxedWebglValidation ([bool]$AggressiveWebGl2RelaxedValidation) -ViewerZeroCopy ([bool]$AggressiveWebGl2ZeroCopy) -ViewerForceAngleBackend $AggressiveAngleBackend -IncludeProfileCacheMetadata $true) } else { @() }
+        baseline_webgpu = if ($IncludeWebGPU) { @(Get-ViewerFlagMetadata -UseWebGpuPipelineQuiet $true -UseWebGpuBundleMode $true -IncludeProfileCacheMetadata $true -ProfileCacheKey $WebGpuProfileCacheKey) } else { @() }
+        fork_default_webgpu = if ($IncludeWebGPU) { @(Get-ViewerFlagMetadata -ViewerMode $true -ViewerTrustedContent $true -UseWebGpuPipelineQuiet $true -UseWebGpuBundleMode $true -IncludeProfileCacheMetadata $true -ProfileCacheKey $WebGpuProfileCacheKey) } else { @() }
+        aggressive_webgpu = if ($IncludeWebGPU -and $IncludeAggressiveGpu) { @(Get-AggressiveWebGpuExpectedFlagMetadata) } else { @() }
       }
     }
   }
@@ -586,6 +874,42 @@ if ($BaselinePackageDir) {
 if ($ForkPackageDir) {
   $ForkPackageDir = Require-PackageDirectory $ForkPackageDir "Fork package directory" $ForkBrowser
 }
+if ($RejectWebGpuCpuFallbackTrace) {
+  if (-not $CaptureTrace) {
+    throw "-RejectWebGpuCpuFallbackTrace requires -CaptureTrace."
+  }
+  if ($TraceRenderer -ne "webgpu") {
+    throw "-RejectWebGpuCpuFallbackTrace is only valid with -TraceRenderer webgpu."
+  }
+}
+if ($WebGpuProfileCacheKey -and -not $IncludeWebGPU) {
+  throw "-WebGpuProfileCacheKey requires -IncludeWebGPU."
+}
+if ($ProfileCacheRoot -and -not $WebGpuProfileCacheKey) {
+  throw "-ProfileCacheRoot requires -WebGpuProfileCacheKey."
+}
+if ($PrimeWebGpuProfileCache -and -not $WebGpuProfileCacheKey) {
+  throw "-PrimeWebGpuProfileCache requires -WebGpuProfileCacheKey."
+}
+if ($PrimeWebGpuProfileCache -and $ReuseValidResults) {
+  throw "-PrimeWebGpuProfileCache cannot be combined with -ReuseValidResults because the measured pass must rerun after the priming pass."
+}
+if ($WebGpuPipelineQuietFrames -lt 0 -or $WebGpuPipelineQuietMaxFrames -lt 0) {
+  throw "-WebGpuPipelineQuietFrames and -WebGpuPipelineQuietMaxFrames must be non-negative."
+}
+if ($WebGpuPipelineQuietFrames -gt 0 -and -not ($IncludeWebGPU -or ($CaptureTrace -and $TraceRenderer -eq "webgpu"))) {
+  throw "-WebGpuPipelineQuietFrames requires -IncludeWebGPU or -CaptureTrace -TraceRenderer webgpu."
+}
+if ($WebGpuBundleMode -ne "off" -and -not ($IncludeWebGPU -or ($CaptureTrace -and $TraceRenderer -eq "webgpu"))) {
+  throw "-WebGpuBundleMode requires -IncludeWebGPU or -CaptureTrace -TraceRenderer webgpu."
+}
+if (($AggressiveWebGpuSourceFastPath -or $AggressiveWebGpuUploadFastPath) -and -not ($IncludeWebGPU -and $IncludeAggressiveGpu)) {
+  throw "-AggressiveWebGpuSourceFastPath and -AggressiveWebGpuUploadFastPath require -IncludeWebGPU -IncludeAggressiveGpu."
+}
+if ($Complexity -le 0) {
+  throw "-Complexity must be greater than zero."
+}
+$ResolvedProfileCacheRoot = if ($WebGpuProfileCacheKey) { Resolve-ProfileCacheRoot } else { $null }
 
 $RawDir = Join-Path $Root "benchmarks\raw"
 $ReportDir = Join-Path $Root "benchmarks\reports"
@@ -604,21 +928,40 @@ $SceneNames = @(
 
 $BaselineLabel = "baseline-content-shell"
 $ForkDefaultLabel = "fork-viewer-default"
+$WebGpuLabelSuffix = if ($WebGpuBundleMode -eq "static") { "-bundlegroup-static" } else { "" }
+$TraceLabelSuffix = if ($TraceRenderer -eq "webgpu" -and $WebGpuBundleMode -eq "static") { "-bundlegroup-static" } else { "" }
+$BaselineWebGpuLabel = "$BaselineLabel-webgpu$WebGpuLabelSuffix"
+$ForkWebGpuLabel = "$ForkDefaultLabel-webgpu$WebGpuLabelSuffix"
+$BaselineTraceLabel = "$BaselineLabel$TraceLabelSuffix"
+$ForkTraceLabel = "$ForkDefaultLabel$TraceLabelSuffix"
 $AggressiveLabel = if ($AggressiveAngleBackend) {
   "fork-viewer-aggressive-gpu-$AggressiveAngleBackend"
 } else {
   "fork-viewer-aggressive-gpu"
 }
+$AggressiveWebGlSuffixes = @()
+if ($AggressiveWebGl2RelaxedValidation) {
+  $AggressiveWebGlSuffixes += "relaxed"
+}
+if ($AggressiveWebGl2ZeroCopy) {
+  $AggressiveWebGlSuffixes += "zerocopy"
+}
+$AggressiveWebGlLabel = if ($AggressiveWebGlSuffixes.Count -gt 0) {
+  "$AggressiveLabel-$($AggressiveWebGlSuffixes -join '-')"
+} else {
+  $AggressiveLabel
+}
+$AggressiveWebGpuLabel = "fork-viewer-aggressive-gpu-webgpu$WebGpuLabelSuffix"
 $ChromiumRevision = Get-GitRevision (Join-Path $Root "src")
 $ViewerForkRevision = Get-ViewerForkRevision
 Write-Host "Viewer fork revision: $ViewerForkRevision"
 $RequiredBrowserFlags = @("--disable-software-rasterizer")
 $BaselineWebGlFiles = Get-SuiteResultFiles -Label $BaselineLabel -Renderer "webgl2"
 $ForkWebGlFiles = Get-SuiteResultFiles -Label $ForkDefaultLabel -Renderer "webgl2"
-$AggressiveWebGlFiles = Get-SuiteResultFiles -Label $AggressiveLabel -Renderer "webgl2"
-$BaselineWebGpuFiles = Get-SuiteResultFiles -Label "$BaselineLabel-webgpu" -Renderer "webgpu"
-$ForkWebGpuFiles = Get-SuiteResultFiles -Label "$ForkDefaultLabel-webgpu" -Renderer "webgpu"
-$AggressiveWebGpuFiles = Get-SuiteResultFiles -Label "$AggressiveLabel-webgpu" -Renderer "webgpu"
+$AggressiveWebGlFiles = Get-SuiteResultFiles -Label $AggressiveWebGlLabel -Renderer "webgl2"
+$BaselineWebGpuFiles = Get-SuiteResultFiles -Label $BaselineWebGpuLabel -Renderer "webgpu"
+$ForkWebGpuFiles = Get-SuiteResultFiles -Label $ForkWebGpuLabel -Renderer "webgpu"
+$AggressiveWebGpuFiles = Get-SuiteResultFiles -Label $AggressiveWebGpuLabel -Renderer "webgpu"
 
 if (-not $SkipSmoke) {
   $BaselineSmokeFile = Join-Path $RawDir "$BaselineLabel-runtime-smoke.json"
@@ -718,9 +1061,10 @@ $BaselineWebGlCommand = @(
   "-Browser", $BaselineBrowser,
   "-Renderer", "webgl2",
   "-Duration", [string]$Duration,
-    "-Warmup", [string]$Warmup,
-    "-Label", $BaselineLabel,
-    "-BuildArgs", $BaselineBuildArgs
+  "-Warmup", [string]$Warmup,
+  "-Complexity", [string]$Complexity,
+  "-Label", $BaselineLabel,
+  "-BuildArgs", $BaselineBuildArgs
   )
 if ($ReuseValidResults) {
   $BaselineWebGlCommand += "-ReuseValidResults"
@@ -737,6 +1081,7 @@ $ForkWebGlCommand = @(
   "-Renderer", "webgl2",
   "-Duration", [string]$Duration,
   "-Warmup", [string]$Warmup,
+  "-Complexity", [string]$Complexity,
   "-Label", $ForkDefaultLabel,
   "-BuildArgs", $ForkBuildArgs,
   "-ForkRevision", $ViewerForkRevision,
@@ -759,7 +1104,8 @@ if ($IncludeAggressiveGpu) {
     "-Renderer", "webgl2",
     "-Duration", [string]$Duration,
     "-Warmup", [string]$Warmup,
-    "-Label", $AggressiveLabel,
+    "-Complexity", [string]$Complexity,
+    "-Label", $AggressiveWebGlLabel,
     "-BuildArgs", $ForkBuildArgs,
     "-ForkRevision", $ViewerForkRevision,
     "-ViewerMode",
@@ -772,6 +1118,12 @@ if ($IncludeAggressiveGpu) {
   $AggressiveCommand += "-RequireGpuMetadata"
   if ($AggressiveAngleBackend) {
     $AggressiveCommand += @("-ViewerForceAngleBackend", $AggressiveAngleBackend)
+  }
+  if ($AggressiveWebGl2RelaxedValidation) {
+    $AggressiveCommand += "-ViewerRelaxedWebglValidation"
+  }
+  if ($AggressiveWebGl2ZeroCopy) {
+    $AggressiveCommand += "-ViewerZeroCopy"
   }
   if ($ForkPackageDir) {
     $AggressiveCommand += @("-PackageDir", $ForkPackageDir)
@@ -786,7 +1138,8 @@ if ($IncludeWebGPU) {
     "-Renderer", "webgpu",
     "-Duration", [string]$Duration,
     "-Warmup", [string]$Warmup,
-    "-Label", "$BaselineLabel-webgpu",
+    "-Complexity", [string]$Complexity,
+    "-Label", $BaselineWebGpuLabel,
     "-BuildArgs", $BaselineBuildArgs
   )
   if ($ReuseValidResults) {
@@ -799,7 +1152,7 @@ if ($IncludeWebGPU) {
   if ($BaselinePackageDir) {
     $BaselineWebGpuCommand += @("-PackageDir", $BaselinePackageDir)
   }
-  Run-Command (Add-ResourceWarmupArgs $BaselineWebGpuCommand)
+  Invoke-WebGpuSuiteCommand -Command $BaselineWebGpuCommand -Label $BaselineWebGpuLabel
 
   $ForkWebGpuCommand = @(
     (Join-Path $Root "scripts\run_full_suite.ps1"),
@@ -807,7 +1160,8 @@ if ($IncludeWebGPU) {
     "-Renderer", "webgpu",
     "-Duration", [string]$Duration,
     "-Warmup", [string]$Warmup,
-    "-Label", "$ForkDefaultLabel-webgpu",
+    "-Complexity", [string]$Complexity,
+    "-Label", $ForkWebGpuLabel,
     "-BuildArgs", $ForkBuildArgs,
     "-ForkRevision", $ViewerForkRevision,
     "-ViewerMode",
@@ -823,7 +1177,7 @@ if ($IncludeWebGPU) {
   if ($ForkPackageDir) {
     $ForkWebGpuCommand += @("-PackageDir", $ForkPackageDir)
   }
-  Run-Command (Add-ResourceWarmupArgs $ForkWebGpuCommand)
+  Invoke-WebGpuSuiteCommand -Command $ForkWebGpuCommand -Label $ForkWebGpuLabel
 
   if ($IncludeAggressiveGpu) {
     $AggressiveWebGpuCommand = @(
@@ -832,7 +1186,8 @@ if ($IncludeWebGPU) {
       "-Renderer", "webgpu",
       "-Duration", [string]$Duration,
       "-Warmup", [string]$Warmup,
-      "-Label", "$AggressiveLabel-webgpu",
+      "-Complexity", [string]$Complexity,
+      "-Label", $AggressiveWebGpuLabel,
       "-BuildArgs", $ForkBuildArgs,
       "-ForkRevision", $ViewerForkRevision,
       "-ViewerMode",
@@ -846,19 +1201,17 @@ if ($IncludeWebGPU) {
     if ($DisableWebGpuTiming -or $DisableForkWebGpuTiming) {
       $AggressiveWebGpuCommand += "-DisableGpuTiming"
     }
-    if ($AggressiveAngleBackend) {
-      $AggressiveWebGpuCommand += @("-ViewerForceAngleBackend", $AggressiveAngleBackend)
-    }
     if ($ForkPackageDir) {
       $AggressiveWebGpuCommand += @("-PackageDir", $ForkPackageDir)
     }
-    Run-Command (Add-ResourceWarmupArgs $AggressiveWebGpuCommand)
+    $AggressiveWebGpuCommand += Get-AggressiveWebGpuSuiteArgs
+    Invoke-WebGpuSuiteCommand -Command $AggressiveWebGpuCommand -Label $AggressiveWebGpuLabel
   }
 }
 
 if ($CaptureTrace) {
-  $BaselineTrace = Join-Path $Root "benchmarks\traces\$BaselineLabel-$TraceScene-$TraceRenderer-trace.json"
-  $ForkTrace = Join-Path $Root "benchmarks\traces\$ForkDefaultLabel-$TraceScene-$TraceRenderer-trace.json"
+  $BaselineTrace = Join-Path $Root "benchmarks\traces\$BaselineTraceLabel-$TraceScene-$TraceRenderer-trace.json"
+  $ForkTrace = Join-Path $Root "benchmarks\traces\$ForkTraceLabel-$TraceScene-$TraceRenderer-trace.json"
 
   $BaselineTraceCommand = @(
     "node",
@@ -868,21 +1221,30 @@ if ($CaptureTrace) {
     "--renderer", $TraceRenderer,
     "--duration", [string]$TraceDuration,
     "--warmup", [string]$TraceWarmup,
+    "--complexity", [string]$Complexity,
     "--startDelayMs", [string]$TraceStartDelayMs,
     "--output", $BaselineTrace
   )
+  if ($TraceRenderer -eq "webgpu" -and $DisableWebGpuTiming) {
+    $BaselineTraceCommand += "--disableGpuTiming"
+  }
   Run-Command (Add-TraceResourceWarmupArgs $BaselineTraceCommand)
   Invoke-TraceArtifactValidation `
     -TracePath $BaselineTrace `
     -ExpectedBrowser $BaselineBrowser `
-    -ExpectedFlagMetadata (Get-TraceFlagMetadata) `
-    -RequiredBrowserFlags $RequiredBrowserFlags
-  Run-Command @(
+    -ExpectedFlagMetadata (Get-TraceFlagMetadata -GpuTimingEnabled (-not ($TraceRenderer -eq "webgpu" -and $DisableWebGpuTiming))) `
+    -RequiredBrowserFlags $RequiredBrowserFlags `
+    -RejectWebGpuCpuFallback:$RejectWebGpuCpuFallbackTrace
+  $BaselineSummaryCommand = @(
     "node",
     (Join-Path $Root "scripts\summarize_trace.mjs"),
     $BaselineTrace,
-    "--output", (Join-Path $ReportDir "$BaselineLabel-$TraceScene-$TraceRenderer-trace-summary.md")
+    "--output", (Join-Path $ReportDir "$BaselineTraceLabel-$TraceScene-$TraceRenderer-trace-summary.md")
   )
+  if ($RejectWebGpuCpuFallbackTrace) {
+    $BaselineSummaryCommand += "--rejectWebGpuCpuFallback"
+  }
+  Run-Command $BaselineSummaryCommand
 
   $ForkTraceCommand = @(
     "node",
@@ -892,23 +1254,38 @@ if ($CaptureTrace) {
     "--renderer", $TraceRenderer,
     "--duration", [string]$TraceDuration,
     "--warmup", [string]$TraceWarmup,
+    "--complexity", [string]$Complexity,
     "--startDelayMs", [string]$TraceStartDelayMs,
     "--viewerMode",
     "--viewerTrustedContent",
     "--output", $ForkTrace
   )
+  if ($TraceRenderer -eq "webgpu" -and ($DisableWebGpuTiming -or $DisableForkWebGpuTiming)) {
+    $ForkTraceCommand += "--disableGpuTiming"
+  }
+  if ($TraceRenderer -eq "webgpu") {
+    $ForkTraceCommand += "--viewerTraceWebgpuQueue"
+  }
+  if ($RejectWebGpuCpuFallbackTrace) {
+    $ForkTraceCommand += "--viewerRejectWebgpuCpuTextureFallback"
+  }
   Run-Command (Add-TraceResourceWarmupArgs $ForkTraceCommand)
   Invoke-TraceArtifactValidation `
     -TracePath $ForkTrace `
     -ExpectedBrowser $ForkBrowser `
-    -ExpectedFlagMetadata (Get-TraceFlagMetadata -ViewerMode $true -ViewerTrustedContent $true) `
-    -RequiredBrowserFlags $RequiredBrowserFlags
-  Run-Command @(
+    -ExpectedFlagMetadata (Get-TraceFlagMetadata -ViewerMode $true -ViewerTrustedContent $true -ViewerRejectWebgpuCpuTextureFallback ([bool]$RejectWebGpuCpuFallbackTrace) -ViewerTraceWebgpuQueue ($TraceRenderer -eq "webgpu") -GpuTimingEnabled (-not ($TraceRenderer -eq "webgpu" -and ($DisableWebGpuTiming -or $DisableForkWebGpuTiming)))) `
+    -RequiredBrowserFlags $RequiredBrowserFlags `
+    -RejectWebGpuCpuFallback:$RejectWebGpuCpuFallbackTrace
+  $ForkSummaryCommand = @(
     "node",
     (Join-Path $Root "scripts\summarize_trace.mjs"),
     $ForkTrace,
-    "--output", (Join-Path $ReportDir "$ForkDefaultLabel-$TraceScene-$TraceRenderer-trace-summary.md")
+    "--output", (Join-Path $ReportDir "$ForkTraceLabel-$TraceScene-$TraceRenderer-trace-summary.md")
   )
+  if ($RejectWebGpuCpuFallbackTrace) {
+    $ForkSummaryCommand += "--rejectWebGpuCpuFallback"
+  }
+  Run-Command $ForkSummaryCommand
 }
 
 Invoke-BenchmarkSuiteValidation `
@@ -919,7 +1296,7 @@ Invoke-BenchmarkSuiteValidation `
   -ExpectedChromiumRevision $ChromiumRevision `
   -ExpectedBrowser $BaselineBrowser `
   -ExpectedBuildArgsHash $BaselineBuildArgsHash `
-  -ExpectedFlagMetadata (Get-ViewerFlagMetadata) `
+  -ExpectedFlagMetadata (Get-ViewerFlagMetadata -IncludeProfileCacheMetadata $true) `
   -RequiredBrowserFlags $RequiredBrowserFlags
 
 Invoke-BenchmarkSuiteValidation `
@@ -932,13 +1309,13 @@ Invoke-BenchmarkSuiteValidation `
   -ExpectedBrowser $ForkBrowser `
   -ExpectedBuildArgsHash $ForkBuildArgsHash `
   -ExpectedForkRevision $ViewerForkRevision `
-  -ExpectedFlagMetadata (Get-ViewerFlagMetadata -ViewerMode $true -ViewerTrustedContent $true) `
+  -ExpectedFlagMetadata (Get-ViewerFlagMetadata -ViewerMode $true -ViewerTrustedContent $true -IncludeProfileCacheMetadata $true) `
   -RequiredBrowserFlags $RequiredBrowserFlags
 
 if ($IncludeAggressiveGpu) {
   Invoke-BenchmarkSuiteValidation `
     -Renderer "webgl2" `
-    -Variant $AggressiveLabel `
+    -Variant $AggressiveWebGlLabel `
     -Files $AggressiveWebGlFiles `
     -RequireForkRevision `
     -RequirePackageSize:([bool]$ForkPackageDir) `
@@ -946,25 +1323,25 @@ if ($IncludeAggressiveGpu) {
     -ExpectedBrowser $ForkBrowser `
     -ExpectedBuildArgsHash $ForkBuildArgsHash `
     -ExpectedForkRevision $ViewerForkRevision `
-    -ExpectedFlagMetadata (Get-ViewerFlagMetadata -ViewerMode $true -ViewerTrustedContent $true -ViewerAggressiveGpu $true -ViewerForceAngleBackend $AggressiveAngleBackend) `
+    -ExpectedFlagMetadata (Get-ViewerFlagMetadata -ViewerMode $true -ViewerTrustedContent $true -ViewerAggressiveGpu $true -ViewerRelaxedWebglValidation ([bool]$AggressiveWebGl2RelaxedValidation) -ViewerZeroCopy ([bool]$AggressiveWebGl2ZeroCopy) -ViewerForceAngleBackend $AggressiveAngleBackend -IncludeProfileCacheMetadata $true) `
     -RequiredBrowserFlags $RequiredBrowserFlags
 }
 
 if ($IncludeWebGPU) {
   Invoke-BenchmarkSuiteValidation `
     -Renderer "webgpu" `
-    -Variant "$BaselineLabel-webgpu" `
+    -Variant $BaselineWebGpuLabel `
     -Files $BaselineWebGpuFiles `
     -RequirePackageSize:([bool]$BaselinePackageDir) `
     -ExpectedChromiumRevision $ChromiumRevision `
     -ExpectedBrowser $BaselineBrowser `
     -ExpectedBuildArgsHash $BaselineBuildArgsHash `
-    -ExpectedFlagMetadata (Get-ViewerFlagMetadata) `
+  -ExpectedFlagMetadata (Get-ViewerFlagMetadata -UseWebGpuPipelineQuiet $true -UseWebGpuBundleMode $true -IncludeProfileCacheMetadata $true -ProfileCacheKey $WebGpuProfileCacheKey) `
     -RequiredBrowserFlags $RequiredBrowserFlags
 
   Invoke-BenchmarkSuiteValidation `
     -Renderer "webgpu" `
-    -Variant "$ForkDefaultLabel-webgpu" `
+    -Variant $ForkWebGpuLabel `
     -Files $ForkWebGpuFiles `
     -RequireForkRevision `
     -RequirePackageSize:([bool]$ForkPackageDir) `
@@ -972,13 +1349,13 @@ if ($IncludeWebGPU) {
     -ExpectedBrowser $ForkBrowser `
     -ExpectedBuildArgsHash $ForkBuildArgsHash `
     -ExpectedForkRevision $ViewerForkRevision `
-    -ExpectedFlagMetadata (Get-ViewerFlagMetadata -ViewerMode $true -ViewerTrustedContent $true) `
+  -ExpectedFlagMetadata (Get-ViewerFlagMetadata -ViewerMode $true -ViewerTrustedContent $true -UseWebGpuPipelineQuiet $true -UseWebGpuBundleMode $true -IncludeProfileCacheMetadata $true -ProfileCacheKey $WebGpuProfileCacheKey) `
     -RequiredBrowserFlags $RequiredBrowserFlags
 
   if ($IncludeAggressiveGpu) {
     Invoke-BenchmarkSuiteValidation `
       -Renderer "webgpu" `
-      -Variant "$AggressiveLabel-webgpu" `
+      -Variant $AggressiveWebGpuLabel `
       -Files $AggressiveWebGpuFiles `
       -RequireForkRevision `
       -RequirePackageSize:([bool]$ForkPackageDir) `
@@ -986,7 +1363,7 @@ if ($IncludeWebGPU) {
       -ExpectedBrowser $ForkBrowser `
       -ExpectedBuildArgsHash $ForkBuildArgsHash `
       -ExpectedForkRevision $ViewerForkRevision `
-      -ExpectedFlagMetadata (Get-ViewerFlagMetadata -ViewerMode $true -ViewerTrustedContent $true -ViewerAggressiveGpu $true -ViewerForceAngleBackend $AggressiveAngleBackend) `
+      -ExpectedFlagMetadata (Get-AggressiveWebGpuExpectedFlagMetadata) `
       -RequiredBrowserFlags $RequiredBrowserFlags
   }
 }
@@ -1003,7 +1380,7 @@ $BaselineSummaryCommand = @(
   (Join-Path $Root "scripts\summarize_results.mjs")
 )
 $BaselineSummaryCommand += $BaselineWebGlFiles
-$BaselineSummaryCommand += @("--output", (Join-Path $ReportDir "$BaselineLabel-webgl2-summary.md"))
+$BaselineSummaryCommand += @("--strictEvidence", "--output", (Join-Path $ReportDir "$BaselineLabel-webgl2-summary.md"))
 Run-Command $BaselineSummaryCommand
 
 $ForkSummaryCommand = @(
@@ -1011,7 +1388,7 @@ $ForkSummaryCommand = @(
   (Join-Path $Root "scripts\summarize_results.mjs")
 )
 $ForkSummaryCommand += $ForkWebGlFiles
-$ForkSummaryCommand += @("--output", (Join-Path $ReportDir "$ForkDefaultLabel-webgl2-summary.md"))
+$ForkSummaryCommand += @("--strictEvidence", "--output", (Join-Path $ReportDir "$ForkDefaultLabel-webgl2-summary.md"))
 Run-Command $ForkSummaryCommand
 
 $CompareCommand = @(

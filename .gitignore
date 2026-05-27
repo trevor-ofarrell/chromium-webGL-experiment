@@ -1,8 +1,9 @@
-src/
-tools/depot_tools/
+/src/
+/tools/depot_tools/
 viewer/node_modules/
 viewer/dist/
 benchmarks/tmp/
+benchmarks/raw/result.json
 benchmarks/traces/
 benchmarks/screenshots/
 benchmarks/packages/

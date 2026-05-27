@@ -3,6 +3,7 @@ param()
 
 $ErrorActionPreference = "Stop"
 $Root = Resolve-Path (Join-Path $PSScriptRoot "..")
+. (Join-Path $PSScriptRoot "viewer_patch_series.ps1")
 $TempDir = Join-Path $Root "benchmarks\tmp\official-manifest-aggressive-audit"
 $ManifestPath = Join-Path $TempDir "official-comparison-manifest.json"
 $BackupPath = Join-Path $TempDir "official-comparison-manifest.aggressive-audit.backup.json"
@@ -124,14 +125,44 @@ if ($HadManifest) {
 
 try {
   $ChromiumRevision = Get-GitRevision (Join-Path $Root "src")
-  $PatchHash = Get-ShortSha256 (Join-Path $Root "chromium_patches\0001-draft-minimal-three-viewer-entrypoint.patch")
-  $ForkRevision = "$ChromiumRevision+viewerpatch-$PatchHash"
+  $ForkRevision = Get-ViewerForkRevisionForChromiumRevision -ChromiumRevision $ChromiumRevision -Root $Root
   $BaselineWebGl = New-ResultFiles "baseline-content-shell" "webgl2"
   $ForkWebGl = New-ResultFiles "fork-viewer-default" "webgl2"
-  $AggressiveWebGl = New-ResultFiles "fork-viewer-aggressive-gpu-d3d11" "webgl2"
+  $AggressiveWebGl = New-ResultFiles "fork-viewer-aggressive-gpu-d3d11-relaxed" "webgl2"
   $BaselineWebGpu = New-ResultFiles "baseline-content-shell-webgpu" "webgpu"
   $ForkWebGpu = New-ResultFiles "fork-viewer-default-webgpu" "webgpu"
-  $AggressiveWebGpu = New-ResultFiles "fork-viewer-aggressive-gpu-d3d11-webgpu" "webgpu"
+  $AggressiveWebGpu = New-ResultFiles "fork-viewer-aggressive-gpu-webgpu" "webgpu"
+  $AggressiveWebGpuExpectedFlagMetadata = @(
+    "viewer_aggressive_gpu=true",
+    "viewer_force_angle_backend=null",
+    "requested_angle_backend=null",
+    "viewer_defer_webgpu_pipeline_flush=true",
+    "viewer_defer_webgpu_queue_flush=true",
+    "viewer_defer_webgpu_submit_flush=true",
+    "viewer_skip_webgpu_canvas_texture_validation=true",
+    "viewer_skip_webgpu_canvas_memory_accounting=true",
+    "viewer_skip_webgpu_copy_external_image_color_conversion=true",
+    "viewer_skip_webgpu_copy_external_image_color_space_validation=true",
+    "viewer_skip_webgpu_copy_external_image_dest_validation=true",
+    "viewer_skip_webgpu_copy_external_image_source_validation=true",
+    "viewer_skip_webgpu_copy_external_image_copy_size_validation=true",
+    "viewer_skip_webgpu_write_texture_layout_validation=true",
+    "viewer_reject_webgpu_cpu_texture_fallback=true",
+    "viewer_skip_webgpu_use_counters=true",
+    "viewer_cache_webgpu_bind_group_layouts=true",
+    "viewer_skip_webgpu_command_labels=true",
+    "viewer_skip_webgpu_resource_labels=true",
+    "viewer_skip_webgpu_shader_source_null_check=true",
+    "viewer_skip_webgpu_shader_memory_accounting=true",
+    "viewer_skip_webgpu_redundant_pipeline_sets=true",
+    "viewer_skip_webgpu_redundant_bind_group_sets=true",
+    "viewer_skip_webgpu_redundant_buffer_sets=true",
+    "viewer_skip_webgpu_redundant_render_state_sets=true",
+    "viewer_trace_webgpu_queue=false",
+    "resource_warmup_enabled=false",
+    "resource_warmup_precompile=false",
+    "resource_warmup_prerender_frames=0"
+  )
   $RuntimeSmoke = @(
     (Join-Path $Root "benchmarks\raw\baseline-content-shell-runtime-smoke.json"),
     (Join-Path $Root "benchmarks\raw\fork-viewer-default-runtime-smoke.json")
@@ -161,12 +192,17 @@ try {
       include_webgpu = $false
       include_aggressive_gpu = $true
       aggressive_angle_backend = "d3d11"
+      aggressive_webgl2_relaxed_validation = $true
+      aggressive_webgl2_zero_copy = $false
+      aggressive_webgpu_source_fast_path = $true
+      aggressive_webgpu_upload_fast_path = $true
       capture_trace = $false
       skip_smoke = $false
       skip_navigation_lock = $false
     }
     labels = [pscustomobject]@{
-      aggressive = "fork-viewer-aggressive-gpu-d3d11"
+      aggressive = "fork-viewer-aggressive-gpu-d3d11-relaxed"
+      aggressive_webgpu = "fork-viewer-aggressive-gpu-webgpu"
     }
     suite_validation = [pscustomobject]@{
       require_checkout = $true
@@ -175,6 +211,7 @@ try {
       expected_fork_build_args_hash = "0123456789abcdef"
       forbid_smoke = $true
       reject_software_rendering = $true
+      reject_gpu_instability = $true
       require_gpu_metadata = $true
       require_frame_times = $true
       require_webgpu_runtime_smoke = $false
@@ -187,20 +224,21 @@ try {
       expected_fork_revision = $ForkRevision
       exact_scene_output_files = $true
       expected_flag_metadata = [pscustomobject]@{
-        baseline = @("viewer_mode=false")
-        fork_default = @("viewer_mode=true")
+        baseline = @("viewer_mode=false", "resource_warmup_enabled=false", "resource_warmup_precompile=false", "resource_warmup_prerender_frames=0")
+        fork_default = @("viewer_mode=true", "resource_warmup_enabled=false", "resource_warmup_precompile=false", "resource_warmup_prerender_frames=0")
         aggressive = @(
           "viewer_aggressive_gpu=true",
+          "viewer_relaxed_webgl_validation=true",
+          "viewer_zero_copy=false",
           "viewer_force_angle_backend=d3d11",
-          "requested_angle_backend=d3d11"
+          "requested_angle_backend=d3d11",
+          "resource_warmup_enabled=false",
+          "resource_warmup_precompile=false",
+          "resource_warmup_prerender_frames=0"
         )
-        baseline_webgpu = @("viewer_mode=false")
-        fork_default_webgpu = @("viewer_mode=true")
-        aggressive_webgpu = @(
-          "viewer_aggressive_gpu=true",
-          "viewer_force_angle_backend=d3d11",
-          "requested_angle_backend=d3d11"
-        )
+        baseline_webgpu = @("viewer_mode=false", "resource_warmup_enabled=false", "resource_warmup_precompile=false", "resource_warmup_prerender_frames=0")
+        fork_default_webgpu = @("viewer_mode=true", "resource_warmup_enabled=false", "resource_warmup_precompile=false", "resource_warmup_prerender_frames=0")
+        aggressive_webgpu = $AggressiveWebGpuExpectedFlagMetadata
       }
     }
     result_files = [pscustomobject]@{
@@ -289,6 +327,37 @@ try {
   if ($MissingAggressiveWebGpuMetadataChecklist -notmatch "Official comparison manifest.*pending.*suite validation settings mismatch.*expected_flag_metadata\.aggressive_webgpu") {
     throw "Artifact audit accepted or misreported a completed official manifest without aggressive WebGPU expected flag metadata."
   }
+
+  $MismatchedAggressiveWebGpuMetadataManifest = $MissingAggressiveWebGpuManifest | ConvertTo-Json -Depth 8 | ConvertFrom-Json
+  $MismatchedAggressiveWebGpuMetadataManifest.artifact_metadata.results.aggressive_webgpu = New-MetadataList $AggressiveWebGpu
+  $MismatchedAggressiveWebGpuMetadataManifest.suite_validation.expected_flag_metadata.aggressive_webgpu = @(
+    $AggressiveWebGpuExpectedFlagMetadata | Where-Object { $_ -ne "viewer_skip_webgpu_resource_labels=true" }
+  )
+  $MismatchedAggressiveWebGpuMetadataManifest.suite_validation.expected_flag_metadata.aggressive_webgpu += "viewer_skip_webgpu_resource_labels=false"
+  $MismatchedAggressiveWebGpuMetadataManifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $ManifestPath -Encoding UTF8
+  $MismatchedAggressiveWebGpuMetadataChecklist = Invoke-AuditAndReadChecklist
+  if ($MismatchedAggressiveWebGpuMetadataChecklist -notmatch "Official comparison manifest.*pending.*suite validation settings mismatch.*expected_flag_metadata\.aggressive_webgpu missing viewer_skip_webgpu_resource_labels=true") {
+    throw "Artifact audit accepted or misreported a completed official manifest whose aggressive WebGPU source-fast-path metadata contradicted the selected option."
+  }
+
+  $ContaminatedAggressiveWebGpuManifest = $MissingAggressiveWebGpuManifest | ConvertTo-Json -Depth 8 | ConvertFrom-Json
+  $ContaminatedAggressiveWebGpuManifest.labels.aggressive_webgpu = "fork-viewer-aggressive-gpu-d3d11-webgpu"
+  $ContaminatedAggressiveWebGpuManifest.result_files.aggressive_webgpu = New-ResultFiles "fork-viewer-aggressive-gpu-d3d11-webgpu" "webgpu"
+  $ContaminatedAggressiveWebGpuManifest.artifact_metadata.results.aggressive_webgpu = New-MetadataList @($ContaminatedAggressiveWebGpuManifest.result_files.aggressive_webgpu)
+  $ContaminatedAggressiveWebGpuManifest.suite_validation.expected_flag_metadata.aggressive_webgpu = @(
+    $AggressiveWebGpuExpectedFlagMetadata | Where-Object {
+      $_ -notmatch "^(viewer_force_angle_backend|requested_angle_backend)="
+    }
+  )
+  $ContaminatedAggressiveWebGpuManifest.suite_validation.expected_flag_metadata.aggressive_webgpu += @(
+    "viewer_force_angle_backend=d3d11",
+    "requested_angle_backend=d3d11"
+  )
+  $ContaminatedAggressiveWebGpuManifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $ManifestPath -Encoding UTF8
+  $ContaminatedAggressiveWebGpuChecklist = Invoke-AuditAndReadChecklist
+  if ($ContaminatedAggressiveWebGpuChecklist -notmatch "Official comparison manifest.*pending.*aggressive backend metadata mismatch.*aggressive WebGPU flag metadata unexpectedly includes backend override") {
+    throw "Artifact audit accepted or misreported a completed official manifest whose aggressive WebGPU evidence inherited the WebGL2 ANGLE backend."
+  }
 } finally {
   if ($HadManifest) {
     Copy-Item -LiteralPath $BackupPath -Destination $ManifestPath -Force
@@ -305,4 +374,4 @@ try {
   }
 }
 
-Write-Host "Official manifest audit rejects completed aggressive manifests with mismatched backend labels, missing requested backend metadata, or missing aggressive WebGL2/WebGPU result hashes."
+Write-Host "Official manifest audit rejects completed aggressive manifests with mismatched WebGL2 backend labels, WebGPU backend contamination, missing or contradictory WebGPU fast-path metadata, or missing aggressive WebGL2/WebGPU result hashes."

@@ -92,6 +92,10 @@ function parseArgs(argv) {
   return args;
 }
 
+function readJson(pathValue) {
+  return JSON.parse(fs.readFileSync(pathValue, 'utf8').replace(/^\uFEFF/, ''));
+}
+
 function parseExpectedValue(raw) {
   if (raw === 'true') return true;
   if (raw === 'false') return false;
@@ -147,6 +151,10 @@ function softwareRendererReason(data) {
   return match ? match[1] : '';
 }
 
+function softwareRenderingDiagnosticOptIn(data) {
+  return data.allow_software_rendering === true || data.allowSoftwareRendering === true;
+}
+
 function numericEquals(actual, expected) {
   return typeof actual === 'number' && Number.isFinite(actual) && Math.abs(actual - expected) < 0.001;
 }
@@ -188,7 +196,7 @@ function validatePinRefresh(data, manifestPath) {
   const errors = [];
   let pinRefresh;
   try {
-    pinRefresh = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    pinRefresh = readJson(manifestPath);
   } catch (error) {
     return [`pin refresh manifest is missing or invalid: ${manifestPath}`];
   }
@@ -295,6 +303,9 @@ function validate(data, args) {
     errors.push(...validatePinRefresh(data, args.pinRefreshManifest));
   }
   if (args.rejectSoftwareRendering) {
+    if (softwareRenderingDiagnosticOptIn(data)) {
+      errors.push('diagnostic software-rendering opt-in is not allowed in stability evidence');
+    }
     const reason = softwareRendererReason(data);
     if (reason) {
       errors.push(`known software-rendered GPU path is not allowed (${reason})`);
@@ -342,7 +353,7 @@ try {
 
 let data;
 try {
-  data = JSON.parse(fs.readFileSync(args.file, 'utf8'));
+  data = readJson(args.file);
 } catch (error) {
   console.error(`FAIL: ${args.file}`);
   console.error(`  ${error.message}`);

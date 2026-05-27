@@ -3,6 +3,7 @@ param()
 
 $ErrorActionPreference = "Stop"
 $Root = Resolve-Path (Join-Path $PSScriptRoot "..")
+. (Join-Path $PSScriptRoot "viewer_patch_series.ps1")
 $TempDir = Join-Path $Root "benchmarks\tmp\trusted-manifest-suite-semantics-audit"
 $ManifestPath = Join-Path $TempDir "trusted-experiment-matrix-manifest.json"
 $PinRefreshPath = Join-Path $Root "benchmarks\reports\chromium-pin-refresh.json"
@@ -37,6 +38,43 @@ function Get-Sha256 {
   return (Get-FileHash -Algorithm SHA256 -LiteralPath $PathValue).Hash.ToLowerInvariant()
 }
 
+function Convert-BytesToHexString {
+  param([byte[]]$Bytes)
+  return (($Bytes | ForEach-Object { $_.ToString("x2") }) -join "")
+}
+
+function Get-StringSha256 {
+  param([string]$Text)
+  $Sha256 = [System.Security.Cryptography.SHA256]::Create()
+  try {
+    $Bytes = [System.Text.Encoding]::UTF8.GetBytes($Text)
+    return Convert-BytesToHexString ($Sha256.ComputeHash($Bytes))
+  } finally {
+    $Sha256.Dispose()
+  }
+}
+
+function ConvertTo-ReportInputPath {
+  param([string]$PathValue)
+  $FullPath = [System.IO.Path]::GetFullPath($PathValue)
+  $FullRoot = [System.IO.Path]::GetFullPath($Root).TrimEnd('\', '/')
+  $Prefix = "$FullRoot$([System.IO.Path]::DirectorySeparatorChar)"
+  if ($FullPath.StartsWith($Prefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+    $FullPath = $FullPath.Substring($Prefix.Length)
+  }
+  return (($FullPath -replace "\\", "/") -replace [regex]::Escape([System.IO.Path]::AltDirectorySeparatorChar), "/")
+}
+
+function Get-ReportInputDigest {
+  param([string[]]$PathValues)
+  $Entries = @($PathValues | ForEach-Object {
+      $Hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $_).Hash.ToLowerInvariant()
+      $Size = (Get-Item -LiteralPath $_).Length
+      "$(ConvertTo-ReportInputPath $_)`t$Hash`t$Size"
+    } | Sort-Object)
+  return Get-StringSha256 ($Entries -join "`n")
+}
+
 function Convert-MetadataValue {
   param([AllowNull()][object]$Value)
   if ($null -eq $Value) {
@@ -57,22 +95,69 @@ function Get-ExperimentFlagValues {
     viewer_trusted_content = $true
     viewer_aggressive_gpu = $false
     viewer_relaxed_webgl_validation = $false
+    viewer_zero_copy = $false
     viewer_in_process_gpu = $false
     viewer_single_process = $false
     viewer_force_angle_backend = $null
     requested_angle_backend = $null
     viewer_disable_unneeded_blink_features = $false
     viewer_direct_gpu_presentation = $false
+    viewer_defer_webgpu_pipeline_flush = $false
+    viewer_defer_webgpu_queue_flush = $false
+    viewer_defer_webgpu_submit_flush = $false
+    viewer_skip_webgpu_canvas_texture_validation = $false
+    viewer_skip_webgpu_canvas_memory_accounting = $false
+    viewer_skip_webgpu_copy_external_image_color_conversion = $false
+    viewer_skip_webgpu_copy_external_image_color_space_validation = $false
+    viewer_skip_webgpu_copy_external_image_dest_validation = $false
+    viewer_skip_webgpu_copy_external_image_source_validation = $false
+    viewer_skip_webgpu_copy_external_image_copy_size_validation = $false
+    viewer_skip_webgpu_write_texture_layout_validation = $false
+    viewer_reject_webgpu_cpu_texture_fallback = $false
+    viewer_skip_webgpu_use_counters = $false
+    viewer_skip_webgpu_resource_labels = $false
+    viewer_skip_webgpu_shader_source_null_check = $false
+    viewer_skip_webgpu_shader_memory_accounting = $false
+    viewer_skip_webgpu_redundant_pipeline_sets = $false
+    viewer_skip_webgpu_redundant_bind_group_sets = $false
+    viewer_skip_webgpu_redundant_buffer_sets = $false
+    viewer_skip_webgpu_redundant_render_state_sets = $false
+    viewer_trace_webgpu_queue = $false
+    resource_warmup_enabled = $false
+    resource_warmup_precompile = $false
+    resource_warmup_prerender_frames = 0
   }
 
   for ($Index = 0; $Index -lt $Flags.Count; $Index += 1) {
     switch ($Flags[$Index]) {
       "--viewerAggressiveGpu" { $Values.viewer_aggressive_gpu = $true }
       "--viewerRelaxedWebglValidation" { $Values.viewer_relaxed_webgl_validation = $true }
+      "--viewerZeroCopy" { $Values.viewer_zero_copy = $true }
       "--viewerInProcessGpu" { $Values.viewer_in_process_gpu = $true }
       "--viewerSingleProcess" { $Values.viewer_single_process = $true }
       "--viewerDisableUnneededBlinkFeatures" { $Values.viewer_disable_unneeded_blink_features = $true }
       "--viewerDirectGpuPresentation" { $Values.viewer_direct_gpu_presentation = $true }
+      "--viewerDeferWebgpuPipelineFlush" { $Values.viewer_defer_webgpu_pipeline_flush = $true }
+      "--viewerDeferWebgpuQueueFlush" { $Values.viewer_defer_webgpu_queue_flush = $true }
+      "--viewerDeferWebgpuSubmitFlush" { $Values.viewer_defer_webgpu_submit_flush = $true }
+      "--viewerSkipWebgpuCanvasTextureValidation" { $Values.viewer_skip_webgpu_canvas_texture_validation = $true }
+      "--viewerSkipWebgpuCanvasMemoryAccounting" { $Values.viewer_skip_webgpu_canvas_memory_accounting = $true }
+      "--viewerSkipWebgpuCopyExternalImageColorConversion" { $Values.viewer_skip_webgpu_copy_external_image_color_conversion = $true }
+      "--viewerSkipWebgpuCopyExternalImageColorSpaceValidation" { $Values.viewer_skip_webgpu_copy_external_image_color_space_validation = $true }
+      "--viewerSkipWebgpuCopyExternalImageDestValidation" { $Values.viewer_skip_webgpu_copy_external_image_dest_validation = $true }
+      "--viewerSkipWebgpuCopyExternalImageSourceValidation" { $Values.viewer_skip_webgpu_copy_external_image_source_validation = $true }
+      "--viewerSkipWebgpuCopyExternalImageCopySizeValidation" { $Values.viewer_skip_webgpu_copy_external_image_copy_size_validation = $true }
+      "--viewerSkipWebgpuWriteTextureLayoutValidation" { $Values.viewer_skip_webgpu_write_texture_layout_validation = $true }
+      "--viewerRejectWebgpuCpuTextureFallback" { $Values.viewer_reject_webgpu_cpu_texture_fallback = $true }
+      "--viewerSkipWebgpuUseCounters" { $Values.viewer_skip_webgpu_use_counters = $true }
+      "--viewerSkipWebgpuResourceLabels" { $Values.viewer_skip_webgpu_resource_labels = $true }
+      "--viewerSkipWebgpuShaderSourceNullCheck" { $Values.viewer_skip_webgpu_shader_source_null_check = $true }
+      "--viewerSkipWebgpuShaderMemoryAccounting" { $Values.viewer_skip_webgpu_shader_memory_accounting = $true }
+      "--viewerSkipWebgpuRedundantPipelineSets" { $Values.viewer_skip_webgpu_redundant_pipeline_sets = $true }
+      "--viewerSkipWebgpuRedundantBindGroupSets" { $Values.viewer_skip_webgpu_redundant_bind_group_sets = $true }
+      "--viewerSkipWebgpuRedundantBufferSets" { $Values.viewer_skip_webgpu_redundant_buffer_sets = $true }
+      "--viewerSkipWebgpuRedundantRenderStateSets" { $Values.viewer_skip_webgpu_redundant_render_state_sets = $true }
+      "--viewerTraceWebgpuQueue" { $Values.viewer_trace_webgpu_queue = $true }
       "--viewerForceAngleBackend" {
         $Index += 1
         if ($Index -ge $Flags.Count) {
@@ -161,7 +246,8 @@ function New-MetadataList {
 function New-TrustedSummaryReportContent {
   param(
     [object[]]$Experiments,
-    [string[]]$Scenes = $RequiredScenes
+    [string[]]$Scenes = $RequiredScenes,
+    [string]$InputDigest = "synthetic-input-digest"
   )
 
   $Rows = [System.Collections.Generic.List[string]]::new()
@@ -170,11 +256,16 @@ function New-TrustedSummaryReportContent {
       $Rows.Add("| $Scene | webgl2 | $($Experiment.label) | 60 |") | Out-Null
     }
   }
+  $Tick = [char]0x60
+  $DigestLine = "Input file digest: $Tick$InputDigest$Tick"
 
   @"
 # Benchmark Summary
 
 Generated from synthetic trusted manifest test fixtures.
+$DigestLine
+
+Strict summary evidence validation was enabled: synthetic.
 
 | Scene | Renderer | Variant | Avg FPS |
 | --- | --- | --- | --- |
@@ -185,7 +276,8 @@ $($Rows -join "`n")
 function New-TrustedComparisonReportContent {
   param(
     [object[]]$Experiments,
-    [string[]]$Scenes = $RequiredScenes
+    [string[]]$Scenes = $RequiredScenes,
+    [string]$InputDigest = "synthetic-input-digest"
   )
 
   $Rows = [System.Collections.Generic.List[string]]::new()
@@ -194,11 +286,16 @@ function New-TrustedComparisonReportContent {
       $Rows.Add("| $Scene | webgl2 | $($Experiment.label) | 60 | 0 | 0 | 0 |") | Out-Null
     }
   }
+  $Tick = [char]0x60
+  $DigestLine = "Input file digest: $Tick$InputDigest$Tick"
 
   @"
 # Benchmark Comparison
 
 Generated from synthetic trusted manifest test fixtures.
+$DigestLine
+
+Strict comparison evidence validation was enabled: synthetic.
 
 | Scene | Renderer | Variant | Avg FPS | Dropped Delta | JS heap Delta | GPU memory Delta |
 | --- | --- | --- | ---: | ---: | ---: | ---: |
@@ -229,6 +326,7 @@ function New-Result {
     angle_backend = "ANGLE (NVIDIA, D3D11)"
     renderer_type = "webgl2"
     scene_name = $Scene
+    complexity = 2
     warmup_seconds = 10
     measured_seconds = 60
     avg_fps = 60
@@ -251,6 +349,10 @@ function New-Result {
     texture_upload_mb = 0
     buffer_upload_mb = 0
     shader_compile_events = 0
+    webgpu_device_lost = $false
+    webgl_context_currently_lost = $false
+    webgl_context_lost_count = 0
+    render_error_count = 0
     js_heap_mb = 10
     gpu_memory_mb = 20
     process_rss_mb = 100
@@ -266,12 +368,37 @@ function New-Result {
     viewer_trusted_content = $FlagValues.viewer_trusted_content
     viewer_aggressive_gpu = $FlagValues.viewer_aggressive_gpu
     viewer_relaxed_webgl_validation = $FlagValues.viewer_relaxed_webgl_validation
+    viewer_zero_copy = $FlagValues.viewer_zero_copy
     viewer_in_process_gpu = $FlagValues.viewer_in_process_gpu
     viewer_single_process = $FlagValues.viewer_single_process
     viewer_force_angle_backend = $FlagValues.viewer_force_angle_backend
     requested_angle_backend = $FlagValues.requested_angle_backend
     viewer_disable_unneeded_blink_features = $FlagValues.viewer_disable_unneeded_blink_features
     viewer_direct_gpu_presentation = $FlagValues.viewer_direct_gpu_presentation
+    viewer_defer_webgpu_pipeline_flush = $FlagValues.viewer_defer_webgpu_pipeline_flush
+    viewer_defer_webgpu_queue_flush = $FlagValues.viewer_defer_webgpu_queue_flush
+    viewer_defer_webgpu_submit_flush = $FlagValues.viewer_defer_webgpu_submit_flush
+    viewer_skip_webgpu_canvas_texture_validation = $FlagValues.viewer_skip_webgpu_canvas_texture_validation
+    viewer_skip_webgpu_canvas_memory_accounting = $FlagValues.viewer_skip_webgpu_canvas_memory_accounting
+    viewer_skip_webgpu_copy_external_image_color_conversion = $FlagValues.viewer_skip_webgpu_copy_external_image_color_conversion
+    viewer_skip_webgpu_copy_external_image_color_space_validation = $FlagValues.viewer_skip_webgpu_copy_external_image_color_space_validation
+    viewer_skip_webgpu_copy_external_image_dest_validation = $FlagValues.viewer_skip_webgpu_copy_external_image_dest_validation
+    viewer_skip_webgpu_copy_external_image_source_validation = $FlagValues.viewer_skip_webgpu_copy_external_image_source_validation
+    viewer_skip_webgpu_copy_external_image_copy_size_validation = $FlagValues.viewer_skip_webgpu_copy_external_image_copy_size_validation
+    viewer_skip_webgpu_write_texture_layout_validation = $FlagValues.viewer_skip_webgpu_write_texture_layout_validation
+    viewer_reject_webgpu_cpu_texture_fallback = $FlagValues.viewer_reject_webgpu_cpu_texture_fallback
+    viewer_skip_webgpu_use_counters = $FlagValues.viewer_skip_webgpu_use_counters
+    viewer_skip_webgpu_resource_labels = $FlagValues.viewer_skip_webgpu_resource_labels
+    viewer_skip_webgpu_shader_source_null_check = $FlagValues.viewer_skip_webgpu_shader_source_null_check
+    viewer_skip_webgpu_shader_memory_accounting = $FlagValues.viewer_skip_webgpu_shader_memory_accounting
+    viewer_skip_webgpu_redundant_pipeline_sets = $FlagValues.viewer_skip_webgpu_redundant_pipeline_sets
+    viewer_skip_webgpu_redundant_bind_group_sets = $FlagValues.viewer_skip_webgpu_redundant_bind_group_sets
+    viewer_skip_webgpu_redundant_buffer_sets = $FlagValues.viewer_skip_webgpu_redundant_buffer_sets
+    viewer_skip_webgpu_redundant_render_state_sets = $FlagValues.viewer_skip_webgpu_redundant_render_state_sets
+    viewer_trace_webgpu_queue = $FlagValues.viewer_trace_webgpu_queue
+    resource_warmup_enabled = $FlagValues.resource_warmup_enabled
+    resource_warmup_precompile = $FlagValues.resource_warmup_precompile
+    resource_warmup_prerender_frames = $FlagValues.resource_warmup_prerender_frames
     browser_flags = @("--disable-software-rasterizer")
   }
 }
@@ -324,6 +451,7 @@ function New-ValidTrustedManifest {
   $Experiments = @(
     (New-Experiment "fork-viewer-exp-default" @() $ChromiumRevision $ForkRevision $Browser $BuildArgsHash)
     (New-Experiment "fork-viewer-exp-aggressive-gpu" @("--viewerAggressiveGpu") $ChromiumRevision $ForkRevision $Browser $BuildArgsHash)
+    (New-Experiment "fork-viewer-exp-zero-copy" @("--viewerZeroCopy") $ChromiumRevision $ForkRevision $Browser $BuildArgsHash)
     (New-Experiment "fork-viewer-exp-in-process-gpu" @("--viewerInProcessGpu") $ChromiumRevision $ForkRevision $Browser $BuildArgsHash)
     (New-Experiment "fork-viewer-exp-single-process" @("--viewerSingleProcess") $ChromiumRevision $ForkRevision $Browser $BuildArgsHash)
     (New-Experiment "fork-viewer-exp-angle-d3d11" @("--viewerForceAngleBackend", "d3d11") $ChromiumRevision $ForkRevision $Browser $BuildArgsHash)
@@ -332,8 +460,9 @@ function New-ValidTrustedManifest {
     (New-Experiment "fork-viewer-exp-direct-gpu-presentation-gate" @("--viewerDirectGpuPresentation") $ChromiumRevision $ForkRevision $Browser $BuildArgsHash)
   )
   $AllResultFiles = @($Experiments | ForEach-Object { $_.result_files })
-  $null = Write-ArtifactFile $Summary (New-TrustedSummaryReportContent -Experiments $Experiments)
-  $null = Write-ArtifactFile $Comparison (New-TrustedComparisonReportContent -Experiments $Experiments)
+  $InputDigest = Get-ReportInputDigest $AllResultFiles
+  $null = Write-ArtifactFile $Summary (New-TrustedSummaryReportContent -Experiments $Experiments -InputDigest $InputDigest)
+  $null = Write-ArtifactFile $Comparison (New-TrustedComparisonReportContent -Experiments $Experiments -InputDigest $InputDigest)
 
   [pscustomobject]@{
     generated_at = (Get-Date).ToUniversalTime().ToString("o")
@@ -354,6 +483,7 @@ function New-ValidTrustedManifest {
       expected_fork_revision = $ForkRevision
       forbid_smoke = $true
       reject_software_rendering = $true
+      reject_gpu_instability = $true
       require_gpu_metadata = $true
       require_frame_times = $true
       expected_chromium_revision = $ChromiumRevision
@@ -361,12 +491,16 @@ function New-ValidTrustedManifest {
       expected_build_args_hash = $BuildArgsHash
       expected_measured_seconds = 60
       expected_warmup_seconds = 10
+      expected_complexity = 2
       exact_scene_output_files = $true
       expected_flag_metadata = $true
     }
     options = [pscustomobject]@{
       duration = 60
       warmup = 10
+      complexity = 2
+      precompile = $false
+      prerender_frames = 0
     }
     experiments = $Experiments
     result_files = [pscustomobject]@{
@@ -460,8 +594,7 @@ try {
   New-Item -ItemType Directory -Path (Split-Path $PinRefreshPath -Parent) -Force | Out-Null
   Write-Json $PinRefreshPath $SyntheticPinRefresh
 
-  $PatchHash = Get-ShortSha256 (Join-Path $Root "chromium_patches\0001-draft-minimal-three-viewer-entrypoint.patch")
-  $ForkRevision = "$ChromiumRevision+viewerpatch-$PatchHash"
+  $ForkRevision = Get-ViewerForkRevisionForChromiumRevision -ChromiumRevision $ChromiumRevision -Root $Root
   $Browser = Write-ArtifactFile (Join-Path $TempDir "fork.exe") "fork browser"
   $BuildArgs = Write-ArtifactFile (Join-Path $TempDir "args.gn") "is_debug=false"
   $PackageDir = Write-PackageDir (Join-Path $TempDir "package")
@@ -481,8 +614,27 @@ try {
   if ($DoneChecklist -notmatch "Trusted experiment matrix manifest.*done.*benchmark suites semantically validated") {
     throw "Artifact audit did not accept a completed trusted manifest whose exact experiment suites pass validation. Checklist: $DoneChecklist"
   }
+  $InputDigest = Get-ReportInputDigest @($Manifest.result_files.all)
 
-  $null = Write-ArtifactFile $Summary (New-TrustedSummaryReportContent -Experiments $Manifest.experiments -Scenes @($RequiredScenes | Select-Object -Skip 1))
+  $null = Write-ArtifactFile $Summary (New-TrustedSummaryReportContent -Experiments $Manifest.experiments -InputDigest "wrong-input-digest")
+  $Manifest.artifact_metadata.reports.summary = New-FileMetadata $Summary
+  Write-Json $ManifestPath $Manifest
+  $WrongDigestChecklist = Invoke-AuditAndReadChecklist
+  if ($WrongDigestChecklist -notmatch "Trusted experiment matrix manifest.*pending.*report content validation failed" -or
+      $WrongDigestChecklist -notmatch "trusted summary input digest does not match manifest result files") {
+    throw "Artifact audit accepted or misreported a completed trusted manifest whose summary report input digest does not match the exact raw result files. Checklist: $WrongDigestChecklist"
+  }
+
+  $null = Write-ArtifactFile $Summary ((New-TrustedSummaryReportContent -Experiments $Manifest.experiments -InputDigest $InputDigest) -replace "Strict summary evidence validation was enabled: synthetic.\r?\n\r?\n", "")
+  $Manifest.artifact_metadata.reports.summary = New-FileMetadata $Summary
+  Write-Json $ManifestPath $Manifest
+  $MissingStrictSummaryChecklist = Invoke-AuditAndReadChecklist
+  if ($MissingStrictSummaryChecklist -notmatch "Trusted experiment matrix manifest.*pending.*report content validation failed" -or
+      $MissingStrictSummaryChecklist -notmatch "trusted summary missing strict summary evidence validation note") {
+    throw "Artifact audit accepted or misreported a completed trusted manifest whose summary report lacks strict-evidence validation text. Checklist: $MissingStrictSummaryChecklist"
+  }
+
+  $null = Write-ArtifactFile $Summary (New-TrustedSummaryReportContent -Experiments $Manifest.experiments -Scenes @($RequiredScenes | Select-Object -Skip 1) -InputDigest $InputDigest)
   $Manifest.artifact_metadata.reports.summary = New-FileMetadata $Summary
   Write-Json $ManifestPath $Manifest
   $SceneIncompleteReportChecklist = Invoke-AuditAndReadChecklist
@@ -491,17 +643,28 @@ try {
     throw "Artifact audit accepted or misreported a completed trusted manifest whose summary report omits a required scene. Checklist: $SceneIncompleteReportChecklist"
   }
 
-  $null = Write-ArtifactFile $Summary (New-TrustedSummaryReportContent -Experiments @($Manifest.experiments | Select-Object -Skip 1))
+  $null = Write-ArtifactFile $Summary (New-TrustedSummaryReportContent -Experiments @($Manifest.experiments | Select-Object -Skip 1) -InputDigest $InputDigest)
   $Manifest.artifact_metadata.reports.summary = New-FileMetadata $Summary
   Write-Json $ManifestPath $Manifest
   $LabelIncompleteReportChecklist = Invoke-AuditAndReadChecklist
   if ($LabelIncompleteReportChecklist -notmatch "Trusted experiment matrix manifest.*pending.*report content validation failed" -or
-      $LabelIncompleteReportChecklist -notmatch "trusted summary missing experiment label fork-viewer-exp-default") {
+      $LabelIncompleteReportChecklist -notmatch "trusted summary missing variant label fork-viewer-exp-default") {
     throw "Artifact audit accepted or misreported a completed trusted manifest whose summary report omits an experiment label. Checklist: $LabelIncompleteReportChecklist"
   }
 
-  $null = Write-ArtifactFile $Summary (New-TrustedSummaryReportContent -Experiments $Manifest.experiments)
+  $null = Write-ArtifactFile $Summary (New-TrustedSummaryReportContent -Experiments $Manifest.experiments -InputDigest $InputDigest)
   $Manifest.artifact_metadata.reports.summary = New-FileMetadata $Summary
+
+  $null = Write-ArtifactFile $Comparison ((New-TrustedComparisonReportContent -Experiments $Manifest.experiments -InputDigest $InputDigest) -replace "Strict comparison evidence validation was enabled: synthetic.\r?\n\r?\n", "")
+  $Manifest.artifact_metadata.reports.comparison = New-FileMetadata $Comparison
+  Write-Json $ManifestPath $Manifest
+  $MissingStrictComparisonChecklist = Invoke-AuditAndReadChecklist
+  if ($MissingStrictComparisonChecklist -notmatch "Trusted experiment matrix manifest.*pending.*report content validation failed" -or
+      $MissingStrictComparisonChecklist -notmatch "trusted comparison missing strict comparison evidence validation note") {
+    throw "Artifact audit accepted or misreported a completed trusted manifest whose comparison report lacks strict-evidence validation text. Checklist: $MissingStrictComparisonChecklist"
+  }
+  $null = Write-ArtifactFile $Comparison (New-TrustedComparisonReportContent -Experiments $Manifest.experiments -InputDigest $InputDigest)
+  $Manifest.artifact_metadata.reports.comparison = New-FileMetadata $Comparison
 
   $null = Write-ArtifactFile $Summary "not a benchmark summary"
   $Manifest.artifact_metadata.reports.summary = New-FileMetadata $Summary
@@ -512,8 +675,8 @@ try {
     throw "Artifact audit accepted or misreported a completed trusted manifest whose hashed report content is not a benchmark summary. Checklist: $BadReportChecklist"
   }
 
-  $null = Write-ArtifactFile $Summary (New-TrustedSummaryReportContent -Experiments $Manifest.experiments)
-  $null = Write-ArtifactFile $Comparison (New-TrustedComparisonReportContent -Experiments $Manifest.experiments)
+  $null = Write-ArtifactFile $Summary (New-TrustedSummaryReportContent -Experiments $Manifest.experiments -InputDigest $InputDigest)
+  $null = Write-ArtifactFile $Comparison (New-TrustedComparisonReportContent -Experiments $Manifest.experiments -InputDigest $InputDigest)
   $Manifest.artifact_metadata.reports.summary = New-FileMetadata $Summary
   $Manifest.artifact_metadata.reports.comparison = New-FileMetadata $Comparison
 
@@ -523,6 +686,11 @@ try {
   $WrongBrowserResult.browser_executable = Join-Path $TempDir "wrong-fork-browser.exe"
   Write-Json $FirstResult $WrongBrowserResult
   $Manifest.artifact_metadata.results.all = New-MetadataList @($Manifest.result_files.all)
+  $InputDigest = Get-ReportInputDigest @($Manifest.result_files.all)
+  $null = Write-ArtifactFile $Summary (New-TrustedSummaryReportContent -Experiments $Manifest.experiments -InputDigest $InputDigest)
+  $null = Write-ArtifactFile $Comparison (New-TrustedComparisonReportContent -Experiments $Manifest.experiments -InputDigest $InputDigest)
+  $Manifest.artifact_metadata.reports.summary = New-FileMetadata $Summary
+  $Manifest.artifact_metadata.reports.comparison = New-FileMetadata $Comparison
   Write-Json $ManifestPath $Manifest
   $WrongBrowserChecklist = Invoke-AuditAndReadChecklist
   if ($WrongBrowserChecklist -notmatch "Trusted experiment matrix manifest.*pending.*suite validation failed" -or
@@ -531,17 +699,64 @@ try {
   }
   Write-Json $FirstResult $OriginalFirstResult
   $Manifest.artifact_metadata.results.all = New-MetadataList @($Manifest.result_files.all)
+  $InputDigest = Get-ReportInputDigest @($Manifest.result_files.all)
+  $null = Write-ArtifactFile $Summary (New-TrustedSummaryReportContent -Experiments $Manifest.experiments -InputDigest $InputDigest)
+  $null = Write-ArtifactFile $Comparison (New-TrustedComparisonReportContent -Experiments $Manifest.experiments -InputDigest $InputDigest)
+  $Manifest.artifact_metadata.reports.summary = New-FileMetadata $Summary
+  $Manifest.artifact_metadata.reports.comparison = New-FileMetadata $Comparison
   Write-Json $ManifestPath $Manifest
 
   $BadResult = Get-Content -LiteralPath $FirstResult -Raw | ConvertFrom-Json
   $BadResult.measured_seconds = 59
   Write-Json $FirstResult $BadResult
   $Manifest.artifact_metadata.results.all = New-MetadataList @($Manifest.result_files.all)
+  $InputDigest = Get-ReportInputDigest @($Manifest.result_files.all)
+  $null = Write-ArtifactFile $Summary (New-TrustedSummaryReportContent -Experiments $Manifest.experiments -InputDigest $InputDigest)
+  $null = Write-ArtifactFile $Comparison (New-TrustedComparisonReportContent -Experiments $Manifest.experiments -InputDigest $InputDigest)
+  $Manifest.artifact_metadata.reports.summary = New-FileMetadata $Summary
+  $Manifest.artifact_metadata.reports.comparison = New-FileMetadata $Comparison
   Write-Json $ManifestPath $Manifest
   $BadChecklist = Invoke-AuditAndReadChecklist
   if ($BadChecklist -notmatch "Trusted experiment matrix manifest.*pending.*suite validation failed" -or
       $BadChecklist -notmatch "measured_seconds") {
     throw "Artifact audit accepted or misreported a completed trusted manifest whose exact result file fails benchmark suite validation. Checklist: $BadChecklist"
+  }
+
+  Write-Json $FirstResult $OriginalFirstResult
+  $ExperimentBrowserFlag = "--enable-dawn-features=skip_validation"
+  $Manifest.experiments[0] | Add-Member -NotePropertyName browser_flags -NotePropertyValue @($ExperimentBrowserFlag) -Force
+  $Manifest.experiments[0] | Add-Member -NotePropertyName required_browser_flags -NotePropertyValue @("--disable-software-rasterizer", $ExperimentBrowserFlag) -Force
+  foreach ($ResultPath in @($Manifest.experiments[0].result_files)) {
+    $FlaggedResult = Get-Content -LiteralPath $ResultPath -Raw | ConvertFrom-Json
+    $FlaggedResult.browser_flags = @("--disable-software-rasterizer", $ExperimentBrowserFlag)
+    Write-Json $ResultPath $FlaggedResult
+  }
+  $Manifest.artifact_metadata.results.all = New-MetadataList @($Manifest.result_files.all)
+  $InputDigest = Get-ReportInputDigest @($Manifest.result_files.all)
+  $null = Write-ArtifactFile $Summary (New-TrustedSummaryReportContent -Experiments $Manifest.experiments -InputDigest $InputDigest)
+  $null = Write-ArtifactFile $Comparison (New-TrustedComparisonReportContent -Experiments $Manifest.experiments -InputDigest $InputDigest)
+  $Manifest.artifact_metadata.reports.summary = New-FileMetadata $Summary
+  $Manifest.artifact_metadata.reports.comparison = New-FileMetadata $Comparison
+  Write-Json $ManifestPath $Manifest
+  $PerExperimentFlagChecklist = Invoke-AuditAndReadChecklist
+  if ($PerExperimentFlagChecklist -notmatch "Trusted experiment matrix manifest.*done.*benchmark suites semantically validated") {
+    throw "Artifact audit rejected a completed trusted manifest whose per-experiment required browser flags are present in raw results. Checklist: $PerExperimentFlagChecklist"
+  }
+
+  $MissingBrowserFlagResult = Get-Content -LiteralPath $FirstResult -Raw | ConvertFrom-Json
+  $MissingBrowserFlagResult.browser_flags = @("--disable-software-rasterizer")
+  Write-Json $FirstResult $MissingBrowserFlagResult
+  $Manifest.artifact_metadata.results.all = New-MetadataList @($Manifest.result_files.all)
+  $InputDigest = Get-ReportInputDigest @($Manifest.result_files.all)
+  $null = Write-ArtifactFile $Summary (New-TrustedSummaryReportContent -Experiments $Manifest.experiments -InputDigest $InputDigest)
+  $null = Write-ArtifactFile $Comparison (New-TrustedComparisonReportContent -Experiments $Manifest.experiments -InputDigest $InputDigest)
+  $Manifest.artifact_metadata.reports.summary = New-FileMetadata $Summary
+  $Manifest.artifact_metadata.reports.comparison = New-FileMetadata $Comparison
+  Write-Json $ManifestPath $Manifest
+  $MissingBrowserFlagChecklist = Invoke-AuditAndReadChecklist
+  if ($MissingBrowserFlagChecklist -notmatch "Trusted experiment matrix manifest.*pending.*suite validation failed" -or
+      $MissingBrowserFlagChecklist -notmatch "browser_flags must include --enable-dawn-features=skip_validation") {
+    throw "Artifact audit accepted or misreported a completed trusted manifest whose result omits an experiment-specific browser flag. Checklist: $MissingBrowserFlagChecklist"
   }
 } finally {
   if ($HadPinRefresh) {
@@ -555,4 +770,4 @@ try {
   }
 }
 
-Write-Host "Trusted manifest audit semantically validates exact experiment suite files and report content before marking matrix evidence complete."
+Write-Host "Trusted manifest audit semantically validates exact experiment suite files, raw-input report digests, strict summary reports, and strict comparison report content before marking matrix evidence complete."

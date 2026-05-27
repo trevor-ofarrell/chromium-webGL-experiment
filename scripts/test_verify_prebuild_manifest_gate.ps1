@@ -85,8 +85,21 @@ function Assert-FailsWith {
   }
 }
 
+function Assert-Contains {
+  param(
+    [string]$Text,
+    [string]$Pattern,
+    [string]$Description
+  )
+
+  if ($Text -notmatch $Pattern) {
+    throw "verify_prebuild.ps1 is missing $Description. Pattern: $Pattern"
+  }
+}
+
 try {
   New-Item -ItemType Directory -Path $TempDir -Force | Out-Null
+  $VerifierText = Get-Content -LiteralPath $VerifierPath -Raw
 
   $ParserErrors = $null
   $Tokens = $null
@@ -103,6 +116,15 @@ try {
   if (-not $FunctionAst) {
     throw "verify_prebuild.ps1 does not define Assert-EnvironmentManifestChecks."
   }
+
+  Assert-Contains $VerifierText "Checking blocker experiment planning" "blocker experiment planning execution"
+  Assert-Contains $VerifierText "Checking current candidate-analysis manifest handoff" "current candidate-analysis manifest handoff execution"
+  Assert-Contains $VerifierText "scripts\\test_current_candidate_analysis\.ps1" "current candidate-analysis manifest handoff script inventory"
+  Assert-Contains $VerifierText "scripts\\test_blocker_experiment_plan\.ps1" "blocker experiment plan script inventory"
+  Assert-Contains $VerifierText "Checking trusted matrix label suffix and filters" "trusted matrix label/filter execution"
+  Assert-Contains $VerifierText "scripts\\test_trusted_matrix_label_suffix\.ps1" "trusted matrix label/filter script inventory"
+  Assert-Contains $VerifierText "Checking stock baseline source-state guard" "stock baseline source-state guard execution"
+  Assert-Contains $VerifierText "scripts\\test_baseline_source_guard\.ps1" "stock baseline source-state guard script inventory"
 
   . ([scriptblock]::Create($FunctionAst.Extent.Text))
 
@@ -121,6 +143,15 @@ try {
   Assert-Passes $AtlOnlyPath $true "ATL-only manifest failures with allowance"
   Assert-FailsWith $AtlOnlyPath $false "visual_studio_atl" "ATL failures without allowance"
 
+  $CodeIntegrityPath = Join-Path $TempDir "code-integrity.json"
+  Write-Manifest $CodeIntegrityPath @(
+    (New-Check "visual_studio_atl" $false "missing atldef.h"),
+    (New-Check "visual_studio_atl_component" $false "missing ATL component"),
+    (New-Check "windows_code_integrity_chromium_rust" $false "current Code Integrity block for Chromium Rust host tools"),
+    (New-Check "navigation_external_ipv4" $true "192.168.1.84 on Wi-Fi")
+  )
+  Assert-FailsWith $CodeIntegrityPath $true "windows_code_integrity_chromium_rust" "Code Integrity failure with ATL allowance"
+
   $UnexpectedPath = Join-Path $TempDir "unexpected.json"
   Write-Manifest $UnexpectedPath @(
     (New-Check "visual_studio_atl" $false "missing atldef.h"),
@@ -129,7 +160,7 @@ try {
   )
   Assert-FailsWith $UnexpectedPath $true "navigation_external_ipv4" "non-ATL manifest failure with ATL allowance"
 
-  Write-Host "verify_prebuild.ps1 gates environment-manifest failures and only allows ATL failures when requested."
+  Write-Host "verify_prebuild.ps1 gates environment-manifest failures, only allows ATL failures when requested, and runs speed-iteration planning regressions."
 } finally {
   if (Test-Path $TempDir) {
     Assert-UnderDirectory $TempDir (Join-Path $Root "benchmarks\tmp")

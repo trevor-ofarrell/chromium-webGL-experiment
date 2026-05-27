@@ -30,6 +30,7 @@ function New-Result {
     angle_backend = "ANGLE (NVIDIA, D3D11)"
     renderer_type = "webgl2"
     scene_name = "many-draw-calls"
+    complexity = 2
     warmup_seconds = 20
     measured_seconds = 120
     avg_fps = 60
@@ -111,6 +112,7 @@ function Invoke-SuiteValidation {
       --requireFrameTimes `
       --expectedMeasuredSeconds 120 `
       --expectedWarmupSeconds 20 `
+      --expectedComplexity 2 `
       --expectedFlagMetadata viewer_mode=true `
       --expectedFlagMetadata viewer_block_external_navigation=true `
       --expectedFlagMetadata viewer_trusted_content=true `

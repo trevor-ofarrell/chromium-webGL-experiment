@@ -3,6 +3,7 @@ param()
 
 $ErrorActionPreference = "Stop"
 $Root = Resolve-Path (Join-Path $PSScriptRoot "..")
+. (Join-Path $PSScriptRoot "viewer_patch_series.ps1")
 $TempDir = Join-Path $Root "benchmarks\tmp\trusted-manifest-provenance-audit"
 $ManifestPath = Join-Path $TempDir "trusted-experiment-matrix-manifest.json"
 $BackupPath = Join-Path $TempDir "trusted-experiment-matrix-manifest.provenance-audit.backup.json"
@@ -60,12 +61,51 @@ function New-Experiment {
     [string]$Label,
     [string[]]$Flags
   )
-  $ExpectedFlagMetadata = @()
+  $ExpectedFlagMetadata = @(
+    "viewer_mode=true",
+    "viewer_block_external_navigation=true",
+    "viewer_trusted_content=true",
+    "resource_warmup_enabled=false",
+    "resource_warmup_precompile=false",
+    "resource_warmup_prerender_frames=0"
+  )
   for ($Index = 0; $Index -lt $Flags.Count; $Index += 1) {
-    if ($Flags[$Index] -eq "--viewerForceAngleBackend" -and $Index + 1 -lt $Flags.Count) {
-      $Backend = $Flags[$Index + 1]
-      $ExpectedFlagMetadata += "viewer_force_angle_backend=$Backend"
-      $ExpectedFlagMetadata += "requested_angle_backend=$Backend"
+    switch ($Flags[$Index]) {
+      "--viewerAggressiveGpu" { $ExpectedFlagMetadata += "viewer_aggressive_gpu=true" }
+      "--viewerRelaxedWebglValidation" { $ExpectedFlagMetadata += "viewer_relaxed_webgl_validation=true" }
+      "--viewerZeroCopy" { $ExpectedFlagMetadata += "viewer_zero_copy=true" }
+      "--viewerInProcessGpu" { $ExpectedFlagMetadata += "viewer_in_process_gpu=true" }
+      "--viewerSingleProcess" { $ExpectedFlagMetadata += "viewer_single_process=true" }
+      "--viewerDisableUnneededBlinkFeatures" { $ExpectedFlagMetadata += "viewer_disable_unneeded_blink_features=true" }
+      "--viewerDirectGpuPresentation" { $ExpectedFlagMetadata += "viewer_direct_gpu_presentation=true" }
+      "--viewerDeferWebgpuPipelineFlush" { $ExpectedFlagMetadata += "viewer_defer_webgpu_pipeline_flush=true" }
+      "--viewerDeferWebgpuQueueFlush" { $ExpectedFlagMetadata += "viewer_defer_webgpu_queue_flush=true" }
+      "--viewerDeferWebgpuSubmitFlush" { $ExpectedFlagMetadata += "viewer_defer_webgpu_submit_flush=true" }
+      "--viewerSkipWebgpuCanvasTextureValidation" { $ExpectedFlagMetadata += "viewer_skip_webgpu_canvas_texture_validation=true" }
+      "--viewerSkipWebgpuCanvasMemoryAccounting" { $ExpectedFlagMetadata += "viewer_skip_webgpu_canvas_memory_accounting=true" }
+      "--viewerSkipWebgpuCopyExternalImageColorConversion" { $ExpectedFlagMetadata += "viewer_skip_webgpu_copy_external_image_color_conversion=true" }
+      "--viewerSkipWebgpuCopyExternalImageColorSpaceValidation" { $ExpectedFlagMetadata += "viewer_skip_webgpu_copy_external_image_color_space_validation=true" }
+      "--viewerSkipWebgpuCopyExternalImageDestValidation" { $ExpectedFlagMetadata += "viewer_skip_webgpu_copy_external_image_dest_validation=true" }
+      "--viewerSkipWebgpuCopyExternalImageSourceValidation" { $ExpectedFlagMetadata += "viewer_skip_webgpu_copy_external_image_source_validation=true" }
+      "--viewerSkipWebgpuCopyExternalImageCopySizeValidation" { $ExpectedFlagMetadata += "viewer_skip_webgpu_copy_external_image_copy_size_validation=true" }
+      "--viewerSkipWebgpuWriteTextureLayoutValidation" { $ExpectedFlagMetadata += "viewer_skip_webgpu_write_texture_layout_validation=true" }
+      "--viewerRejectWebgpuCpuTextureFallback" { $ExpectedFlagMetadata += "viewer_reject_webgpu_cpu_texture_fallback=true" }
+      "--viewerSkipWebgpuUseCounters" { $ExpectedFlagMetadata += "viewer_skip_webgpu_use_counters=true" }
+      "--viewerSkipWebgpuResourceLabels" { $ExpectedFlagMetadata += "viewer_skip_webgpu_resource_labels=true" }
+      "--viewerSkipWebgpuShaderSourceNullCheck" { $ExpectedFlagMetadata += "viewer_skip_webgpu_shader_source_null_check=true" }
+      "--viewerSkipWebgpuShaderMemoryAccounting" { $ExpectedFlagMetadata += "viewer_skip_webgpu_shader_memory_accounting=true" }
+      "--viewerSkipWebgpuRedundantPipelineSets" { $ExpectedFlagMetadata += "viewer_skip_webgpu_redundant_pipeline_sets=true" }
+      "--viewerSkipWebgpuRedundantBindGroupSets" { $ExpectedFlagMetadata += "viewer_skip_webgpu_redundant_bind_group_sets=true" }
+      "--viewerSkipWebgpuRedundantBufferSets" { $ExpectedFlagMetadata += "viewer_skip_webgpu_redundant_buffer_sets=true" }
+      "--viewerSkipWebgpuRedundantRenderStateSets" { $ExpectedFlagMetadata += "viewer_skip_webgpu_redundant_render_state_sets=true" }
+      "--viewerTraceWebgpuQueue" { $ExpectedFlagMetadata += "viewer_trace_webgpu_queue=true" }
+      "--viewerForceAngleBackend" {
+        if ($Index + 1 -lt $Flags.Count) {
+          $Backend = $Flags[$Index + 1]
+          $ExpectedFlagMetadata += "viewer_force_angle_backend=$Backend"
+          $ExpectedFlagMetadata += "requested_angle_backend=$Backend"
+        }
+      }
     }
   }
   [pscustomobject]@{
@@ -79,11 +119,11 @@ function New-Experiment {
 
 function New-ValidTrustedManifest {
   $ChromiumRevision = Get-GitRevision (Join-Path $Root "src")
-  $PatchHash = Get-ShortSha256 (Join-Path $Root "chromium_patches\0001-draft-minimal-three-viewer-entrypoint.patch")
-  $ForkRevision = "$ChromiumRevision+viewerpatch-$PatchHash"
+  $ForkRevision = Get-ViewerForkRevisionForChromiumRevision -ChromiumRevision $ChromiumRevision -Root $Root
   $Experiments = @(
     (New-Experiment "fork-viewer-exp-default" @())
     (New-Experiment "fork-viewer-exp-aggressive-gpu" @("--viewerAggressiveGpu"))
+    (New-Experiment "fork-viewer-exp-zero-copy" @("--viewerZeroCopy"))
     (New-Experiment "fork-viewer-exp-in-process-gpu" @("--viewerInProcessGpu"))
     (New-Experiment "fork-viewer-exp-single-process" @("--viewerSingleProcess"))
     (New-Experiment "fork-viewer-exp-angle-d3d11" @("--viewerForceAngleBackend", "d3d11"))
@@ -113,6 +153,7 @@ function New-ValidTrustedManifest {
       expected_fork_revision = $ForkRevision
       forbid_smoke = $true
       reject_software_rendering = $true
+      reject_gpu_instability = $true
       require_gpu_metadata = $true
       require_frame_times = $true
       expected_chromium_revision = $ChromiumRevision
@@ -125,6 +166,8 @@ function New-ValidTrustedManifest {
     options = [pscustomobject]@{
       duration = 60
       warmup = 10
+      precompile = $false
+      prerender_frames = 0
     }
     experiments = $Experiments
     result_files = [pscustomobject]@{

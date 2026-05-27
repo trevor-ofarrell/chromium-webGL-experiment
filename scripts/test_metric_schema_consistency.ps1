@@ -14,6 +14,7 @@ $ExpectedMetricFields = @(
   "angle_backend",
   "renderer_type",
   "scene_name",
+  "complexity",
   "warmup_seconds",
   "measured_seconds",
   "avg_fps",

@@ -3,6 +3,7 @@ param()
 
 $ErrorActionPreference = "Stop"
 $Root = Resolve-Path (Join-Path $PSScriptRoot "..")
+. (Join-Path $PSScriptRoot "viewer_patch_series.ps1")
 $TempDir = Join-Path $Root "benchmarks\tmp\official-manifest-provenance-audit"
 $ManifestPath = Join-Path $TempDir "official-comparison-manifest.json"
 $BackupPath = Join-Path $TempDir "official-comparison-manifest.provenance-audit.backup.json"
@@ -167,8 +168,7 @@ function Write-ValidSmokeFiles {
 
 function New-ValidOfficialManifest {
   $ChromiumRevision = Get-GitRevision (Join-Path $Root "src")
-  $PatchHash = Get-ShortSha256 (Join-Path $Root "chromium_patches\0001-draft-minimal-three-viewer-entrypoint.patch")
-  $ForkRevision = "$ChromiumRevision+viewerpatch-$PatchHash"
+  $ForkRevision = Get-ViewerForkRevisionForChromiumRevision -ChromiumRevision $ChromiumRevision -Root $Root
   $BaselineWebGl = New-ResultFiles "baseline-content-shell" "webgl2"
   $ForkWebGl = New-ResultFiles "fork-viewer-default" "webgl2"
   $RuntimeSmoke = @(
@@ -211,6 +211,7 @@ function New-ValidOfficialManifest {
       expected_fork_build_args_hash = "0123456789abcdef"
       forbid_smoke = $true
       reject_software_rendering = $true
+      reject_gpu_instability = $true
       require_gpu_metadata = $true
       require_frame_times = $true
       expected_measured_seconds = 120
@@ -222,8 +223,8 @@ function New-ValidOfficialManifest {
       expected_fork_revision = $ForkRevision
       exact_scene_output_files = $true
       expected_flag_metadata = [pscustomobject]@{
-        baseline = @("viewer_mode=false")
-        fork_default = @("viewer_mode=true")
+        baseline = @("viewer_mode=false", "resource_warmup_enabled=false", "resource_warmup_precompile=false", "resource_warmup_prerender_frames=0")
+        fork_default = @("viewer_mode=true", "resource_warmup_enabled=false", "resource_warmup_precompile=false", "resource_warmup_prerender_frames=0")
         aggressive = @()
         baseline_webgpu = @()
         fork_default_webgpu = @()

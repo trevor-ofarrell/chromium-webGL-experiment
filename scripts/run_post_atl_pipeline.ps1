@@ -11,20 +11,40 @@ param(
   [string]$RefreshRevision = "",
   [int]$Duration = 120,
   [int]$Warmup = 20,
+  [double]$Complexity = 2.0,
   [switch]$IncludeWebGPU,
   [switch]$IncludeAggressiveGpu,
   [string]$AggressiveAngleBackend = "",
+  [switch]$AggressiveWebGl2RelaxedValidation,
+  [switch]$AggressiveWebGl2ZeroCopy,
+  [switch]$AggressiveWebGpuSourceFastPath,
+  [switch]$AggressiveWebGpuUploadFastPath,
   [switch]$CaptureTrace,
   [string]$TraceScene = "many-draw-calls",
   [string]$TraceRenderer = "webgl2",
   [int]$TraceDuration = 10,
   [int]$TraceWarmup = 2,
   [int]$TraceStartDelayMs = 2000,
+  [switch]$RejectWebGpuCpuFallbackTrace,
+  [switch]$TraceQueueInstrumentation,
+  [switch]$TraceBindGroupInstrumentation,
+  [switch]$TracePipelineStateInstrumentation,
+  [switch]$TraceBufferStateInstrumentation,
+  [switch]$TraceRenderStateInstrumentation,
+  [switch]$TraceImmediateInstrumentation,
   [switch]$Precompile,
   [switch]$DisableWebGpuTiming,
   [switch]$DisableForkWebGpuTiming,
   [switch]$ReuseValidResults,
   [int]$PrerenderFrames = 0,
+  [switch]$SettleGpuAfterWarmup,
+  [int]$WebGpuPipelineQuietFrames = 0,
+  [int]$WebGpuPipelineQuietMaxFrames = 30,
+  [ValidateSet("off", "static")]
+  [string]$WebGpuBundleMode = "off",
+  [string]$WebGpuProfileCacheKey = "",
+  [string]$ProfileCacheRoot = "",
+  [switch]$PrimeWebGpuProfileCache,
   [switch]$RunTrustedExperimentMatrix,
   [string]$TrustedMatrixRenderer = "webgl2",
   [string[]]$TrustedMatrixScenes = @(
@@ -36,12 +56,24 @@ param(
     "large-static",
     "gltf-loader-stress"
   ),
-  [int]$TrustedMatrixDuration = 60,
-  [int]$TrustedMatrixWarmup = 10,
+  [int]$TrustedMatrixDuration = 0,
+  [int]$TrustedMatrixWarmup = 0,
   [string[]]$TrustedMatrixAngleBackend = @(),
+  [switch]$TrustedMatrixZeroCopy,
+  [switch]$TrustedMatrixWebGlCompositorExperiments,
   [switch]$TrustedMatrixInProcessGpu,
   [switch]$TrustedMatrixSingleProcess,
   [switch]$TrustedMatrixReservedNoopGates,
+  [switch]$TrustedMatrixWebGpuDawnExperiments,
+  [switch]$TrustedMatrixWebGpuChromiumFeatureExperiments,
+  [switch]$TrustedMatrixWebGpuUploadExperiments,
+  [switch]$RunTrustedWebGpuDawnMatrix,
+  [switch]$RunTargetedBlockerExperiments,
+  [string]$TargetedBlockerCandidateAnalysisJson = ".\benchmarks\reports\post-atl-current-candidate-analysis.json",
+  [string]$TargetedBlockerCandidateAnalysisOutput = ".\benchmarks\reports\post-atl-current-candidate-analysis.md",
+  [string]$TargetedBlockerCandidateAnalysisInputList = ".\benchmarks\reports\post-atl-current-candidate-analysis-inputs.txt",
+  [double]$TargetedBlockerComplexity = 0.0,
+  [switch]$TargetedBlockerIncludeAllDiagnostics,
   [switch]$RunLongStability,
   [string]$LongStabilityScene = "instancing",
   [string]$LongStabilityRenderer = "webgl2",
@@ -60,6 +92,10 @@ param(
 
 $ErrorActionPreference = "Stop"
 $Root = Resolve-Path (Join-Path $PSScriptRoot "..")
+$ViewerPatchSeries = @(
+  "chromium_patches\0001-draft-minimal-three-viewer-entrypoint.patch",
+  "chromium_patches\0002-draft-webgpu-queue-trace-attribution.patch"
+)
 
 function Resolve-RepoPath {
   param([string]$PathValue)
@@ -133,22 +169,47 @@ function Get-ShortSha256 {
   return (Get-FileHash -Algorithm SHA256 -LiteralPath $PathValue).Hash.Substring(0, 12).ToLowerInvariant()
 }
 
+function Get-ShortSha256Text {
+  param([string]$Text)
+  $Bytes = [System.Text.Encoding]::UTF8.GetBytes($Text)
+  $Sha = [System.Security.Cryptography.SHA256]::Create()
+  try {
+    return (([System.BitConverter]::ToString($Sha.ComputeHash($Bytes)) -replace "-", "").Substring(0, 12)).ToLowerInvariant()
+  } finally {
+    $Sha.Dispose()
+  }
+}
+
+function Get-ViewerPatchSeriesHash {
+  $Entries = @($ViewerPatchSeries | ForEach-Object {
+      $PatchPath = Join-Path $Root $_
+      if (-not (Test-Path $PatchPath)) {
+        throw "Viewer patch not found for fork revision hash: $PatchPath"
+      }
+      $CanonicalPath = $_ -replace "\\", "/"
+      "$CanonicalPath=$((Get-FileHash -Algorithm SHA256 -LiteralPath $PatchPath).Hash.ToLowerInvariant())"
+    })
+  return Get-ShortSha256Text ($Entries -join "`n")
+}
+
 function Get-ViewerForkRevision {
   param([string]$ChromiumRevision = "")
 
   if (-not $ChromiumRevision) {
     $ChromiumRevision = Get-GitRevision (Join-Path $Root "src")
   }
-  $PatchPath = Join-Path $Root "chromium_patches\0001-draft-minimal-three-viewer-entrypoint.patch"
-  $PatchHash = Get-ShortSha256 $PatchPath
+  $PatchHash = Get-ViewerPatchSeriesHash
   return "$ChromiumRevision+viewerpatch-$PatchHash"
 }
 
 function Test-ViewerPatchApplyState {
-  param([switch]$Reverse)
+  param(
+    [string]$PatchRelativePath = "chromium_patches\0001-draft-minimal-three-viewer-entrypoint.patch",
+    [switch]$Reverse
+  )
 
   $Src = Join-Path $Root "src"
-  $PatchPath = Join-Path $Root "chromium_patches\0001-draft-minimal-three-viewer-entrypoint.patch"
+  $PatchPath = Join-Path $Root $PatchRelativePath
   $OldErrorActionPreference = $ErrorActionPreference
   $ErrorActionPreference = "Continue"
   try {
@@ -164,32 +225,49 @@ function Test-ViewerPatchApplyState {
   }
 }
 
+function Get-ViewerPatchSeriesState {
+  if ($DryRunAssumeViewerPatchAlreadyApplied) {
+    return @($ViewerPatchSeries | ForEach-Object {
+      [pscustomobject]@{
+        Path = $_
+        Applies = $false
+        AlreadyApplied = $true
+      }
+    })
+  }
+
+  return @($ViewerPatchSeries | ForEach-Object {
+    $PatchRelativePath = $_
+    [pscustomobject]@{
+      Path = $PatchRelativePath
+      Applies = Test-ViewerPatchApplyState -PatchRelativePath $PatchRelativePath
+      AlreadyApplied = Test-ViewerPatchApplyState -PatchRelativePath $PatchRelativePath -Reverse
+    }
+  })
+}
+
 function Assert-BaselineBuildSourceState {
   if ($DryRunAssumeViewerPatchAlreadyApplied -and -not $DryRun) {
     throw "-DryRunAssumeViewerPatchAlreadyApplied is only valid with -DryRun."
   }
 
-  if ($DryRunAssumeViewerPatchAlreadyApplied) {
-    $PatchApplies = $false
-    $PatchAlreadyApplied = $true
-  } else {
-    $PatchApplies = Test-ViewerPatchApplyState
-    $PatchAlreadyApplied = Test-ViewerPatchApplyState -Reverse
+  $PatchStates = @(Get-ViewerPatchSeriesState)
+  $BadPatchStates = @($PatchStates | Where-Object { -not $_.Applies -and -not $_.AlreadyApplied })
+  if ($BadPatchStates.Count -gt 0) {
+    $BadPatchList = @($BadPatchStates | ForEach-Object { $_.Path }) -join ", "
+    throw "Viewer patch series neither applies cleanly nor reverse-applies for: $BadPatchList. Resolve the src checkout state before running the post-ATL pipeline."
   }
 
-  if ($PatchApplies) {
+  $AppliedPatchStates = @($PatchStates | Where-Object { $_.AlreadyApplied })
+  if ($AppliedPatchStates.Count -eq 0) {
     return
   }
 
-  if ($PatchAlreadyApplied) {
-    if (-not $SkipBaselineBuild) {
-      throw "Cannot build stock baseline while the viewer patch is already applied to src. Revert the viewer patch before running the baseline build, or pass -SkipBaselineBuild only when an existing ReleaseBaseline binary was built from an unmodified checkout."
-    }
-    Write-Host "Viewer patch is already applied; baseline build is skipped, so the existing baseline binary must be from an unmodified checkout."
-    return
+  if (-not $SkipBaselineBuild) {
+    $AppliedPatchList = @($AppliedPatchStates | ForEach-Object { $_.Path }) -join ", "
+    throw "Cannot build stock baseline while viewer patch series entries are already applied to src: $AppliedPatchList. Revert the viewer patch series before running the baseline build, or pass -SkipBaselineBuild only when an existing ReleaseBaseline binary was built from an unmodified checkout."
   }
-
-  throw "Viewer patch neither applies cleanly nor reverse-applies. Resolve the src checkout state before running the post-ATL pipeline."
+  Write-Host "Viewer patch series is already applied; baseline build is skipped, so the existing baseline binary must be from an unmodified checkout."
 }
 
 function Assert-ExistingPipelineFile {
@@ -297,12 +375,44 @@ function Assert-ExistingBuildProvenance {
   }
 
   if ($ExpectViewerPatchApplied) {
+    if (-not $Provenance.PSObject.Properties["allow_viewer_patch_applied"] -or $Provenance.allow_viewer_patch_applied -ne $true) {
+      throw "$Reason build provenance does not record the viewer-patch-applied build opt-in required for fork evidence."
+    }
     if ($Provenance.viewer_patch_already_applied -ne $true) {
       throw "$Reason build provenance does not show the viewer patch applied."
     }
+    $RecordedPatchSeries = @($Provenance.viewer_patch_series)
+    foreach ($ExpectedPatchPath in $ViewerPatchSeries) {
+      $PatchEntry = @($RecordedPatchSeries | Where-Object { $_.path -eq $ExpectedPatchPath } | Select-Object -First 1)
+      if ($PatchEntry.Count -ne 1 -or $PatchEntry[0].already_applied -ne $true) {
+        throw "$Reason build provenance does not show patch-series entry applied: $ExpectedPatchPath"
+      }
+    }
   } else {
+    if (-not $Provenance.PSObject.Properties["allow_viewer_patch_applied"]) {
+      throw "$Reason build provenance predates explicit viewer-patch-applied provenance."
+    }
+    if ($Provenance.allow_viewer_patch_applied -eq $true) {
+      throw "$Reason build provenance was built with -AllowViewerPatchApplied; stock baseline evidence must not allow patched source."
+    }
+    if (-not $Provenance.PSObject.Properties["baseline_source_guard_enabled"] -or $Provenance.baseline_source_guard_enabled -ne $true) {
+      throw "$Reason build provenance does not show the stock baseline source guard enabled."
+    }
     if ($Provenance.viewer_patch_already_applied -eq $true) {
       throw "$Reason build provenance shows the viewer patch applied; stock baseline evidence must come from an unmodified checkout."
+    }
+    $RecordedPatchSeries = @($Provenance.viewer_patch_series)
+    foreach ($ExpectedPatchPath in $ViewerPatchSeries) {
+      $PatchEntry = @($RecordedPatchSeries | Where-Object { $_.path -eq $ExpectedPatchPath } | Select-Object -First 1)
+      if ($PatchEntry.Count -ne 1) {
+        throw "$Reason build provenance does not record patch-series entry: $ExpectedPatchPath"
+      }
+      if ($PatchEntry[0].already_applied -eq $true) {
+        throw "$Reason build provenance shows viewer patch-series entry applied: $ExpectedPatchPath"
+      }
+      if ($PatchEntry[0].applies_cleanly -ne $true) {
+        throw "$Reason build provenance does not show patch-series entry applying cleanly to the stock baseline checkout: $ExpectedPatchPath"
+      }
     }
     if ($Provenance.viewer_patch_applies_cleanly -ne $true) {
       throw "$Reason build provenance does not show the viewer patch applying cleanly to the stock baseline checkout."
@@ -321,7 +431,7 @@ function Assert-SkippedArtifactState {
     Assert-ExistingPipelineFile $ForkBuildArgs "SkipForkBuild requires existing fork GN args"
     Assert-ExistingBuildProvenance $ForkOutDir $ForkBrowser $ForkBuildArgs $ForkArgsFile "SkipForkBuild requires current fork" -ExpectViewerPatchApplied
   }
-  if ($SkipPackage -and (-not $SkipOfficialComparison -or $RunTrustedExperimentMatrix -or $RunLongStability)) {
+  if ($SkipPackage -and (-not $SkipOfficialComparison -or $RunTrustedExperimentMatrix -or $RunTrustedWebGpuDawnMatrix -or $RunLongStability)) {
     if (-not $SkipBaselineBuild) {
       throw "SkipPackage requires -SkipBaselineBuild when reusing an existing stock baseline package for evidence."
     }
@@ -351,20 +461,56 @@ function Assert-FinalGateOptions {
   if (-not $AggressiveAngleBackend) {
     $Missing.Add("-AggressiveAngleBackend <backend>") | Out-Null
   }
+  if (-not $AggressiveWebGl2RelaxedValidation) {
+    $Missing.Add("-AggressiveWebGl2RelaxedValidation") | Out-Null
+  }
+  if (-not $AggressiveWebGpuSourceFastPath) {
+    $Missing.Add("-AggressiveWebGpuSourceFastPath") | Out-Null
+  }
+  if (-not $AggressiveWebGpuUploadFastPath) {
+    $Missing.Add("-AggressiveWebGpuUploadFastPath") | Out-Null
+  }
   if (-not $CaptureTrace) {
     $Missing.Add("-CaptureTrace") | Out-Null
+  }
+  if (-not $DisableWebGpuTiming) {
+    $Missing.Add("-DisableWebGpuTiming") | Out-Null
+  }
+  if (-not $DisableForkWebGpuTiming) {
+    $Missing.Add("-DisableForkWebGpuTiming") | Out-Null
   }
   if (-not $RunTrustedExperimentMatrix) {
     $Missing.Add("-RunTrustedExperimentMatrix") | Out-Null
   }
+  if ($TrustedMatrixRenderer -ne "webgl2") {
+    $Missing.Add("-TrustedMatrixRenderer webgl2") | Out-Null
+  }
   if (-not $TrustedMatrixInProcessGpu) {
     $Missing.Add("-TrustedMatrixInProcessGpu") | Out-Null
+  }
+  if (-not $TrustedMatrixZeroCopy) {
+    $Missing.Add("-TrustedMatrixZeroCopy") | Out-Null
+  }
+  if (-not $TrustedMatrixWebGlCompositorExperiments) {
+    $Missing.Add("-TrustedMatrixWebGlCompositorExperiments") | Out-Null
   }
   if (-not $TrustedMatrixSingleProcess) {
     $Missing.Add("-TrustedMatrixSingleProcess") | Out-Null
   }
   if (-not $TrustedMatrixReservedNoopGates) {
     $Missing.Add("-TrustedMatrixReservedNoopGates") | Out-Null
+  }
+  if (-not $RunTrustedWebGpuDawnMatrix) {
+    $Missing.Add("-RunTrustedWebGpuDawnMatrix") | Out-Null
+  }
+  if (-not $RunTargetedBlockerExperiments) {
+    $Missing.Add("-RunTargetedBlockerExperiments") | Out-Null
+  }
+  if (-not $TrustedMatrixWebGpuChromiumFeatureExperiments) {
+    $Missing.Add("-TrustedMatrixWebGpuChromiumFeatureExperiments") | Out-Null
+  }
+  if (-not $TrustedMatrixWebGpuUploadExperiments) {
+    $Missing.Add("-TrustedMatrixWebGpuUploadExperiments") | Out-Null
   }
   if (-not $RunLongStability) {
     $Missing.Add("-RunLongStability") | Out-Null
@@ -381,6 +527,221 @@ function Assert-FinalGateOptions {
   if ($Missing.Count -gt 0) {
     throw "-FinalGate requires completion-oriented options: $($Missing -join ', ')"
   }
+  if ($Duration -lt 120) {
+    throw "-FinalGate requires -Duration >= 120 so completion evidence cannot be produced from a short diagnostic run."
+  }
+  if ($Warmup -lt 20) {
+    throw "-FinalGate requires -Warmup >= 20 so completion evidence cannot be produced without the documented warmup window."
+  }
+  if ($TargetedBlockerComplexity -gt 0 -and
+      [Math]::Abs([double]$TargetedBlockerComplexity - [double]$Complexity) -gt 0.000001) {
+    throw "-FinalGate requires -TargetedBlockerComplexity to match -Complexity so blocker triage cannot use an easier scene than the official suite."
+  }
+}
+
+function New-TrustedMatrixCommand {
+  param(
+    [string]$Renderer,
+    [string[]]$Scenes,
+    [int]$DurationSeconds,
+    [int]$WarmupSeconds,
+    [string[]]$AngleBackend = @(),
+    [switch]$IncludeZeroCopy,
+    [switch]$IncludeWebGlCompositorExperiments,
+    [switch]$IncludeInProcessGpu,
+    [switch]$IncludeSingleProcess,
+    [switch]$IncludeReservedNoopGates,
+    [switch]$IncludeWebGpuDawnExperiments,
+    [switch]$IncludeWebGpuChromiumFeatureExperiments,
+    [switch]$IncludeWebGpuUploadExperiments,
+    [switch]$DisableGpuTiming
+  )
+
+  $Command = @(
+    (Join-Path $Root "scripts\run_trusted_experiment_matrix.ps1"),
+    "-Browser", $ForkBrowser,
+    "-BuildArgs", $ForkBuildArgs,
+    "-PackageDir", $ForkPackageDir,
+    "-ForkRevision", $ViewerForkRevision,
+    "-Renderer", $Renderer,
+    "-Duration", [string]$DurationSeconds,
+    "-Warmup", [string]$WarmupSeconds,
+    "-Complexity", [string]$Complexity,
+    "-IncludeDefault",
+    "-IncludeAggressiveGpu"
+  )
+  if ($Scenes.Count -gt 0) {
+    $Command += @("-Scenes", ($Scenes -join ","))
+  }
+  if ($AngleBackend.Count -gt 0) {
+    $Command += @("-AngleBackend", ($AngleBackend -join ","))
+  }
+  if ($IncludeZeroCopy) {
+    $Command += "-IncludeZeroCopy"
+  }
+  if ($IncludeWebGlCompositorExperiments) {
+    $Command += "-IncludeWebGlCompositorExperiments"
+  }
+  if ($IncludeInProcessGpu) {
+    $Command += "-IncludeInProcessGpu"
+  }
+  if ($IncludeSingleProcess) {
+    $Command += "-IncludeSingleProcess"
+  }
+  if ($IncludeReservedNoopGates) {
+    $Command += "-IncludeReservedNoopGates"
+  }
+  if ($IncludeWebGpuDawnExperiments) {
+    $Command += "-IncludeWebGpuDawnExperiments"
+  }
+  if ($IncludeWebGpuChromiumFeatureExperiments) {
+    $Command += "-IncludeWebGpuChromiumFeatureExperiments"
+  }
+  if ($IncludeWebGpuUploadExperiments) {
+    $Command += "-IncludeWebGpuUploadExperiments"
+  }
+  if ($Precompile) {
+    $Command += "-Precompile"
+  }
+  if ($PrerenderFrames -gt 0) {
+    $Command += @("-PrerenderFrames", [string]$PrerenderFrames)
+  }
+  if ($SettleGpuAfterWarmup) {
+    $Command += "-SettleGpuAfterWarmup"
+  }
+  if ($Renderer -eq "webgpu" -and $WebGpuPipelineQuietFrames -gt 0) {
+    $Command += @("-WebGpuPipelineQuietFrames", [string]$WebGpuPipelineQuietFrames)
+    $Command += @("-WebGpuPipelineQuietMaxFrames", [string]([Math]::Max($WebGpuPipelineQuietFrames, $WebGpuPipelineQuietMaxFrames)))
+  }
+  if ($Renderer -eq "webgpu" -and $WebGpuBundleMode -ne "off") {
+    $Command += @("-WebGpuBundleMode", $WebGpuBundleMode)
+  }
+  if ($DisableGpuTiming) {
+    $Command += "-DisableGpuTiming"
+  }
+  if ($Renderer -eq "webgpu" -and $WebGpuProfileCacheKey) {
+    $Command += @("-ProfileCacheKey", $WebGpuProfileCacheKey)
+    if ($ProfileCacheRoot) {
+      $Command += @("-UserDataDirRoot", $ProfileCacheRoot)
+    }
+    if ($PrimeWebGpuProfileCache) {
+      $Command += "-PrimeProfileCache"
+    }
+  }
+  if ($DryRun) {
+    $Command += "-DryRun"
+  }
+  return $Command
+}
+
+function New-TargetedBlockerExperimentsCommand {
+  $Command = @(
+    (Join-Path $Root "scripts\run_blocker_experiments.ps1"),
+    "-CandidateAnalysisJson", $TargetedBlockerCandidateAnalysisJson,
+    "-BaselineBrowser", $BaselineBrowser,
+    "-BaselineBuildArgs", $BaselineBuildArgs,
+    "-BaselinePackageDir", $BaselinePackageDir,
+    "-Browser", $ForkBrowser,
+    "-BuildArgs", $ForkBuildArgs,
+    "-PackageDir", $ForkPackageDir,
+    "-Duration", [string]$Duration,
+    "-Warmup", [string]$Warmup,
+    "-Complexity", [string]$EffectiveTargetedBlockerComplexity,
+    "-ForkRevision", $ViewerForkRevision,
+    "-RunComparableBaselines",
+    "-AnalyzeAfterRun",
+    "-PlanSuitePromotionAfterTriage",
+    "-RequireCandidateRenderer", "webgl2,webgpu",
+    "-PostRunAnalysisDroppedFramesRegression", "0.0",
+    "-PostRunAnalysisCpuFrameRegressionMs", "0.5",
+    "-PostRunAnalysisRenderSubmissionRegressionMs", "0.5",
+    "-PostRunAnalysisPipelineCreateRegressionMs", "1.0"
+  )
+  if ($DisableWebGpuTiming -or $DisableForkWebGpuTiming) {
+    $Command += "-DisableWebGpuTiming"
+  }
+  if ($Precompile) {
+    $Command += "-Precompile"
+  }
+  if ($PrerenderFrames -gt 0) {
+    $Command += @("-PrerenderFrames", [string]$PrerenderFrames)
+  }
+  if ($SettleGpuAfterWarmup) {
+    $Command += "-SettleGpuAfterWarmup"
+  }
+  if ($WebGpuPipelineQuietFrames -gt 0) {
+    $Command += @("-WebGpuPipelineQuietFrames", [string]$WebGpuPipelineQuietFrames)
+    $Command += @("-WebGpuPipelineQuietMaxFrames", [string]([Math]::Max($WebGpuPipelineQuietFrames, $WebGpuPipelineQuietMaxFrames)))
+  }
+  if ($WebGpuBundleMode -ne "off") {
+    $Command += @("-WebGpuBundleMode", $WebGpuBundleMode)
+  }
+  if ($TargetedBlockerIncludeAllDiagnostics) {
+    $Command += "-IncludeAllBlockerDiagnostics"
+  }
+  if ($WebGpuProfileCacheKey) {
+    $Command += @("-WebGpuProfileCacheKey", $WebGpuProfileCacheKey)
+    if ($ProfileCacheRoot) {
+      $Command += @("-ProfileCacheRoot", $ProfileCacheRoot)
+    }
+    if ($PrimeWebGpuProfileCache) {
+      $Command += "-PrimeWebGpuProfileCache"
+    }
+  }
+  if ($CaptureTrace -and $IncludeWebGPU) {
+    $Command += @(
+      "-CaptureTargetedTrace",
+      "-TraceDuration", [string]$TraceDuration,
+      "-TraceWarmup", [string]$TraceWarmup,
+      "-TraceStartDelayMs", [string]$TraceStartDelayMs
+    )
+    if ($RejectWebGpuCpuFallbackTrace -or $FinalGate) {
+      $Command += "-RejectWebGpuCpuFallbackTrace"
+    }
+    if ($TraceQueueInstrumentation) {
+      $Command += "-TraceQueueInstrumentation"
+    }
+    if ($TraceBindGroupInstrumentation) {
+      $Command += "-TraceBindGroupInstrumentation"
+    }
+    if ($TracePipelineStateInstrumentation) {
+      $Command += "-TracePipelineStateInstrumentation"
+    }
+    if ($TraceBufferStateInstrumentation) {
+      $Command += "-TraceBufferStateInstrumentation"
+    }
+    if ($TraceRenderStateInstrumentation) {
+      $Command += "-TraceRenderStateInstrumentation"
+    }
+    if ($TraceImmediateInstrumentation) {
+      $Command += "-TraceImmediateInstrumentation"
+    }
+  }
+  if ($DryRun) {
+    $Command += "-DryRun"
+  }
+  return $Command
+}
+
+function New-CurrentCandidateAnalysisCommand {
+  $Command = @(
+    (Join-Path $Root "scripts\run_current_candidate_analysis.ps1"),
+    "-OfficialManifest", ".\benchmarks\reports\official-comparison-manifest.json",
+    "-InputList", $TargetedBlockerCandidateAnalysisInputList,
+    "-Output", $TargetedBlockerCandidateAnalysisOutput,
+    "-Json", $TargetedBlockerCandidateAnalysisJson,
+    "-MinMeasuredSeconds", [string]([Math]::Min(30, $Duration)),
+    "-MinAvgFpsDeltaPct", "0.5",
+    "-SceneRegressionPct", "1.0",
+    "-DroppedFramesRegression", "0.0",
+    "-CpuFrameRegressionMs", "0.5",
+    "-RenderSubmissionRegressionMs", "0.5",
+    "-PipelineCreateRegressionMs", "1.0",
+    "-ExpectedChromiumRevision", $ChromiumRevision,
+    "-ExpectedForkRevision", $ViewerForkRevision,
+    "-RequireCandidateRenderer", "webgl2,webgpu"
+  )
+  return $Command
 }
 
 $BaselineBrowser = Join-SrcOutPath $BaselineOutDir "content_shell.exe"
@@ -396,6 +757,34 @@ if ($RefreshRevision -and -not $RefreshChromiumPin) {
 if ($RefreshRevision -and $RefreshRevision -notmatch "^[0-9a-f]{40}$") {
   throw "Refresh revision must be a 40-character Chromium commit SHA: $RefreshRevision"
 }
+if ($ProfileCacheRoot -and -not $WebGpuProfileCacheKey) {
+  throw "-ProfileCacheRoot requires -WebGpuProfileCacheKey."
+}
+if ($PrimeWebGpuProfileCache -and -not $WebGpuProfileCacheKey) {
+  throw "-PrimeWebGpuProfileCache requires -WebGpuProfileCacheKey."
+}
+if ($PrimeWebGpuProfileCache -and $ReuseValidResults -and -not $SkipOfficialComparison -and $IncludeWebGPU) {
+  throw "-PrimeWebGpuProfileCache cannot be combined with -ReuseValidResults when the official WebGPU comparison runs because the measured pass must rerun after priming."
+}
+if ($WebGpuPipelineQuietFrames -lt 0 -or $WebGpuPipelineQuietMaxFrames -lt 0) {
+  throw "-WebGpuPipelineQuietFrames and -WebGpuPipelineQuietMaxFrames must be non-negative."
+}
+if ($WebGpuBundleMode -ne "off" -and -not (
+    $IncludeWebGPU -or
+    ($CaptureTrace -and $TraceRenderer -eq "webgpu") -or
+    ($RunTrustedExperimentMatrix -and $TrustedMatrixRenderer -eq "webgpu") -or
+    $RunTrustedWebGpuDawnMatrix -or
+    $RunTargetedBlockerExperiments
+  )) {
+  throw "-WebGpuBundleMode requires WebGPU official, trace, trusted-matrix, or targeted-blocker work."
+}
+if ($Complexity -le 0) {
+  throw "-Complexity must be greater than zero."
+}
+if ($TargetedBlockerComplexity -lt 0) {
+  throw "-TargetedBlockerComplexity must be greater than zero when supplied."
+}
+$EffectiveTargetedBlockerComplexity = if ($TargetedBlockerComplexity -gt 0) { $TargetedBlockerComplexity } else { $Complexity }
 Assert-FinalGateOptions
 
 $PlannedChromiumRevision = ""
@@ -479,7 +868,8 @@ if (-not $SkipOfficialComparison) {
     "-BaselinePackageDir", $BaselinePackageDir,
     "-ForkPackageDir", $ForkPackageDir,
     "-Duration", [string]$Duration,
-    "-Warmup", [string]$Warmup
+    "-Warmup", [string]$Warmup,
+    "-Complexity", [string]$Complexity
   )
   if ($IncludeWebGPU) {
     $OfficialCommand += "-IncludeWebGPU"
@@ -490,6 +880,18 @@ if (-not $SkipOfficialComparison) {
   if ($AggressiveAngleBackend) {
     $OfficialCommand += @("-AggressiveAngleBackend", $AggressiveAngleBackend)
   }
+  if ($AggressiveWebGl2RelaxedValidation) {
+    $OfficialCommand += "-AggressiveWebGl2RelaxedValidation"
+  }
+  if ($AggressiveWebGl2ZeroCopy) {
+    $OfficialCommand += "-AggressiveWebGl2ZeroCopy"
+  }
+  if ($AggressiveWebGpuSourceFastPath) {
+    $OfficialCommand += "-AggressiveWebGpuSourceFastPath"
+  }
+  if ($AggressiveWebGpuUploadFastPath) {
+    $OfficialCommand += "-AggressiveWebGpuUploadFastPath"
+  }
   if ($CaptureTrace) {
     $OfficialCommand += @(
       "-CaptureTrace",
@@ -499,6 +901,9 @@ if (-not $SkipOfficialComparison) {
       "-TraceWarmup", [string]$TraceWarmup,
       "-TraceStartDelayMs", [string]$TraceStartDelayMs
     )
+  }
+  if ($RejectWebGpuCpuFallbackTrace) {
+    $OfficialCommand += "-RejectWebGpuCpuFallbackTrace"
   }
   if ($Precompile) {
     $OfficialCommand += "-Precompile"
@@ -515,13 +920,34 @@ if (-not $SkipOfficialComparison) {
   if ($PrerenderFrames -gt 0) {
     $OfficialCommand += @("-PrerenderFrames", [string]$PrerenderFrames)
   }
+  if ($SettleGpuAfterWarmup) {
+    $OfficialCommand += "-SettleGpuAfterWarmup"
+  }
+  if (($IncludeWebGPU -or ($CaptureTrace -and $TraceRenderer -eq "webgpu")) -and $WebGpuPipelineQuietFrames -gt 0) {
+    $OfficialCommand += @("-WebGpuPipelineQuietFrames", [string]$WebGpuPipelineQuietFrames)
+    $OfficialCommand += @("-WebGpuPipelineQuietMaxFrames", [string]([Math]::Max($WebGpuPipelineQuietFrames, $WebGpuPipelineQuietMaxFrames)))
+  }
+  if (($IncludeWebGPU -or ($CaptureTrace -and $TraceRenderer -eq "webgpu")) -and $WebGpuBundleMode -ne "off") {
+    $OfficialCommand += @("-WebGpuBundleMode", $WebGpuBundleMode)
+  }
+  if ($WebGpuProfileCacheKey) {
+    $OfficialCommand += @("-WebGpuProfileCacheKey", $WebGpuProfileCacheKey)
+    if ($ProfileCacheRoot) {
+      $OfficialCommand += @("-ProfileCacheRoot", $ProfileCacheRoot)
+    }
+    if ($PrimeWebGpuProfileCache) {
+      $OfficialCommand += "-PrimeWebGpuProfileCache"
+    }
+  }
   if ($DryRun) {
     $OfficialCommand += "-DryRun"
   }
   Invoke-Step "official stock-vs-fork comparison" $OfficialCommand
 }
 
-if ($RunTrustedExperimentMatrix) {
+if ($RunTrustedExperimentMatrix -or $RunTrustedWebGpuDawnMatrix) {
+  $EffectiveTrustedMatrixDuration = if ($TrustedMatrixDuration -gt 0) { $TrustedMatrixDuration } else { $Duration }
+  $EffectiveTrustedMatrixWarmup = if ($TrustedMatrixWarmup -gt 0) { $TrustedMatrixWarmup } else { $Warmup }
   $EffectiveTrustedMatrixAngleBackend = @($TrustedMatrixAngleBackend)
   if ($EffectiveTrustedMatrixAngleBackend.Count -eq 0) {
     if ($AggressiveAngleBackend) {
@@ -530,46 +956,49 @@ if ($RunTrustedExperimentMatrix) {
       $EffectiveTrustedMatrixAngleBackend = @("d3d11")
     }
   }
+}
 
-  $TrustedMatrixCommand = @(
-    (Join-Path $Root "scripts\run_trusted_experiment_matrix.ps1"),
-    "-Browser", $ForkBrowser,
-    "-BuildArgs", $ForkBuildArgs,
-    "-PackageDir", $ForkPackageDir,
-    "-ForkRevision", $ViewerForkRevision,
-    "-Renderer", $TrustedMatrixRenderer,
-    "-Duration", [string]$TrustedMatrixDuration,
-    "-Warmup", [string]$TrustedMatrixWarmup,
-    "-IncludeDefault",
-    "-IncludeAggressiveGpu"
-  )
-  if ($TrustedMatrixScenes.Count -gt 0) {
-    $TrustedMatrixCommand += "-Scenes"
-    $TrustedMatrixCommand += $TrustedMatrixScenes
-  }
-  if ($EffectiveTrustedMatrixAngleBackend.Count -gt 0) {
-    $TrustedMatrixCommand += "-AngleBackend"
-    $TrustedMatrixCommand += $EffectiveTrustedMatrixAngleBackend
-  }
-  if ($TrustedMatrixInProcessGpu) {
-    $TrustedMatrixCommand += "-IncludeInProcessGpu"
-  }
-  if ($TrustedMatrixSingleProcess) {
-    $TrustedMatrixCommand += "-IncludeSingleProcess"
-  }
-  if ($TrustedMatrixReservedNoopGates) {
-    $TrustedMatrixCommand += "-IncludeReservedNoopGates"
-  }
-  if ($Precompile) {
-    $TrustedMatrixCommand += "-Precompile"
-  }
-  if ($PrerenderFrames -gt 0) {
-    $TrustedMatrixCommand += @("-PrerenderFrames", [string]$PrerenderFrames)
-  }
-  if ($DryRun) {
-    $TrustedMatrixCommand += "-DryRun"
-  }
+if ($RunTrustedExperimentMatrix) {
+  $TrustedMatrixCommand = New-TrustedMatrixCommand `
+    -Renderer $TrustedMatrixRenderer `
+    -Scenes @($TrustedMatrixScenes) `
+    -DurationSeconds $EffectiveTrustedMatrixDuration `
+    -WarmupSeconds $EffectiveTrustedMatrixWarmup `
+    -AngleBackend @($EffectiveTrustedMatrixAngleBackend) `
+    -IncludeZeroCopy:$TrustedMatrixZeroCopy `
+    -IncludeWebGlCompositorExperiments:($TrustedMatrixRenderer -eq "webgl2" -and $TrustedMatrixWebGlCompositorExperiments) `
+    -IncludeInProcessGpu:$TrustedMatrixInProcessGpu `
+    -IncludeSingleProcess:$TrustedMatrixSingleProcess `
+    -IncludeReservedNoopGates:$TrustedMatrixReservedNoopGates `
+    -IncludeWebGpuDawnExperiments:$TrustedMatrixWebGpuDawnExperiments `
+    -IncludeWebGpuChromiumFeatureExperiments:($TrustedMatrixRenderer -eq "webgpu" -and $TrustedMatrixWebGpuChromiumFeatureExperiments) `
+    -IncludeWebGpuUploadExperiments:($TrustedMatrixRenderer -eq "webgpu" -and $TrustedMatrixWebGpuUploadExperiments) `
+    -DisableGpuTiming:($TrustedMatrixRenderer -eq "webgpu" -and ($DisableWebGpuTiming -or $DisableForkWebGpuTiming))
   Invoke-Step "trusted-content experiment matrix" $TrustedMatrixCommand
+}
+
+if ($RunTrustedWebGpuDawnMatrix) {
+  $WebGpuDawnCommand = New-TrustedMatrixCommand `
+    -Renderer "webgpu" `
+    -Scenes @($TrustedMatrixScenes) `
+    -DurationSeconds $EffectiveTrustedMatrixDuration `
+    -WarmupSeconds $EffectiveTrustedMatrixWarmup `
+    -AngleBackend @() `
+    -IncludeZeroCopy:$false `
+    -IncludeWebGlCompositorExperiments:$false `
+    -IncludeInProcessGpu:$TrustedMatrixInProcessGpu `
+    -IncludeSingleProcess:$TrustedMatrixSingleProcess `
+    -IncludeReservedNoopGates:$false `
+    -IncludeWebGpuDawnExperiments `
+    -IncludeWebGpuChromiumFeatureExperiments:$TrustedMatrixWebGpuChromiumFeatureExperiments `
+    -IncludeWebGpuUploadExperiments:$TrustedMatrixWebGpuUploadExperiments `
+    -DisableGpuTiming:($DisableWebGpuTiming -or $DisableForkWebGpuTiming)
+  Invoke-Step "trusted-content WebGPU Dawn experiment matrix" $WebGpuDawnCommand
+}
+
+if ($RunTargetedBlockerExperiments) {
+  Invoke-Step "current candidate speed analysis for targeted blockers" (New-CurrentCandidateAnalysisCommand)
+  Invoke-Step "targeted blocker speed iteration" (New-TargetedBlockerExperimentsCommand)
 }
 
 if ($RunLongStability) {

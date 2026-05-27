@@ -3,6 +3,7 @@ param()
 
 $ErrorActionPreference = "Stop"
 $Root = Resolve-Path (Join-Path $PSScriptRoot "..")
+. (Join-Path $PSScriptRoot "viewer_patch_series.ps1")
 $TempDir = Join-Path $Root "benchmarks\tmp\upstream-freshness-audit-test"
 
 function Assert-UnderDirectory {
@@ -102,8 +103,7 @@ try {
   New-Item -ItemType Directory -Path $TempDir -Force | Out-Null
 
   $ExpectedRevision = (Get-Content (Join-Path $Root ".chromium_revision") -Raw).Trim()
-  $PatchHash = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $Root "chromium_patches\0001-draft-minimal-three-viewer-entrypoint.patch")).Hash.Substring(0, 12).ToLowerInvariant()
-  $ExpectedForkRevision = "$ExpectedRevision+viewerpatch-$PatchHash"
+  $ExpectedForkRevision = Get-ViewerForkRevisionForChromiumRevision -ChromiumRevision $ExpectedRevision -Root $Root
   $StaleRevision = "1111111111111111111111111111111111111111"
   if ($StaleRevision -eq $ExpectedRevision) {
     $StaleRevision = "2222222222222222222222222222222222222222"

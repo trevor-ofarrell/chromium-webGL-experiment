@@ -10,18 +10,19 @@ index 7d1fad8971..7f27311953 100644
  #include "base/trace_event/trace_log.h"
  #include "build/build_config.h"
  #include "components/crash/core/common/crash_key.h"
-@@ -41,8 +42,10 @@
+@@ -41,8 +42,11 @@
  #include "content/shell/gpu/shell_content_gpu_client.h"
  #include "content/shell/renderer/shell_content_renderer_client.h"
  #include "content/shell/utility/shell_content_utility_client.h"
 +#include "gpu/config/gpu_switches.h"
  #include "net/cookies/cookie_monster.h"
++#include "third_party/blink/public/common/switches.h"
  #include "ui/base/resource/resource_bundle.h"
 +#include "ui/gl/gl_switches.h"
  
  #if !BUILDFLAG(IS_ANDROID)
  #include "content/web_test/browser/web_test_browser_main_runner.h"  // nogncheck
-@@ -198,6 +201,75 @@ void InitLogging(const base::CommandLine& command_line) {
+@@ -198,6 +201,78 @@ void InitLogging(const base::CommandLine& command_line) {
                         true /* Timestamp */, false /* Tick count */);
  }
  
@@ -77,6 +78,9 @@ index 7d1fad8971..7f27311953 100644
 +    AppendSwitchASCIIIfAbsent(command_line, switches::kUseCmdDecoder,
 +                              gl::kCmdDecoderPassthroughName);
 +  }
++
++  if (command_line.HasSwitch(switches::kViewerZeroCopy))
++    AppendSwitchIfAbsent(command_line, blink::switches::kEnableZeroCopy);
 +
 +  if (command_line.HasSwitch(switches::kViewerInProcessGpu))
 +    AppendSwitchIfAbsent(command_line, switches::kInProcessGPU);
@@ -366,7 +370,7 @@ diff --git a/content/shell/common/shell_switches.h b/content/shell/common/shell_
 index 8757fa418d..7c7941b90d 100644
 --- a/content/shell/common/shell_switches.h
 +++ b/content/shell/common/shell_switches.h
-@@ -40,6 +40,47 @@ inline constexpr char kContentShellHostWindowSize[] =
+@@ -40,6 +40,52 @@ inline constexpr char kContentShellHostWindowSize[] =
  // Hides toolbar from content_shell's host window.
  inline constexpr char kContentShellHideToolbar[] = "content-shell-hide-toolbar";
  
@@ -393,6 +397,11 @@ index 8757fa418d..7c7941b90d 100644
 +inline constexpr char kViewerRelaxedWebGLValidation[] =
 +    "viewer-relaxed-webgl-validation";
 +
++// Requests Chromium's zero-copy raster/upload path for trusted WebGL2
++// throughput experiments. Prior WebGPU evidence regressed, so harnesses gate
++// this switch to WebGL2 unless a future experiment explicitly reopens it.
++inline constexpr char kViewerZeroCopy[] = "viewer-zero-copy";
++
 +// Runs the GPU service in-process for trusted-content experiments.
 +inline constexpr char kViewerInProcessGpu[] = "viewer-in-process-gpu";
 +
@@ -414,3 +423,118 @@ index 8757fa418d..7c7941b90d 100644
  // Enables APIs guarded with the [IsolatedContext] IDL attribute for the given
  // comma-separated list of origins.
  inline constexpr char kIsolatedContextOrigins[] = "isolated-context-origins";
+diff --git a/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc b/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc
+index 172759394d..5215b1fa22 100644
+--- a/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc
++++ b/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc
+@@ -31,10 +31,12 @@
+ #include "base/bit_cast.h"
+ #include "base/byte_size.h"
+ #include "base/compiler_specific.h"
++#include "base/command_line.h"
+ #include "base/feature_list.h"
+ #include "base/memory/scoped_refptr.h"
+ #include "base/metrics/histogram_functions.h"
+ #include "base/metrics/histogram_macros.h"
++#include "base/no_destructor.h"
+ #include "base/notimplemented.h"
+ #include "base/numerics/checked_math.h"
+ #include "base/synchronization/lock.h"
+@@ -242,6 +244,38 @@ enum class WebGLANGLEImplementation {
+   kMaxValue = kWebGL2_D3D11Warp,
+ };
+-
++
++constexpr char kViewerAppUrlSwitch[] = "viewer-app-url";
++constexpr char kViewerTrustedContentSwitch[] = "viewer-trusted-content";
++constexpr char kViewerRelaxedWebGLValidationSwitch[] =
++    "viewer-relaxed-webgl-validation";
++
++struct ViewerWebGLExperimentState {
++  bool relaxed_draw_validation = false;
++};
++
++bool IsTrustedViewerApp(const base::CommandLine* command_line) {
++  return command_line &&
++         command_line->HasSwitch(kViewerAppUrlSwitch) &&
++         command_line->HasSwitch(kViewerTrustedContentSwitch);
++}
++
++ViewerWebGLExperimentState BuildViewerWebGLExperimentState() {
++  const base::CommandLine* command_line =
++      base::CommandLine::ForCurrentProcess();
++  if (!IsTrustedViewerApp(command_line)) {
++    return {};
++  }
++
++  return {.relaxed_draw_validation =
++              command_line->HasSwitch(kViewerRelaxedWebGLValidationSwitch)};
++}
++
++const ViewerWebGLExperimentState& GetViewerWebGLExperimentState() {
++  static const base::NoDestructor<ViewerWebGLExperimentState> state(
++      BuildViewerWebGLExperimentState());
++  return *state;
++}
++
+ bool CopyVideoFrameTexturesToGLTextureViaIntermediateSI(
+     viz::RasterContextProvider* raster_context_provider,
+     gpu::gles2::GLES2Interface* destination_gl,
+@@ -3298,6 +3332,10 @@ bool WebGLRenderingContextBase::ValidateRenderingState(
+   return true;
+ }
+-
++
++bool WebGLRenderingContextBase::ShouldRelaxWebGLDrawValidation() const {
++  return GetViewerWebGLExperimentState().relaxed_draw_validation;
++}
++
+ bool WebGLRenderingContextBase::ValidateNullableWebGLObject(
+     const char* function_name,
+     WebGLObject* object) {
+@@ -8802,6 +8840,9 @@ bool WebGLRenderingContextBase::ValidateDrawArrays(const char* function_name) {
+   if (isContextLost())
+     return false;
+-
++
++  if (ShouldRelaxWebGLDrawValidation())
++    return true;
++
+   if (!ValidateRenderingState(function_name)) {
+     return false;
+   }
+@@ -8822,6 +8863,9 @@ bool WebGLRenderingContextBase::ValidateDrawElements(const char* function_name,
+   if (isContextLost())
+     return false;
+-
++
++  if (ShouldRelaxWebGLDrawValidation())
++    return true;
++
+   if (type == GL_UNSIGNED_INT && !IsWebGL2() &&
+       !ExtensionEnabled(kOESElementIndexUintName)) {
+     SynthesizeGLError(GL_INVALID_ENUM, function_name, "invalid type");
+diff --git a/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.h b/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.h
+index aaee965c67..8473da15ea 100644
+--- a/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.h
++++ b/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.h
+@@ -793,7 +793,8 @@ class MODULES_EXPORT WebGLRenderingContextBase
+   void DrawWrapper(const char* func_name,
+                    CanvasPerformanceMonitor::DrawType draw_type,
+                    Func draw_func) {
+-    if (!bound_vertex_array_object_->IsAllEnabledAttribBufferBound()) {
++    if (!ShouldRelaxWebGLDrawValidation() &&
++        !bound_vertex_array_object_->IsAllEnabledAttribBufferBound()) {
+       SynthesizeGLError(GL_INVALID_OPERATION, func_name,
+                         "no buffer is bound to enabled attribute");
+       return;
+@@ -824,6 +825,7 @@ class MODULES_EXPORT WebGLRenderingContextBase
+-
++
+   // Check if each enabled vertex attribute is bound to a buffer.
+   bool ValidateRenderingState(const char*);
++  bool ShouldRelaxWebGLDrawValidation() const;
+-
++
+   // Helper function for APIs which can legally receive null objects, including
+   // the bind* calls (bindBuffer, bindTexture, etc.) and useProgram. Checks that

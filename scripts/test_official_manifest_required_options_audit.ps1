@@ -12,6 +12,9 @@ function Write-Manifest {
     [switch]$IncludeWebGPU,
     [switch]$IncludeAggressiveGpu,
     [string]$AggressiveAngleBackend = "",
+    [switch]$AggressiveWebGl2RelaxedValidation,
+    [switch]$AggressiveWebGpuSourceFastPath,
+    [switch]$AggressiveWebGpuUploadFastPath,
     [switch]$CaptureTrace,
     [switch]$IncludePackages
   )
@@ -21,6 +24,9 @@ function Write-Manifest {
       include_webgpu = [bool]$IncludeWebGPU
       include_aggressive_gpu = [bool]$IncludeAggressiveGpu
       aggressive_angle_backend = $AggressiveAngleBackend
+      aggressive_webgl2_relaxed_validation = [bool]$AggressiveWebGl2RelaxedValidation
+      aggressive_webgpu_source_fast_path = [bool]$AggressiveWebGpuSourceFastPath
+      aggressive_webgpu_upload_fast_path = [bool]$AggressiveWebGpuUploadFastPath
       capture_trace = [bool]$CaptureTrace
     }
     package_dirs = [pscustomobject]@{
@@ -130,6 +136,9 @@ try {
   Assert-Contains $MissingText "Official comparison required options.*pending.*include_webgpu" "missing WebGPU option is reported"
   Assert-Contains $MissingText "Official comparison required options.*pending.*include_aggressive_gpu" "missing aggressive GPU option is reported"
   Assert-Contains $MissingText "Official comparison required options.*pending.*aggressive_angle_backend" "missing aggressive ANGLE backend option is reported"
+  Assert-Contains $MissingText "Official comparison required options.*pending.*aggressive_webgl2_relaxed_validation" "missing WebGL2 relaxed-validation aggressive profile option is reported"
+  Assert-Contains $MissingText "Official comparison required options.*pending.*aggressive_webgpu_source_fast_path" "missing WebGPU source fast-path aggressive profile option is reported"
+  Assert-Contains $MissingText "Official comparison required options.*pending.*aggressive_webgpu_upload_fast_path" "missing WebGPU upload fast-path aggressive profile option is reported"
   Assert-Contains $MissingText "Official comparison required options.*pending.*capture_trace" "missing trace option is reported"
   Assert-Contains $MissingText "Official comparison required options.*pending.*baseline_package_dir" "missing baseline package dir is reported"
   Assert-Contains $MissingText "Official comparison required options.*pending.*fork_package_dir" "missing fork package dir is reported"
@@ -137,11 +146,14 @@ try {
   Write-Manifest -IncludeWebGPU -IncludeAggressiveGpu -CaptureTrace -IncludePackages
   $MissingBackendText = Invoke-ManifestAudit
   Assert-Contains $MissingBackendText "Official comparison required options.*pending.*aggressive_angle_backend" "otherwise complete manifest without aggressive ANGLE backend remains pending"
+  Assert-Contains $MissingBackendText "Official comparison required options.*pending.*aggressive_webgl2_relaxed_validation" "otherwise complete manifest without WebGL2 relaxed-validation profile remains pending"
+  Assert-Contains $MissingBackendText "Official comparison required options.*pending.*aggressive_webgpu_source_fast_path" "otherwise complete manifest without WebGPU source fast-path profile remains pending"
+  Assert-Contains $MissingBackendText "Official comparison required options.*pending.*aggressive_webgpu_upload_fast_path" "otherwise complete manifest without WebGPU upload fast-path profile remains pending"
   Assert-NotContains $MissingBackendText "Official comparison required options.*done" "missing aggressive backend is not accepted as complete evidence"
 
-  Write-Manifest -IncludeWebGPU -IncludeAggressiveGpu -AggressiveAngleBackend "d3d11" -CaptureTrace -IncludePackages
+  Write-Manifest -IncludeWebGPU -IncludeAggressiveGpu -AggressiveAngleBackend "d3d11" -AggressiveWebGl2RelaxedValidation -AggressiveWebGpuSourceFastPath -AggressiveWebGpuUploadFastPath -CaptureTrace -IncludePackages
   $CompleteText = Invoke-ManifestAudit
-  Assert-Contains $CompleteText "Official comparison required options.*done.*WebGPU, aggressive GPU, aggressive ANGLE backend, trace capture, baseline package dir, and fork package dir" "complete official option evidence is accepted"
+  Assert-Contains $CompleteText "Official comparison required options.*done.*WebGPU, aggressive GPU, aggressive ANGLE backend, WebGL2 relaxed-validation aggressive profile, WebGPU source/upload aggressive profiles, trace capture, baseline package dir, and fork package dir" "complete official option evidence is accepted"
   Assert-NotContains $CompleteText "Official comparison required options.*pending" "pending required-options row after complete evidence"
 } finally {
   if (Test-Path -LiteralPath $TempDir) {
@@ -150,4 +162,4 @@ try {
   }
 }
 
-Write-Host "Official manifest required-options audit requires WebGPU, aggressive GPU, an aggressive ANGLE backend, trace capture, and baseline/fork package dirs."
+Write-Host "Official manifest required-options audit requires WebGPU, aggressive GPU, an aggressive ANGLE backend, WebGL2 relaxed-validation aggressive profile, WebGPU source/upload aggressive profiles, trace capture, and baseline/fork package dirs."

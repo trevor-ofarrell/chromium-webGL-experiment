@@ -3,6 +3,7 @@ param()
 
 $ErrorActionPreference = "Stop"
 $Root = Resolve-Path (Join-Path $PSScriptRoot "..")
+. (Join-Path $PSScriptRoot "viewer_patch_series.ps1")
 $TempDir = Join-Path $Root "benchmarks\tmp\official-manifest-suite-semantics-audit"
 $ManifestPath = Join-Path $TempDir "official-comparison-manifest.json"
 $PinRefreshPath = Join-Path $Root "benchmarks\reports\chromium-pin-refresh.json"
@@ -23,12 +24,22 @@ $BrowserModeFlags = @(
   "viewer_trusted_content=false",
   "viewer_aggressive_gpu=false",
   "viewer_relaxed_webgl_validation=false",
+  "viewer_zero_copy=false",
   "viewer_in_process_gpu=false",
   "viewer_single_process=false",
   "viewer_force_angle_backend=null",
   "requested_angle_backend=null",
+  "benchmark_hud_enabled=false",
   "viewer_disable_unneeded_blink_features=false",
-  "viewer_direct_gpu_presentation=false"
+  "viewer_direct_gpu_presentation=false",
+  "viewer_defer_webgpu_pipeline_flush=false",
+  "viewer_defer_webgpu_queue_flush=false",
+  "viewer_defer_webgpu_submit_flush=false",
+  "viewer_reject_webgpu_cpu_texture_fallback=false",
+  "viewer_trace_webgpu_queue=false",
+  "resource_warmup_enabled=false",
+  "resource_warmup_precompile=false",
+  "resource_warmup_prerender_frames=0"
 )
 $ForkDefaultFlags = @(
   "viewer_mode=true",
@@ -36,12 +47,22 @@ $ForkDefaultFlags = @(
   "viewer_trusted_content=true",
   "viewer_aggressive_gpu=false",
   "viewer_relaxed_webgl_validation=false",
+  "viewer_zero_copy=false",
   "viewer_in_process_gpu=false",
   "viewer_single_process=false",
   "viewer_force_angle_backend=null",
   "requested_angle_backend=null",
+  "benchmark_hud_enabled=false",
   "viewer_disable_unneeded_blink_features=false",
-  "viewer_direct_gpu_presentation=false"
+  "viewer_direct_gpu_presentation=false",
+  "viewer_defer_webgpu_pipeline_flush=false",
+  "viewer_defer_webgpu_queue_flush=false",
+  "viewer_defer_webgpu_submit_flush=false",
+  "viewer_reject_webgpu_cpu_texture_fallback=false",
+  "viewer_trace_webgpu_queue=false",
+  "resource_warmup_enabled=false",
+  "resource_warmup_precompile=false",
+  "resource_warmup_prerender_frames=0"
 )
 
 function Get-GitRevision {
@@ -61,6 +82,43 @@ function Get-ShortSha256 {
 function Get-Sha256 {
   param([string]$PathValue)
   return (Get-FileHash -Algorithm SHA256 -LiteralPath $PathValue).Hash.ToLowerInvariant()
+}
+
+function Convert-BytesToHexString {
+  param([byte[]]$Bytes)
+  return (($Bytes | ForEach-Object { $_.ToString("x2") }) -join "")
+}
+
+function Get-StringSha256 {
+  param([string]$Text)
+  $Sha256 = [System.Security.Cryptography.SHA256]::Create()
+  try {
+    $Bytes = [System.Text.Encoding]::UTF8.GetBytes($Text)
+    return Convert-BytesToHexString ($Sha256.ComputeHash($Bytes))
+  } finally {
+    $Sha256.Dispose()
+  }
+}
+
+function ConvertTo-ReportInputPath {
+  param([string]$PathValue)
+  $FullPath = [System.IO.Path]::GetFullPath($PathValue)
+  $FullRoot = [System.IO.Path]::GetFullPath($Root).TrimEnd('\', '/')
+  $Prefix = "$FullRoot$([System.IO.Path]::DirectorySeparatorChar)"
+  if ($FullPath.StartsWith($Prefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+    $FullPath = $FullPath.Substring($Prefix.Length)
+  }
+  return (($FullPath -replace "\\", "/") -replace [regex]::Escape([System.IO.Path]::AltDirectorySeparatorChar), "/")
+}
+
+function Get-ReportInputDigest {
+  param([string[]]$PathValues)
+  $Entries = @($PathValues | ForEach-Object {
+      $Hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $_).Hash.ToLowerInvariant()
+      $Size = (Get-Item -LiteralPath $_).Length
+      "$(ConvertTo-ReportInputPath $_)`t$Hash`t$Size"
+    } | Sort-Object)
+  return Get-StringSha256 ($Entries -join "`n")
 }
 
 function Write-Json {
@@ -124,23 +182,57 @@ function New-MetadataList {
 }
 
 function New-OfficialComparisonReportContent {
-  param([string[]]$Scenes = $RequiredScenes)
+  param(
+    [string[]]$Scenes = $RequiredScenes,
+    [string]$InputDigest = "synthetic-input-digest"
+  )
 
   $Rows = [System.Collections.Generic.List[string]]::new()
   foreach ($Scene in $Scenes) {
     $Rows.Add("| $Scene | webgl2 | baseline-content-shell | 60 | 0 | 0 | 0 |") | Out-Null
     $Rows.Add("| $Scene | webgl2 | fork-viewer-default | 60 | 0 | 0 | 0 |") | Out-Null
   }
+  $Tick = [char]0x60
+  $DigestLine = "Input file digest: $Tick$InputDigest$Tick"
 
   @"
 # Benchmark Comparison
 
 Generated from synthetic official manifest test fixtures.
+$DigestLine
 
 Strict official input validation was enabled: synthetic.
 
 | Scene | Renderer | Variant | Avg FPS | Dropped Delta | JS heap Delta | GPU memory Delta |
 | --- | --- | --- | ---: | ---: | ---: | ---: |
+$($Rows -join "`n")
+"@
+}
+
+function New-OfficialSummaryReportContent {
+  param(
+    [string]$Label,
+    [string[]]$Scenes = $RequiredScenes,
+    [string]$InputDigest = "synthetic-input-digest"
+  )
+
+  $Rows = [System.Collections.Generic.List[string]]::new()
+  foreach ($Scene in $Scenes) {
+    $Rows.Add("| $Scene | webgl2 | $Label | 60 |") | Out-Null
+  }
+  $Tick = [char]0x60
+  $DigestLine = "Input file digest: $Tick$InputDigest$Tick"
+
+  @"
+# Benchmark Summary
+
+Generated from synthetic official manifest test fixtures.
+$DigestLine
+
+Strict summary evidence validation was enabled: synthetic.
+
+| Scene | Renderer | Variant | Avg FPS |
+| --- | --- | --- | --- |
 $($Rows -join "`n")
 "@
 }
@@ -180,6 +272,7 @@ function New-Result {
     angle_backend = "ANGLE (NVIDIA, D3D11)"
     renderer_type = "webgl2"
     scene_name = $Scene
+    complexity = 2
     warmup_seconds = 20
     measured_seconds = 120
     avg_fps = 60
@@ -202,6 +295,10 @@ function New-Result {
     texture_upload_mb = 0
     buffer_upload_mb = 0
     shader_compile_events = 0
+    webgpu_device_lost = $false
+    webgl_context_currently_lost = $false
+    webgl_context_lost_count = 0
+    render_error_count = 0
     js_heap_mb = 10
     gpu_memory_mb = 20
     process_rss_mb = 100
@@ -217,12 +314,41 @@ function New-Result {
     viewer_trusted_content = $ViewerTrustedContent
     viewer_aggressive_gpu = $false
     viewer_relaxed_webgl_validation = $false
+    viewer_zero_copy = $false
     viewer_in_process_gpu = $false
     viewer_single_process = $false
     viewer_force_angle_backend = $null
     requested_angle_backend = $null
+    benchmark_hud_enabled = $false
     viewer_disable_unneeded_blink_features = $false
     viewer_direct_gpu_presentation = $false
+    viewer_defer_webgpu_pipeline_flush = $false
+    viewer_defer_webgpu_queue_flush = $false
+    viewer_defer_webgpu_submit_flush = $false
+    viewer_skip_webgpu_canvas_texture_validation = $false
+    viewer_skip_webgpu_canvas_memory_accounting = $false
+    viewer_skip_webgpu_copy_external_image_color_conversion = $false
+    viewer_skip_webgpu_copy_external_image_color_space_validation = $false
+    viewer_skip_webgpu_copy_external_image_dest_validation = $false
+    viewer_skip_webgpu_copy_external_image_source_validation = $false
+    viewer_skip_webgpu_copy_external_image_copy_size_validation = $false
+    viewer_skip_webgpu_write_texture_layout_validation = $false
+    viewer_reject_webgpu_cpu_texture_fallback = $false
+    viewer_skip_webgpu_use_counters = $false
+    viewer_cache_webgpu_bind_group_layouts = $false
+    viewer_skip_webgpu_command_labels = $false
+    viewer_skip_webgpu_resource_labels = $false
+    viewer_skip_webgpu_shader_source_null_check = $false
+    viewer_skip_webgpu_shader_memory_accounting = $false
+    viewer_skip_webgpu_redundant_pipeline_sets = $false
+    viewer_skip_webgpu_redundant_bind_group_sets = $false
+    viewer_skip_webgpu_redundant_buffer_sets = $false
+    viewer_skip_webgpu_redundant_render_state_sets = $false
+    viewer_trace_webgpu_queue = $false
+    resource_warmup_enabled = $false
+    resource_warmup_precompile = $false
+    resource_warmup_prerender_frames = 0
+    resource_warmup_settle_gpu = $false
     browser_flags = @("--disable-software-rasterizer")
   }
 }
@@ -359,17 +485,46 @@ function New-TraceSidecar {
       duration_seconds = 10
       warmup_seconds = 2
       start_delay_ms = 2000
+      benchmark_hud_enabled = $false
       viewer_mode = $ViewerMode
       viewer_block_external_navigation = $ViewerBlockExternalNavigation
       viewer_trusted_content = $ViewerTrustedContent
       viewer_aggressive_gpu = $false
       viewer_relaxed_webgl_validation = $false
+      viewer_zero_copy = $false
       viewer_in_process_gpu = $false
       viewer_single_process = $false
       viewer_force_angle_backend = $null
       requested_angle_backend = $null
       viewer_disable_unneeded_blink_features = $false
       viewer_direct_gpu_presentation = $false
+      viewer_defer_webgpu_pipeline_flush = $false
+      viewer_defer_webgpu_queue_flush = $false
+      viewer_defer_webgpu_submit_flush = $false
+      viewer_skip_webgpu_canvas_texture_validation = $false
+      viewer_skip_webgpu_canvas_memory_accounting = $false
+      viewer_skip_webgpu_copy_external_image_color_conversion = $false
+      viewer_skip_webgpu_copy_external_image_color_space_validation = $false
+      viewer_skip_webgpu_copy_external_image_dest_validation = $false
+      viewer_skip_webgpu_copy_external_image_source_validation = $false
+      viewer_skip_webgpu_copy_external_image_copy_size_validation = $false
+      viewer_skip_webgpu_write_texture_layout_validation = $false
+      viewer_reject_webgpu_cpu_texture_fallback = $false
+      viewer_skip_webgpu_use_counters = $false
+      viewer_cache_webgpu_bind_group_layouts = $false
+      viewer_skip_webgpu_command_labels = $false
+      viewer_skip_webgpu_resource_labels = $false
+      viewer_skip_webgpu_shader_source_null_check = $false
+      viewer_skip_webgpu_shader_memory_accounting = $false
+      viewer_skip_webgpu_redundant_pipeline_sets = $false
+      viewer_skip_webgpu_redundant_bind_group_sets = $false
+      viewer_skip_webgpu_redundant_buffer_sets = $false
+      viewer_skip_webgpu_redundant_render_state_sets = $false
+      viewer_trace_webgpu_queue = $false
+      resource_warmup_enabled = $false
+      resource_warmup_precompile = $false
+      resource_warmup_prerender_frames = 0
+      resource_warmup_settle_gpu = $false
       browser_flags = @("--disable-software-rasterizer")
       categories = "gpu,viz,v8"
       benchmark_result = [pscustomobject]@{
@@ -402,6 +557,16 @@ Total events: 2
 | presentation | 1 | 0.50 |
 | other | 1 | 1.00 |
 
+## WebGPU Texture Copy Path Verdict
+
+Status: ${Tick}no-webgpu-texture-copy-path-observed${Tick}
+
+| Path | Events | Bytes MiB | Pixels |
+| --- | ---: | ---: | ---: |
+| GPU-resident shared image/mailbox copy | 0 |  |  |
+| CPU fallback/readback copy | 0 |  |  |
+| Rejected CPU fallback attempt | 0 |  |  |
+
 ## Top Duration Events
 
 | Event | Count | Total ms | Max ms |
@@ -420,6 +585,8 @@ function New-OfficialManifest {
     [string]$ForkBrowser,
     [string]$BaselineBuildArgs,
     [string]$ForkBuildArgs,
+    [string]$BaselineSummary,
+    [string]$ForkSummary,
     [string]$OfficialReport,
     [string[]]$BaselineWebGl,
     [string[]]$ForkWebGl,
@@ -450,6 +617,7 @@ function New-OfficialManifest {
     options = [pscustomobject]@{
       duration = 120
       warmup = 20
+      complexity = 2
       include_webgpu = $false
       include_aggressive_gpu = $false
       aggressive_angle_backend = ""
@@ -459,6 +627,8 @@ function New-OfficialManifest {
       trace_duration = 10
       trace_warmup = 2
       trace_start_delay_ms = 2000
+      precompile = $false
+      prerender_frames = 0
       skip_smoke = $false
       skip_navigation_lock = $false
     }
@@ -475,10 +645,12 @@ function New-OfficialManifest {
       expected_fork_build_args_hash = $ForkBuildArgsHash
       forbid_smoke = $true
       reject_software_rendering = $true
+      reject_gpu_instability = $true
       require_gpu_metadata = $true
       require_frame_times = $true
       expected_measured_seconds = 120
       expected_warmup_seconds = 20
+      expected_complexity = 2
       expected_chromium_revision = $ChromiumRevision
       expected_baseline_browser = $BaselineBrowser
       expected_fork_browser = $ForkBrowser
@@ -505,6 +677,8 @@ function New-OfficialManifest {
       navigation_lock = $NavigationLock
     }
     report_files = [pscustomobject]@{
+      baseline_webgl2_summary = $BaselineSummary
+      fork_default_webgl2_summary = $ForkSummary
       official_webgl2_comparison = $OfficialReport
       official_webgpu_comparison = $null
       baseline_trace_summary = $null
@@ -541,6 +715,8 @@ function New-OfficialManifest {
         navigation_lock = New-MetadataList $NavigationLock
       }
       reports = [pscustomobject]@{
+        baseline_webgl2_summary = New-FileMetadata $BaselineSummary
+        fork_default_webgl2_summary = New-FileMetadata $ForkSummary
         official_webgl2_comparison = New-FileMetadata $OfficialReport
         official_webgpu_comparison = New-MissingFileMetadata ""
         baseline_trace_summary = New-MissingFileMetadata ""
@@ -622,14 +798,15 @@ try {
   New-Item -ItemType Directory -Path (Split-Path $PinRefreshPath -Parent) -Force | Out-Null
   Write-Json $PinRefreshPath $SyntheticPinRefresh
 
-  $PatchHash = Get-ShortSha256 (Join-Path $Root "chromium_patches\0001-draft-minimal-three-viewer-entrypoint.patch")
-  $ForkRevision = "$ChromiumRevision+viewerpatch-$PatchHash"
+  $ForkRevision = Get-ViewerForkRevisionForChromiumRevision -ChromiumRevision $ChromiumRevision -Root $Root
   $BaselineBrowser = Write-ArtifactFile (Join-Path $TempDir "baseline.exe") "baseline-browser"
   $ForkBrowser = Write-ArtifactFile (Join-Path $TempDir "fork.exe") "fork-browser"
   $BaselineBuildArgs = Write-ArtifactFile (Join-Path $TempDir "baseline-args.gn") "is_debug=false"
   $ForkBuildArgs = Write-ArtifactFile (Join-Path $TempDir "fork-args.gn") "is_debug=false"
   $BaselineBuildArgsHash = Get-Sha256 $BaselineBuildArgs
   $ForkBuildArgsHash = Get-Sha256 $ForkBuildArgs
+  $BaselineSummary = Write-ArtifactFile (Join-Path $TempDir "baseline-content-shell-webgl2-summary.md") (New-OfficialSummaryReportContent -Label "baseline-content-shell")
+  $ForkSummary = Write-ArtifactFile (Join-Path $TempDir "fork-viewer-default-webgl2-summary.md") (New-OfficialSummaryReportContent -Label "fork-viewer-default")
   $OfficialReport = Write-ArtifactFile (Join-Path $TempDir "official-webgl2-comparison.md") (New-OfficialComparisonReportContent)
   $BaselineWebGl = New-TempResultFiles "baseline-content-shell" "webgl2"
   $ForkWebGl = New-TempResultFiles "fork-viewer-default" "webgl2"
@@ -645,6 +822,12 @@ try {
   Write-ResultSuite -Paths $BaselineWebGl -Variant "baseline-content-shell" -ChromiumRevision $ChromiumRevision -ForkRevision $null -BuildArgsHash $BaselineBuildArgsHash -BrowserExecutable $BaselineBrowser -ViewerMode $false -ViewerBlockExternalNavigation $false -ViewerTrustedContent $false
   Write-ResultSuite -Paths $ForkWebGl -Variant "fork-viewer-default" -ChromiumRevision $ChromiumRevision -ForkRevision $ForkRevision -BuildArgsHash $ForkBuildArgsHash -BrowserExecutable $ForkBrowser -ViewerMode $true -ViewerBlockExternalNavigation $true -ViewerTrustedContent $true
   Write-ValidSmokeFiles -RuntimeSmoke $RuntimeSmoke -NavigationLock $NavigationLock -BaselineBrowser $BaselineBrowser -ForkBrowser $ForkBrowser
+  $BaselineSummaryDigest = Get-ReportInputDigest $BaselineWebGl
+  $ForkSummaryDigest = Get-ReportInputDigest $ForkWebGl
+  $OfficialComparisonDigest = Get-ReportInputDigest (@($BaselineWebGl) + @($ForkWebGl))
+  $null = Write-ArtifactFile $BaselineSummary (New-OfficialSummaryReportContent -Label "baseline-content-shell" -InputDigest $BaselineSummaryDigest)
+  $null = Write-ArtifactFile $ForkSummary (New-OfficialSummaryReportContent -Label "fork-viewer-default" -InputDigest $ForkSummaryDigest)
+  $null = Write-ArtifactFile $OfficialReport (New-OfficialComparisonReportContent -InputDigest $OfficialComparisonDigest)
 
   $Manifest = New-OfficialManifest `
     -ChromiumRevision $ChromiumRevision `
@@ -653,6 +836,8 @@ try {
     -ForkBrowser $ForkBrowser `
     -BaselineBuildArgs $BaselineBuildArgs `
     -ForkBuildArgs $ForkBuildArgs `
+    -BaselineSummary $BaselineSummary `
+    -ForkSummary $ForkSummary `
     -OfficialReport $OfficialReport `
     -BaselineWebGl $BaselineWebGl `
     -ForkWebGl $ForkWebGl `
@@ -664,12 +849,39 @@ try {
     throw "Artifact audit did not accept a completed official manifest whose exact suites pass validation. Checklist: $DoneChecklist"
   }
 
+  $null = Write-ArtifactFile $BaselineSummary (New-OfficialSummaryReportContent -Label "baseline-content-shell" -InputDigest "wrong-input-digest")
+  $Manifest.artifact_metadata.reports.baseline_webgl2_summary = New-FileMetadata $BaselineSummary
+  Write-Json $ManifestPath $Manifest
+  $WrongDigestChecklist = Invoke-AuditAndReadChecklist
+  if ($WrongDigestChecklist -notmatch "Official comparison manifest.*pending.*report content validation failed" -or
+      $WrongDigestChecklist -notmatch "baseline_webgl2_summary input digest does not match manifest result files") {
+    throw "Artifact audit accepted or misreported a completed official manifest whose baseline summary input digest does not match the exact raw result files. Checklist: $WrongDigestChecklist"
+  }
+
+  $null = Write-ArtifactFile $BaselineSummary ((New-OfficialSummaryReportContent -Label "baseline-content-shell" -InputDigest $BaselineSummaryDigest) -replace "Strict summary evidence validation was enabled: synthetic.\r?\n\r?\n", "")
+  $Manifest.artifact_metadata.reports.baseline_webgl2_summary = New-FileMetadata $BaselineSummary
+  Write-Json $ManifestPath $Manifest
+  $MissingStrictSummaryChecklist = Invoke-AuditAndReadChecklist
+  if ($MissingStrictSummaryChecklist -notmatch "Official comparison manifest.*pending.*report content validation failed" -or
+      $MissingStrictSummaryChecklist -notmatch "baseline_webgl2_summary missing strict summary evidence validation note") {
+    throw "Artifact audit accepted or misreported a completed official manifest whose baseline summary report lacks strict-evidence validation text. Checklist: $MissingStrictSummaryChecklist"
+  }
+  $null = Write-ArtifactFile $BaselineSummary (New-OfficialSummaryReportContent -Label "baseline-content-shell" -InputDigest $BaselineSummaryDigest)
+  $Manifest.artifact_metadata.reports.baseline_webgl2_summary = New-FileMetadata $BaselineSummary
+  Write-Json $ManifestPath $Manifest
+
   $WrongBrowserResultPath = [string]$BaselineWebGl[0]
   $OriginalWrongBrowserResult = Get-Content -LiteralPath $WrongBrowserResultPath -Raw | ConvertFrom-Json
   $WrongBrowserResult = Get-Content -LiteralPath $WrongBrowserResultPath -Raw | ConvertFrom-Json
   $WrongBrowserResult.browser_executable = Join-Path $TempDir "wrong-baseline-browser.exe"
   Write-Json $WrongBrowserResultPath $WrongBrowserResult
   $Manifest.artifact_metadata.results.baseline_webgl2 = New-MetadataList $BaselineWebGl
+  $BaselineSummaryDigest = Get-ReportInputDigest $BaselineWebGl
+  $OfficialComparisonDigest = Get-ReportInputDigest (@($BaselineWebGl) + @($ForkWebGl))
+  $null = Write-ArtifactFile $BaselineSummary (New-OfficialSummaryReportContent -Label "baseline-content-shell" -InputDigest $BaselineSummaryDigest)
+  $null = Write-ArtifactFile $OfficialReport (New-OfficialComparisonReportContent -InputDigest $OfficialComparisonDigest)
+  $Manifest.artifact_metadata.reports.baseline_webgl2_summary = New-FileMetadata $BaselineSummary
+  $Manifest.artifact_metadata.reports.official_webgl2_comparison = New-FileMetadata $OfficialReport
   Write-Json $ManifestPath $Manifest
   $WrongBrowserChecklist = Invoke-AuditAndReadChecklist
   if ($WrongBrowserChecklist -notmatch "Official comparison manifest.*pending.*suite validation failed" -or
@@ -678,6 +890,12 @@ try {
   }
   Write-Json $WrongBrowserResultPath $OriginalWrongBrowserResult
   $Manifest.artifact_metadata.results.baseline_webgl2 = New-MetadataList $BaselineWebGl
+  $BaselineSummaryDigest = Get-ReportInputDigest $BaselineWebGl
+  $OfficialComparisonDigest = Get-ReportInputDigest (@($BaselineWebGl) + @($ForkWebGl))
+  $null = Write-ArtifactFile $BaselineSummary (New-OfficialSummaryReportContent -Label "baseline-content-shell" -InputDigest $BaselineSummaryDigest)
+  $null = Write-ArtifactFile $OfficialReport (New-OfficialComparisonReportContent -InputDigest $OfficialComparisonDigest)
+  $Manifest.artifact_metadata.reports.baseline_webgl2_summary = New-FileMetadata $BaselineSummary
+  $Manifest.artifact_metadata.reports.official_webgl2_comparison = New-FileMetadata $OfficialReport
   Write-Json $ManifestPath $Manifest
 
   $BaselineTrace = Join-Path $TempDir "baseline-trace.json"
@@ -735,7 +953,8 @@ try {
   $Manifest.artifact_metadata.reports.baseline_trace_summary = New-MissingFileMetadata ""
   $Manifest.artifact_metadata.reports.fork_trace_summary = New-MissingFileMetadata ""
 
-  $null = Write-ArtifactFile $OfficialReport (New-OfficialComparisonReportContent -Scenes @($RequiredScenes | Select-Object -Skip 1))
+  $OfficialComparisonDigest = Get-ReportInputDigest (@($BaselineWebGl) + @($ForkWebGl))
+  $null = Write-ArtifactFile $OfficialReport (New-OfficialComparisonReportContent -Scenes @($RequiredScenes | Select-Object -Skip 1) -InputDigest $OfficialComparisonDigest)
   $Manifest.artifact_metadata.reports.official_webgl2_comparison = New-FileMetadata $OfficialReport
   Write-Json $ManifestPath $Manifest
   $SceneIncompleteReportChecklist = Invoke-AuditAndReadChecklist
@@ -753,13 +972,19 @@ try {
     throw "Artifact audit accepted or misreported a completed official manifest whose hashed report content is not a comparison report. Checklist: $BadReportChecklist"
   }
 
-  $null = Write-ArtifactFile $OfficialReport (New-OfficialComparisonReportContent)
+  $null = Write-ArtifactFile $OfficialReport (New-OfficialComparisonReportContent -InputDigest $OfficialComparisonDigest)
   $Manifest.artifact_metadata.reports.official_webgl2_comparison = New-FileMetadata $OfficialReport
 
   $BadForkResult = Get-Content -LiteralPath $ForkWebGl[0] -Raw | ConvertFrom-Json
   $BadForkResult.measured_seconds = 119
   Write-Json $ForkWebGl[0] $BadForkResult
   $Manifest.artifact_metadata.results.fork_default_webgl2 = New-MetadataList $ForkWebGl
+  $ForkSummaryDigest = Get-ReportInputDigest $ForkWebGl
+  $OfficialComparisonDigest = Get-ReportInputDigest (@($BaselineWebGl) + @($ForkWebGl))
+  $null = Write-ArtifactFile $ForkSummary (New-OfficialSummaryReportContent -Label "fork-viewer-default" -InputDigest $ForkSummaryDigest)
+  $null = Write-ArtifactFile $OfficialReport (New-OfficialComparisonReportContent -InputDigest $OfficialComparisonDigest)
+  $Manifest.artifact_metadata.reports.fork_default_webgl2_summary = New-FileMetadata $ForkSummary
+  $Manifest.artifact_metadata.reports.official_webgl2_comparison = New-FileMetadata $OfficialReport
   Write-Json $ManifestPath $Manifest
   $BadChecklist = Invoke-AuditAndReadChecklist
   if ($BadChecklist -notmatch "Official comparison manifest.*pending.*suite validation failed" -or
@@ -778,4 +1003,4 @@ try {
   }
 }
 
-Write-Host "Official manifest audit semantically validates exact benchmark suite files, comparison reports, and trace summaries before marking comparison evidence complete."
+Write-Host "Official manifest audit semantically validates exact benchmark suite files, raw-input report digests, strict summary reports, comparison reports, and trace summaries before marking comparison evidence complete."

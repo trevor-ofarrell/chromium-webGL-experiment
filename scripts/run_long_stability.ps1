@@ -16,11 +16,31 @@ param(
   [switch]$ViewerTrustedContent,
   [switch]$ViewerAggressiveGpu,
   [switch]$ViewerRelaxedWebglValidation,
+  [switch]$ViewerZeroCopy,
   [switch]$ViewerInProcessGpu,
   [switch]$ViewerSingleProcess,
   [string]$ViewerForceAngleBackend = "",
   [switch]$ViewerDisableUnneededBlinkFeatures,
   [switch]$ViewerDirectGpuPresentation,
+  [switch]$ViewerDeferWebgpuQueueFlush,
+  [switch]$ViewerDeferWebgpuSubmitFlush,
+  [switch]$ViewerSkipWebgpuCanvasTextureValidation,
+  [switch]$ViewerSkipWebgpuCanvasMemoryAccounting,
+  [switch]$ViewerSkipWebgpuCopyExternalImageColorConversion,
+  [switch]$ViewerSkipWebgpuCopyExternalImageColorSpaceValidation,
+  [switch]$ViewerSkipWebgpuCopyExternalImageDestValidation,
+  [switch]$ViewerSkipWebgpuCopyExternalImageSourceValidation,
+  [switch]$ViewerSkipWebgpuCopyExternalImageCopySizeValidation,
+  [switch]$ViewerSkipWebgpuWriteTextureLayoutValidation,
+  [switch]$ViewerRejectWebgpuCpuTextureFallback,
+  [switch]$ViewerSkipWebgpuUseCounters,
+  [switch]$ViewerSkipWebgpuResourceLabels,
+  [switch]$ViewerSkipWebgpuShaderSourceNullCheck,
+  [switch]$ViewerSkipWebgpuShaderMemoryAccounting,
+  [switch]$ViewerSkipWebgpuRedundantPipelineSets,
+  [switch]$ViewerSkipWebgpuRedundantBindGroupSets,
+  [switch]$ViewerSkipWebgpuRedundantBufferSets,
+  [switch]$ViewerSkipWebgpuRedundantRenderStateSets,
   [switch]$Precompile,
   [int]$PrerenderFrames = 0,
   [double]$Complexity = 1.0,
@@ -130,12 +150,37 @@ function Get-ExpectedFlagMetadata {
     viewer_trusted_content = [bool]$ViewerTrustedContent
     viewer_aggressive_gpu = [bool]$ViewerAggressiveGpu
     viewer_relaxed_webgl_validation = [bool]$ViewerRelaxedWebglValidation
+    viewer_zero_copy = [bool]$ViewerZeroCopy
     viewer_in_process_gpu = [bool]$ViewerInProcessGpu
     viewer_single_process = [bool]$ViewerSingleProcess
     viewer_force_angle_backend = if ($ViewerForceAngleBackend) { $ViewerForceAngleBackend } else { $null }
     requested_angle_backend = if ($ViewerForceAngleBackend) { $ViewerForceAngleBackend } else { $null }
     viewer_disable_unneeded_blink_features = [bool]$ViewerDisableUnneededBlinkFeatures
     viewer_direct_gpu_presentation = [bool]$ViewerDirectGpuPresentation
+    viewer_defer_webgpu_queue_flush = [bool]$ViewerDeferWebgpuQueueFlush
+    viewer_defer_webgpu_submit_flush = [bool]$ViewerDeferWebgpuSubmitFlush
+    viewer_skip_webgpu_canvas_texture_validation = [bool]$ViewerSkipWebgpuCanvasTextureValidation
+    viewer_skip_webgpu_canvas_memory_accounting = [bool]$ViewerSkipWebgpuCanvasMemoryAccounting
+    viewer_skip_webgpu_copy_external_image_color_conversion = [bool]$ViewerSkipWebgpuCopyExternalImageColorConversion
+    viewer_skip_webgpu_copy_external_image_color_space_validation = [bool]$ViewerSkipWebgpuCopyExternalImageColorSpaceValidation
+    viewer_skip_webgpu_copy_external_image_dest_validation = [bool]$ViewerSkipWebgpuCopyExternalImageDestValidation
+    viewer_skip_webgpu_copy_external_image_source_validation = [bool]$ViewerSkipWebgpuCopyExternalImageSourceValidation
+    viewer_skip_webgpu_copy_external_image_copy_size_validation = [bool]$ViewerSkipWebgpuCopyExternalImageCopySizeValidation
+    viewer_skip_webgpu_write_texture_layout_validation = [bool]$ViewerSkipWebgpuWriteTextureLayoutValidation
+    viewer_reject_webgpu_cpu_texture_fallback = [bool]$ViewerRejectWebgpuCpuTextureFallback
+    viewer_skip_webgpu_use_counters = [bool]$ViewerSkipWebgpuUseCounters
+    viewer_skip_webgpu_resource_labels = [bool]$ViewerSkipWebgpuResourceLabels
+    viewer_skip_webgpu_shader_source_null_check = [bool]$ViewerSkipWebgpuShaderSourceNullCheck
+    viewer_skip_webgpu_shader_memory_accounting = [bool]$ViewerSkipWebgpuShaderMemoryAccounting
+    viewer_skip_webgpu_redundant_pipeline_sets = [bool]$ViewerSkipWebgpuRedundantPipelineSets
+    viewer_skip_webgpu_redundant_bind_group_sets = [bool]$ViewerSkipWebgpuRedundantBindGroupSets
+    viewer_skip_webgpu_redundant_buffer_sets = [bool]$ViewerSkipWebgpuRedundantBufferSets
+    viewer_skip_webgpu_redundant_render_state_sets = [bool]$ViewerSkipWebgpuRedundantRenderStateSets
+    viewer_trace_webgpu_queue = $false
+    benchmark_hud_enabled = $false
+    resource_warmup_enabled = [bool]($Precompile -or $PrerenderFrames -gt 0)
+    resource_warmup_precompile = [bool]$Precompile
+    resource_warmup_prerender_frames = $PrerenderFrames
   }
 
   return @($Metadata.GetEnumerator() | ForEach-Object {
@@ -201,6 +246,9 @@ if ($ViewerAggressiveGpu) {
 if ($ViewerRelaxedWebglValidation) {
   $Command += "--viewerRelaxedWebglValidation"
 }
+if ($ViewerZeroCopy) {
+  $Command += "--viewerZeroCopy"
+}
 if ($ViewerInProcessGpu) {
   $Command += "--viewerInProcessGpu"
 }
@@ -215,6 +263,63 @@ if ($ViewerDisableUnneededBlinkFeatures) {
 }
 if ($ViewerDirectGpuPresentation) {
   $Command += "--viewerDirectGpuPresentation"
+}
+if ($ViewerDeferWebgpuQueueFlush) {
+  $Command += "--viewerDeferWebgpuQueueFlush"
+}
+if ($ViewerDeferWebgpuSubmitFlush) {
+  $Command += "--viewerDeferWebgpuSubmitFlush"
+}
+if ($ViewerSkipWebgpuCanvasTextureValidation) {
+  $Command += "--viewerSkipWebgpuCanvasTextureValidation"
+}
+if ($ViewerSkipWebgpuCanvasMemoryAccounting) {
+  $Command += "--viewerSkipWebgpuCanvasMemoryAccounting"
+}
+if ($ViewerSkipWebgpuCopyExternalImageColorConversion) {
+  $Command += "--viewerSkipWebgpuCopyExternalImageColorConversion"
+}
+if ($ViewerSkipWebgpuCopyExternalImageColorSpaceValidation) {
+  $Command += "--viewerSkipWebgpuCopyExternalImageColorSpaceValidation"
+}
+if ($ViewerSkipWebgpuCopyExternalImageDestValidation) {
+  $Command += "--viewerSkipWebgpuCopyExternalImageDestValidation"
+}
+if ($ViewerSkipWebgpuCopyExternalImageSourceValidation) {
+  $Command += "--viewerSkipWebgpuCopyExternalImageSourceValidation"
+}
+if ($ViewerSkipWebgpuCopyExternalImageCopySizeValidation) {
+  $Command += "--viewerSkipWebgpuCopyExternalImageCopySizeValidation"
+}
+if ($ViewerSkipWebgpuWriteTextureLayoutValidation) {
+  $Command += "--viewerSkipWebgpuWriteTextureLayoutValidation"
+}
+if ($ViewerRejectWebgpuCpuTextureFallback) {
+  $Command += "--viewerRejectWebgpuCpuTextureFallback"
+}
+if ($ViewerSkipWebgpuUseCounters) {
+  $Command += "--viewerSkipWebgpuUseCounters"
+}
+if ($ViewerSkipWebgpuResourceLabels) {
+  $Command += "--viewerSkipWebgpuResourceLabels"
+}
+if ($ViewerSkipWebgpuShaderSourceNullCheck) {
+  $Command += "--viewerSkipWebgpuShaderSourceNullCheck"
+}
+if ($ViewerSkipWebgpuShaderMemoryAccounting) {
+  $Command += "--viewerSkipWebgpuShaderMemoryAccounting"
+}
+if ($ViewerSkipWebgpuRedundantPipelineSets) {
+  $Command += "--viewerSkipWebgpuRedundantPipelineSets"
+}
+if ($ViewerSkipWebgpuRedundantBindGroupSets) {
+  $Command += "--viewerSkipWebgpuRedundantBindGroupSets"
+}
+if ($ViewerSkipWebgpuRedundantBufferSets) {
+  $Command += "--viewerSkipWebgpuRedundantBufferSets"
+}
+if ($ViewerSkipWebgpuRedundantRenderStateSets) {
+  $Command += "--viewerSkipWebgpuRedundantRenderStateSets"
 }
 if ($Precompile) {
   $Command += "--precompile"

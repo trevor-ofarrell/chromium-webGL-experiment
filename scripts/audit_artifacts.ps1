@@ -15,6 +15,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $Root = Resolve-Path (Join-Path $PSScriptRoot "..")
+. (Join-Path $PSScriptRoot "viewer_patch_series.ps1")
 $ExclusiveModes = @($ManifestAuditOnly, $PatchStateOnly, $BuildStateOnly, $ReportStateOnly, $StabilityOnly, $OptimizationOnly, $DocumentationOnly) | Where-Object { $_ }
 if ($ExclusiveModes.Count -gt 1) {
   throw "-ManifestAuditOnly, -PatchStateOnly, -BuildStateOnly, -ReportStateOnly, -StabilityOnly, -OptimizationOnly, and -DocumentationOnly cannot be combined."
@@ -30,6 +31,14 @@ if ($env:THREE_BROWSER_TEST_TRUSTED_EXPERIMENT_MATRIX_MANIFEST -and
     $env:THREE_BROWSER_ALLOW_TEST_MANIFEST_OVERRIDES -ne "1") {
   throw "THREE_BROWSER_TEST_TRUSTED_EXPERIMENT_MATRIX_MANIFEST requires THREE_BROWSER_ALLOW_TEST_MANIFEST_OVERRIDES=1."
 }
+if ($env:THREE_BROWSER_TEST_SUITE_PROMOTION_PLAN_MANIFEST -and
+    $env:THREE_BROWSER_ALLOW_TEST_MANIFEST_OVERRIDES -ne "1") {
+  throw "THREE_BROWSER_TEST_SUITE_PROMOTION_PLAN_MANIFEST requires THREE_BROWSER_ALLOW_TEST_MANIFEST_OVERRIDES=1."
+}
+if ($env:THREE_BROWSER_TEST_TARGETED_BLOCKER_PLAN_MANIFEST -and
+    $env:THREE_BROWSER_ALLOW_TEST_MANIFEST_OVERRIDES -ne "1") {
+  throw "THREE_BROWSER_TEST_TARGETED_BLOCKER_PLAN_MANIFEST requires THREE_BROWSER_ALLOW_TEST_MANIFEST_OVERRIDES=1."
+}
 if ($env:THREE_BROWSER_TEST_OPTIMIZATION_LOG -and
     $env:THREE_BROWSER_ALLOW_TEST_MANIFEST_OVERRIDES -ne "1") {
   throw "THREE_BROWSER_TEST_OPTIMIZATION_LOG requires THREE_BROWSER_ALLOW_TEST_MANIFEST_OVERRIDES=1."
@@ -41,6 +50,10 @@ if ($env:THREE_BROWSER_TEST_REMOVED_SUBSYSTEMS_DOC -and
 if ($env:THREE_BROWSER_TEST_PERFORMANCE_CLAIM_DOCS -and
     $env:THREE_BROWSER_ALLOW_TEST_MANIFEST_OVERRIDES -ne "1") {
   throw "THREE_BROWSER_TEST_PERFORMANCE_CLAIM_DOCS requires THREE_BROWSER_ALLOW_TEST_MANIFEST_OVERRIDES=1."
+}
+if ($env:THREE_BROWSER_TEST_FINAL_DOCUMENTATION_DIR -and
+    $env:THREE_BROWSER_ALLOW_TEST_MANIFEST_OVERRIDES -ne "1") {
+  throw "THREE_BROWSER_TEST_FINAL_DOCUMENTATION_DIR requires THREE_BROWSER_ALLOW_TEST_MANIFEST_OVERRIDES=1."
 }
 if (($env:THREE_BROWSER_TEST_OFFICIAL_WEBGL2_REPORT -or $env:THREE_BROWSER_TEST_OFFICIAL_WEBGPU_REPORT) -and
     $env:THREE_BROWSER_ALLOW_TEST_MANIFEST_OVERRIDES -ne "1") {
@@ -76,6 +89,7 @@ $RequiredMetricFields = @(
   "angle_backend",
   "renderer_type",
   "scene_name",
+  "complexity",
   "warmup_seconds",
   "measured_seconds",
   "avg_fps",
@@ -151,6 +165,17 @@ function Test-RepoPath {
   return Test-Path (Resolve-RepoPath $PathValue)
 }
 
+function Resolve-FinalDocumentationPath {
+  param([string]$PathValue)
+  if ($env:THREE_BROWSER_TEST_FINAL_DOCUMENTATION_DIR) {
+    if (-not (Test-ManifestPathOverrideEnabled)) {
+      throw "THREE_BROWSER_TEST_FINAL_DOCUMENTATION_DIR requires THREE_BROWSER_ALLOW_TEST_MANIFEST_OVERRIDES=1."
+    }
+    return (Join-Path $env:THREE_BROWSER_TEST_FINAL_DOCUMENTATION_DIR $PathValue)
+  }
+  return Resolve-RepoPath $PathValue
+}
+
 function Test-ManifestPathOverrideEnabled {
   return $env:THREE_BROWSER_ALLOW_TEST_MANIFEST_OVERRIDES -eq "1"
 }
@@ -173,6 +198,37 @@ function Get-TrustedMatrixManifestPathValue {
     return $env:THREE_BROWSER_TEST_TRUSTED_EXPERIMENT_MATRIX_MANIFEST
   }
   return "benchmarks\reports\trusted-experiment-matrix-manifest.json"
+}
+
+function Get-TrustedMatrixCandidateManifestPathValues {
+  if ($env:THREE_BROWSER_TEST_TRUSTED_EXPERIMENT_MATRIX_MANIFEST) {
+    return @(Get-TrustedMatrixManifestPathValue)
+  }
+  return @(
+    "benchmarks\reports\trusted-experiment-matrix-webgl2-manifest.json",
+    "benchmarks\reports\trusted-experiment-matrix-webgpu-manifest.json",
+    "benchmarks\reports\trusted-experiment-matrix-manifest.json"
+  )
+}
+
+function Get-SuitePromotionPlanManifestPathValue {
+  if ($env:THREE_BROWSER_TEST_SUITE_PROMOTION_PLAN_MANIFEST) {
+    if (-not (Test-ManifestPathOverrideEnabled)) {
+      throw "THREE_BROWSER_TEST_SUITE_PROMOTION_PLAN_MANIFEST requires THREE_BROWSER_ALLOW_TEST_MANIFEST_OVERRIDES=1."
+    }
+    return $env:THREE_BROWSER_TEST_SUITE_PROMOTION_PLAN_MANIFEST
+  }
+  return "benchmarks\reports\targeted-suite-promotion-plan.json"
+}
+
+function Get-TargetedBlockerPlanManifestPathValue {
+  if ($env:THREE_BROWSER_TEST_TARGETED_BLOCKER_PLAN_MANIFEST) {
+    if (-not (Test-ManifestPathOverrideEnabled)) {
+      throw "THREE_BROWSER_TEST_TARGETED_BLOCKER_PLAN_MANIFEST requires THREE_BROWSER_ALLOW_TEST_MANIFEST_OVERRIDES=1."
+    }
+    return $env:THREE_BROWSER_TEST_TARGETED_BLOCKER_PLAN_MANIFEST
+  }
+  return "benchmarks\reports\targeted-blocker-experiment-plan.json"
 }
 
 function Get-OfficialWebGl2ReportPathValue {
@@ -249,6 +305,453 @@ function Get-FileHashString {
     return ""
   }
   return (Get-FileHash -Algorithm SHA256 -LiteralPath $Resolved).Hash.ToLowerInvariant()
+}
+
+function Convert-BytesToHexString {
+  param([byte[]]$Bytes)
+  return (($Bytes | ForEach-Object { $_.ToString("x2") }) -join "")
+}
+
+function Get-StringSha256 {
+  param([string]$Text)
+  $Sha256 = [System.Security.Cryptography.SHA256]::Create()
+  try {
+    $Bytes = [System.Text.Encoding]::UTF8.GetBytes($Text)
+    return Convert-BytesToHexString ($Sha256.ComputeHash($Bytes))
+  } finally {
+    $Sha256.Dispose()
+  }
+}
+
+function Sort-ReportInputEntryLines {
+  param([AllowNull()][object]$Entries)
+
+  $Sorted = [System.Collections.Generic.List[string]]::new()
+  foreach ($Entry in @($Entries)) {
+    if ($null -ne $Entry) {
+      $Sorted.Add([string]$Entry) | Out-Null
+    }
+  }
+  $Array = [string[]]$Sorted.ToArray()
+  [array]::Sort($Array, [System.StringComparer]::Ordinal)
+  return @($Array)
+}
+
+function ConvertTo-ReportInputPath {
+  param([string]$PathValue)
+  $FullPath = [System.IO.Path]::GetFullPath((Resolve-RepoPath $PathValue))
+  $FullRoot = [System.IO.Path]::GetFullPath($Root).TrimEnd('\', '/')
+  $Prefix = "$FullRoot$([System.IO.Path]::DirectorySeparatorChar)"
+  $Comparison = if ($IsWindows -or $env:OS -eq "Windows_NT") {
+    [System.StringComparison]::OrdinalIgnoreCase
+  } else {
+    [System.StringComparison]::Ordinal
+  }
+  $DisplayPath = if ($FullPath.StartsWith($Prefix, $Comparison)) {
+    $FullPath.Substring($Prefix.Length)
+  } else {
+    $FullPath
+  }
+  return (($DisplayPath -replace "\\", "/") -replace [regex]::Escape([System.IO.Path]::AltDirectorySeparatorChar), "/")
+}
+
+function Add-FlattenedPathValues {
+  param(
+    [AllowNull()][object]$Values,
+    [System.Collections.Generic.List[string]]$Target
+  )
+
+  foreach ($Value in @($Values)) {
+    if ($null -eq $Value) {
+      continue
+    }
+    if ($Value -is [System.Array] -and -not ($Value -is [string])) {
+      Add-FlattenedPathValues -Values $Value -Target $Target
+      continue
+    }
+    $Text = [string]$Value
+    if (-not [string]::IsNullOrWhiteSpace($Text)) {
+      $Target.Add($Text) | Out-Null
+    }
+  }
+}
+
+function Get-ReportInputDigest {
+  param([AllowNull()][object]$PathValues)
+
+  $Entries = Get-ReportInputEntryLines $PathValues
+  if ($null -eq $Entries) {
+    return ""
+  }
+  $EntryArray = @($Entries)
+  if ($EntryArray.Count -eq 0) {
+    return ""
+  }
+
+  return Get-StringSha256 ((Sort-ReportInputEntryLines $EntryArray) -join "`n")
+}
+
+function Get-ReportInputEntryLines {
+  param([AllowNull()][object]$PathValues)
+
+  $Flattened = [System.Collections.Generic.List[string]]::new()
+  Add-FlattenedPathValues -Values $PathValues -Target $Flattened
+  if ($Flattened.Count -eq 0) {
+    return @()
+  }
+
+  $Entries = [System.Collections.Generic.List[string]]::new()
+  foreach ($PathValue in @($Flattened)) {
+    $Resolved = Resolve-RepoPath $PathValue
+    if (-not (Test-Path -LiteralPath $Resolved -PathType Leaf)) {
+      return $null
+    }
+    $Hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $Resolved).Hash.ToLowerInvariant()
+    $Size = (Get-Item -LiteralPath $Resolved).Length
+    $Entries.Add("$(ConvertTo-ReportInputPath $PathValue)`t$Hash`t$Size") | Out-Null
+  }
+
+  return @(Sort-ReportInputEntryLines $Entries)
+}
+
+function Add-CandidateAnalysisInputDigestIssues {
+  param(
+    [System.Collections.Generic.List[string]]$Issues,
+    [AllowNull()][object]$InputLines,
+    [int]$ExpectedInputCount,
+    [string]$ExpectedDigestFromManifest,
+    [string]$AnalysisJsonPath,
+    [string]$Label,
+    [bool]$RequireEvidence
+  )
+
+  if (-not $RequireEvidence) {
+    return
+  }
+
+  $Lines = @(ConvertTo-AuditArray $InputLines | ForEach-Object { [string]$_ } | Where-Object { $_.Trim() })
+  if ($Lines.Count -ne $ExpectedInputCount) {
+    $Issues.Add("$Label input count=$($Lines.Count) expected=$ExpectedInputCount") | Out-Null
+  }
+
+  $ExpectedInputEntries = Get-ReportInputEntryLines $Lines
+  $ComputedDigest = if ($null -eq $ExpectedInputEntries -or @($ExpectedInputEntries).Count -eq 0) {
+    ""
+  } else {
+    Get-StringSha256 ((Sort-ReportInputEntryLines $ExpectedInputEntries) -join "`n")
+  }
+  if ([string]::IsNullOrWhiteSpace($ComputedDigest)) {
+    $Issues.Add("$Label input digest could not be computed from generated input list") | Out-Null
+  }
+  if ([string]::IsNullOrWhiteSpace($ExpectedDigestFromManifest)) {
+    $Issues.Add("$Label expected_input_file_digest missing from manifest") | Out-Null
+  } elseif ($ExpectedDigestFromManifest -notmatch "^[0-9a-f]{64}$") {
+    $Issues.Add("$Label expected_input_file_digest is not a 64-character sha256") | Out-Null
+  } elseif ($ComputedDigest -and $ExpectedDigestFromManifest -ne $ComputedDigest) {
+    $Issues.Add("$Label expected_input_file_digest does not match generated input list") | Out-Null
+  }
+
+  if ([string]::IsNullOrWhiteSpace($AnalysisJsonPath)) {
+    $Issues.Add("$Label analysis JSON path missing") | Out-Null
+    return
+  }
+  $ResolvedAnalysisJson = Resolve-RepoPath $AnalysisJsonPath
+  if (-not (Test-Path -LiteralPath $ResolvedAnalysisJson -PathType Leaf)) {
+    $Issues.Add("$Label analysis JSON missing on disk") | Out-Null
+    return
+  }
+
+  try {
+    $AnalysisJson = Get-Content -LiteralPath $ResolvedAnalysisJson -Raw | ConvertFrom-Json
+    $ActualDigest = [string]$AnalysisJson.input_file_digest
+    if ([string]::IsNullOrWhiteSpace($ActualDigest)) {
+      $Issues.Add("$Label analysis JSON missing input_file_digest") | Out-Null
+    } elseif ($ComputedDigest -and $ActualDigest -ne $ComputedDigest) {
+      $Issues.Add("$Label analysis JSON input_file_digest does not match generated input list") | Out-Null
+    }
+    $AnalysisInputFiles = @(ConvertTo-AuditArray $AnalysisJson.input_files)
+    if ($AnalysisInputFiles.Count -ne $ExpectedInputCount) {
+      $Issues.Add("$Label analysis JSON input_files count=$($AnalysisInputFiles.Count) expected=$ExpectedInputCount") | Out-Null
+    }
+    $ActualInputEntries = [System.Collections.Generic.List[string]]::new()
+    $InputFileMetadataOk = $true
+    foreach ($InputFile in $AnalysisInputFiles) {
+      $InputPath = [string]$InputFile.path
+      $InputHash = [string]$InputFile.sha256
+      $InputSize = Get-ObjectPropertyValue $InputFile "size_bytes"
+      $ParsedInputSize = 0L
+      if ([string]::IsNullOrWhiteSpace($InputPath) -or
+          $InputHash -notmatch "^[0-9a-fA-F]{64}$" -or
+          $null -eq $InputSize -or
+          -not [long]::TryParse([string]$InputSize, [ref]$ParsedInputSize)) {
+        $InputFileMetadataOk = $false
+        break
+      }
+      $ActualInputEntries.Add("$(($InputPath -replace "\\", "/"))`t$($InputHash.ToLowerInvariant())`t$ParsedInputSize") | Out-Null
+    }
+    if (-not $InputFileMetadataOk) {
+      $Issues.Add("$Label analysis JSON input_files missing path/hash/size metadata") | Out-Null
+    } elseif ($null -ne $ExpectedInputEntries -and @($ExpectedInputEntries).Count -eq $ExpectedInputCount -and $AnalysisInputFiles.Count -eq $ExpectedInputCount) {
+      $ExpectedInputText = @($ExpectedInputEntries) -join "`n"
+      $ActualInputText = @(Sort-ReportInputEntryLines $ActualInputEntries) -join "`n"
+      if ($ActualInputText -ne $ExpectedInputText) {
+        $Issues.Add("$Label analysis JSON input_files path/hash/size metadata does not match generated input list") | Out-Null
+      }
+    }
+  } catch {
+    $Issues.Add("$Label analysis JSON is invalid or unreadable: $($_.Exception.Message)") | Out-Null
+  }
+}
+
+function Add-CandidateAnalysisSelfDigestIssues {
+  param(
+    [System.Collections.Generic.List[string]]$Issues,
+    [string]$AnalysisJsonPath,
+    [string]$Label
+  )
+
+  if ([string]::IsNullOrWhiteSpace($AnalysisJsonPath)) {
+    $Issues.Add("$Label analysis JSON path missing") | Out-Null
+    return
+  }
+  $ResolvedAnalysisJson = Resolve-RepoPath $AnalysisJsonPath
+  if (-not (Test-Path -LiteralPath $ResolvedAnalysisJson -PathType Leaf)) {
+    $Issues.Add("$Label analysis JSON missing on disk") | Out-Null
+    return
+  }
+
+  try {
+    $AnalysisJson = Get-Content -LiteralPath $ResolvedAnalysisJson -Raw | ConvertFrom-Json
+    $AnalysisInputFiles = @(ConvertTo-AuditArray $AnalysisJson.input_files)
+    if ($AnalysisInputFiles.Count -eq 0) {
+      $Issues.Add("$Label analysis JSON input_files missing or empty") | Out-Null
+      return
+    }
+
+    $ActualInputEntries = [System.Collections.Generic.List[string]]::new()
+    foreach ($InputFile in $AnalysisInputFiles) {
+      $InputPath = [string]$InputFile.path
+      $InputHash = [string]$InputFile.sha256
+      $InputSize = Get-ObjectPropertyValue $InputFile "size_bytes"
+      $ParsedInputSize = 0L
+      if ([string]::IsNullOrWhiteSpace($InputPath) -or
+          $InputHash -notmatch "^[0-9a-fA-F]{64}$" -or
+          $null -eq $InputSize -or
+          -not [long]::TryParse([string]$InputSize, [ref]$ParsedInputSize)) {
+        $Issues.Add("$Label analysis JSON input_files missing path/hash/size metadata") | Out-Null
+        return
+      }
+
+      $ResolvedInputPath = Resolve-RepoPath $InputPath
+      if (-not (Test-Path -LiteralPath $ResolvedInputPath -PathType Leaf)) {
+        $Issues.Add("$Label analysis JSON input file missing on disk: $InputPath") | Out-Null
+        return
+      }
+      $ActualHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $ResolvedInputPath).Hash.ToLowerInvariant()
+      $ActualSize = (Get-Item -LiteralPath $ResolvedInputPath).Length
+      if ($ActualHash -ne $InputHash.ToLowerInvariant() -or $ActualSize -ne $ParsedInputSize) {
+        $Issues.Add("$Label analysis JSON input_files metadata does not match file on disk: $InputPath") | Out-Null
+        return
+      }
+      $ActualInputEntries.Add("$(ConvertTo-ReportInputPath $InputPath)`t$ActualHash`t$ActualSize") | Out-Null
+    }
+
+    $ComputedDigest = Get-StringSha256 ((Sort-ReportInputEntryLines $ActualInputEntries) -join "`n")
+    $ActualDigest = [string]$AnalysisJson.input_file_digest
+    if ([string]::IsNullOrWhiteSpace($ActualDigest)) {
+      $Issues.Add("$Label analysis JSON missing input_file_digest") | Out-Null
+    } elseif ($ActualDigest -notmatch "^[0-9a-f]{64}$") {
+      $Issues.Add("$Label analysis JSON input_file_digest is not a 64-character sha256") | Out-Null
+    } elseif ($ActualDigest -ne $ComputedDigest) {
+      $Issues.Add("$Label analysis JSON input_file_digest does not match input_files metadata") | Out-Null
+    }
+  } catch {
+    $Issues.Add("$Label analysis JSON is invalid or unreadable: $($_.Exception.Message)") | Out-Null
+  }
+}
+
+function Add-UniqueCandidateAnalysisInputFile {
+  param(
+    [System.Collections.Generic.List[string]]$Files,
+    [System.Collections.Generic.HashSet[string]]$Seen,
+    [AllowNull()][object]$Value
+  )
+
+  foreach ($Item in (ConvertTo-AuditArray $Value)) {
+    if ($null -eq $Item) {
+      continue
+    }
+    $PathValue = if ($Item -is [string]) {
+      [string]$Item
+    } else {
+      $PathProperty = Get-ObjectPropertyValue $Item "path"
+      if ($null -ne $PathProperty) {
+        [string]$PathProperty
+      } else {
+        [string]$Item
+      }
+    }
+    if ([string]::IsNullOrWhiteSpace($PathValue)) {
+      continue
+    }
+    if ($Seen.Add($PathValue)) {
+      $Files.Add($PathValue) | Out-Null
+    }
+  }
+}
+
+function Add-OfficialCurrentCandidateInputFiles {
+  param(
+    [System.Collections.Generic.List[string]]$Files,
+    [System.Collections.Generic.HashSet[string]]$Seen,
+    [object]$Manifest
+  )
+
+  foreach ($PropertyName in @(
+      "baseline_webgl2",
+      "fork_default_webgl2",
+      "aggressive_webgl2",
+      "baseline_webgpu",
+      "fork_default_webgpu",
+      "aggressive_webgpu"
+    )) {
+    Add-UniqueCandidateAnalysisInputFile `
+      -Files $Files `
+      -Seen $Seen `
+      -Value (Get-ObjectPropertyValue $Manifest.result_files $PropertyName)
+  }
+}
+
+function Get-CurrentCandidateAnalysisManifestOption {
+  param(
+    [System.Collections.Generic.List[string]]$Issues,
+    [object]$Manifest,
+    [string]$PathValue,
+    [string]$Name,
+    [switch]$AllowZero
+  )
+
+  $Value = Get-ObjectPropertyValue $Manifest.options $Name
+  if ($null -eq $Value) {
+    $Issues.Add("candidate_analysis_json official manifest option '$Name' missing in $PathValue") | Out-Null
+    return $null
+  }
+  try {
+    $NumericValue = [double]$Value
+  } catch {
+    $Issues.Add("candidate_analysis_json official manifest option '$Name' is not numeric in $PathValue") | Out-Null
+    return $null
+  }
+  if ($AllowZero) {
+    if ($NumericValue -lt 0) {
+      $Issues.Add("candidate_analysis_json official manifest option '$Name' must be non-negative in $PathValue") | Out-Null
+      return $null
+    }
+  } elseif ($NumericValue -le 0) {
+    $Issues.Add("candidate_analysis_json official manifest option '$Name' must be greater than zero in $PathValue") | Out-Null
+    return $null
+  }
+  return $NumericValue
+}
+
+function Get-CurrentCandidateAnalysisSeedInputFiles {
+  param(
+    [System.Collections.Generic.List[string]]$Issues,
+    [string]$ExpectedForkRevision
+  )
+
+  $OfficialPathValue = Get-OfficialComparisonManifestPathValue
+  if (-not (Test-RepoPath $OfficialPathValue)) {
+    $Issues.Add("candidate_analysis_json current official manifest missing on disk: $OfficialPathValue") | Out-Null
+    return @()
+  }
+
+  $OfficialManifest = $null
+  try {
+    $OfficialManifest = Get-Content -LiteralPath (Resolve-RepoPath $OfficialPathValue) -Raw | ConvertFrom-Json
+  } catch {
+    $Issues.Add("candidate_analysis_json current official manifest is invalid: $($_.Exception.Message)") | Out-Null
+    return @()
+  }
+
+  if ($OfficialManifest.dry_run) {
+    $Issues.Add("candidate_analysis_json current official manifest is a dry-run manifest") | Out-Null
+    return @()
+  }
+  if ([string]$OfficialManifest.phase -ne "completed") {
+    $Issues.Add("candidate_analysis_json current official manifest phase=$($OfficialManifest.phase) expected=completed") | Out-Null
+    return @()
+  }
+  if ([string]$OfficialManifest.chromium_revision -ne $ExpectedChromiumRevision) {
+    $Issues.Add("candidate_analysis_json current official manifest chromium_revision=$($OfficialManifest.chromium_revision) expected=$ExpectedChromiumRevision") | Out-Null
+    return @()
+  }
+  if ([string]$OfficialManifest.fork_revision -ne $ExpectedForkRevision) {
+    $Issues.Add("candidate_analysis_json current official manifest fork_revision=$($OfficialManifest.fork_revision) expected=$ExpectedForkRevision") | Out-Null
+    return @()
+  }
+
+  $OfficialDuration = Get-CurrentCandidateAnalysisManifestOption `
+    -Issues $Issues `
+    -Manifest $OfficialManifest `
+    -PathValue $OfficialPathValue `
+    -Name "duration"
+  $OfficialWarmup = Get-CurrentCandidateAnalysisManifestOption `
+    -Issues $Issues `
+    -Manifest $OfficialManifest `
+    -PathValue $OfficialPathValue `
+    -Name "warmup" `
+    -AllowZero
+  $OfficialComplexity = Get-CurrentCandidateAnalysisManifestOption `
+    -Issues $Issues `
+    -Manifest $OfficialManifest `
+    -PathValue $OfficialPathValue `
+    -Name "complexity"
+  if ($null -eq $OfficialDuration -or $null -eq $OfficialWarmup -or $null -eq $OfficialComplexity) {
+    return @()
+  }
+
+  $Files = [System.Collections.Generic.List[string]]::new()
+  $Seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+  Add-OfficialCurrentCandidateInputFiles -Files $Files -Seen $Seen -Manifest $OfficialManifest
+
+  foreach ($TrustedPathValue in @(Get-TrustedMatrixCandidateManifestPathValues | Select-Object -Unique)) {
+    if (-not (Test-RepoPath $TrustedPathValue)) {
+      continue
+    }
+    try {
+      $TrustedManifest = Get-Content -LiteralPath (Resolve-RepoPath $TrustedPathValue) -Raw | ConvertFrom-Json
+      if ($TrustedManifest.dry_run -or [string]$TrustedManifest.phase -ne "completed") {
+        continue
+      }
+      if ([string]$TrustedManifest.chromium_revision -ne [string]$OfficialManifest.chromium_revision) {
+        continue
+      }
+      if ([string]$TrustedManifest.fork_revision -ne [string]$OfficialManifest.fork_revision) {
+        continue
+      }
+      if ($null -eq $TrustedManifest.options.duration -or [double]$TrustedManifest.options.duration -ne $OfficialDuration) {
+        continue
+      }
+      if ($null -eq $TrustedManifest.options.warmup -or [double]$TrustedManifest.options.warmup -ne $OfficialWarmup) {
+        continue
+      }
+      if ($null -eq $TrustedManifest.options.complexity -or [double]$TrustedManifest.options.complexity -ne $OfficialComplexity) {
+        continue
+      }
+      Add-UniqueCandidateAnalysisInputFile `
+        -Files $Files `
+        -Seen $Seen `
+        -Value $TrustedManifest.result_files.all
+    } catch {
+      $Issues.Add("candidate_analysis_json trusted manifest $TrustedPathValue is invalid: $($_.Exception.Message)") | Out-Null
+    }
+  }
+
+  if ($Files.Count -eq 0) {
+    $Issues.Add("candidate_analysis_json current official/trusted manifest set produced no result files") | Out-Null
+  }
+  return @($Files.ToArray())
 }
 
 function Escape-Markdown {
@@ -377,13 +880,47 @@ function Add-BuildProvenanceRow {
   }
 
   if ($ExpectViewerPatchApplied) {
+    if (-not $Provenance.PSObject.Properties["allow_viewer_patch_applied"] -or $Provenance.allow_viewer_patch_applied -ne $true) {
+      Add-AuditRow "Build" $Requirement "pending" "$ProvenancePath does not record the viewer-patch-applied build opt-in required for fork evidence" "Rebuild the fork through scripts/build_viewer_fork.ps1 so patched-source provenance is explicit."
+      return
+    }
     if ($Provenance.viewer_patch_already_applied -ne $true) {
       Add-AuditRow "Build" $Requirement "pending" "$ProvenancePath does not show the viewer patch applied" "Rebuild the fork through scripts/build_viewer_fork.ps1 -ApplyPatch."
       return
     }
+    $ExpectedPatchSeries = @(
+      "chromium_patches\0001-draft-minimal-three-viewer-entrypoint.patch",
+      "chromium_patches\0002-draft-webgpu-queue-trace-attribution.patch"
+    )
+    $RecordedPatchSeries = @($Provenance.viewer_patch_series)
+    foreach ($ExpectedPatchPath in $ExpectedPatchSeries) {
+      $PatchEntry = @($RecordedPatchSeries | Where-Object { $_.path -eq $ExpectedPatchPath } | Select-Object -First 1)
+      if ($PatchEntry.Count -ne 1 -or $PatchEntry[0].already_applied -ne $true) {
+        Add-AuditRow "Build" $Requirement "pending" "$ProvenancePath does not show patch-series entry applied: $ExpectedPatchPath" "Rebuild the fork through scripts/build_viewer_fork.ps1 -ApplyPatch so the full Chromium patch series is present."
+        return
+      }
+    }
   } else {
+    if (-not $Provenance.PSObject.Properties["allow_viewer_patch_applied"]) {
+      Add-AuditRow "Build" $Requirement "pending" "$ProvenancePath predates explicit viewer-patch-applied provenance" "Rebuild the stock baseline through the current scripts/build_chromium.ps1."
+      return
+    }
+    if ($Provenance.allow_viewer_patch_applied -eq $true) {
+      Add-AuditRow "Build" $Requirement "pending" "$ProvenancePath was built with -AllowViewerPatchApplied; stock baseline evidence must not allow patched source" "Rebuild the stock baseline from an unmodified checkout without -AllowViewerPatchApplied."
+      return
+    }
+    if (-not $Provenance.PSObject.Properties["baseline_source_guard_enabled"] -or $Provenance.baseline_source_guard_enabled -ne $true) {
+      Add-AuditRow "Build" $Requirement "pending" "$ProvenancePath does not show the stock baseline source guard enabled" "Rebuild the stock baseline through the current scripts/build_chromium.ps1 from an unmodified checkout."
+      return
+    }
     if ($Provenance.viewer_patch_already_applied -eq $true) {
       Add-AuditRow "Build" $Requirement "pending" "$ProvenancePath shows the viewer patch applied" "Rebuild the stock baseline from an unmodified checkout."
+      return
+    }
+    $UnexpectedAppliedSeries = @($Provenance.viewer_patch_series | Where-Object { $_.already_applied -eq $true })
+    if ($UnexpectedAppliedSeries.Count -gt 0) {
+      $UnexpectedPatchList = @($UnexpectedAppliedSeries | ForEach-Object { $_.path }) -join ", "
+      Add-AuditRow "Build" $Requirement "pending" "$ProvenancePath shows viewer patch-series entries applied: $UnexpectedPatchList" "Rebuild the stock baseline from an unmodified checkout."
       return
     }
     if ($Provenance.viewer_patch_applies_cleanly -ne $true) {
@@ -447,8 +984,14 @@ function Test-MetricJsonOk {
     return $false
   }
   $Resolved = Resolve-RepoPath $PathValue
-  $null = (& node $Validator $Resolved 2>&1)
-  return $LASTEXITCODE -eq 0
+  $OldErrorActionPreference = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
+  try {
+    $null = (& node $Validator $Resolved 2>&1)
+    return $LASTEXITCODE -eq 0
+  } finally {
+    $ErrorActionPreference = $OldErrorActionPreference
+  }
 }
 
 function Count-ValidMetricFiles {
@@ -513,7 +1056,8 @@ function Invoke-TraceResultValidator {
       "--expectedBrowser", $ExpectedBrowser,
       "--expectedDuration", ([string]$ExpectedDuration),
       "--expectedWarmup", ([string]$ExpectedWarmup),
-      "--expectedStartDelayMs", ([string]$ExpectedStartDelayMs)
+      "--expectedStartDelayMs", ([string]$ExpectedStartDelayMs),
+      "--rejectSoftwareRendering"
     )
     foreach ($Metadata in $ExpectedFlagMetadata) {
       $CommandArgs += @("--expectedFlagMetadata", $Metadata)
@@ -803,11 +1347,13 @@ function Invoke-BenchmarkSuiteValidator {
     [string]$ExpectedForkRevision = "",
     [switch]$ForbidSmoke,
     [switch]$RejectSoftwareRendering,
+    [switch]$RejectGpuInstability,
     [switch]$RequireGpuMetadata,
     [switch]$RequirePackageSize,
     [switch]$RequireFrameTimes,
     [double]$ExpectedMeasuredSeconds = -1,
     [double]$ExpectedWarmupSeconds = -1,
+    [double]$ExpectedComplexity = -1,
     [string[]]$ExpectedFlagMetadata = @(),
     [string[]]$RequiredBrowserFlags = @(),
     [string[]]$ExpectedScenes = @()
@@ -855,6 +1401,9 @@ function Invoke-BenchmarkSuiteValidator {
   if ($RejectSoftwareRendering) {
     $Args += "--rejectSoftwareRendering"
   }
+  if ($RejectGpuInstability) {
+    $Args += "--rejectGpuInstability"
+  }
   if ($RequireGpuMetadata) {
     $Args += "--requireGpuMetadata"
   }
@@ -869,6 +1418,9 @@ function Invoke-BenchmarkSuiteValidator {
   }
   if ($ExpectedWarmupSeconds -ge 0) {
     $Args += @("--expectedWarmupSeconds", [string]$ExpectedWarmupSeconds)
+  }
+  if ($ExpectedComplexity -gt 0) {
+    $Args += @("--expectedComplexity", [string]$ExpectedComplexity)
   }
   foreach ($Metadata in $ExpectedFlagMetadata) {
     $Args += @("--expectedFlagMetadata", $Metadata)
@@ -891,6 +1443,91 @@ function Invoke-BenchmarkSuiteValidator {
   }
 }
 
+function Invoke-CandidateSpeedupClaimGate {
+  param(
+    [string[]]$Files,
+    [string[]]$RequiredRenderers,
+    [double]$MinMeasuredSeconds = 30,
+    [double]$MinAvgFpsDeltaPct = 0.5,
+    [double]$SceneRegressionPct = 1.0,
+    [double]$DroppedFramesRegression = 0.0,
+    [double]$CpuFrameRegressionMs = 0.5,
+    [double]$RenderSubmissionRegressionMs = 0.5,
+    [double]$PipelineCreateRegressionMs = 1.0,
+    [string]$ExpectedChromiumRevision = "",
+    [string]$ExpectedForkRevision = ""
+  )
+
+  $Analyzer = Resolve-RepoPath "scripts\analyze_candidates.mjs"
+  if (-not (Test-Path $Analyzer)) {
+    return [pscustomobject]@{
+      Ok = $false
+      Output = "scripts\analyze_candidates.mjs missing"
+    }
+  }
+
+  $ResolvedFiles = [System.Collections.Generic.List[string]]::new()
+  foreach ($File in @($Files | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })) {
+    $Resolved = Resolve-RepoPath $File
+    if (-not (Test-Path -LiteralPath $Resolved -PathType Leaf)) {
+      return [pscustomobject]@{
+        Ok = $false
+        Output = "result file missing: $File"
+      }
+    }
+    $ResolvedFiles.Add($Resolved) | Out-Null
+  }
+
+  if ($ResolvedFiles.Count -eq 0) {
+    return [pscustomobject]@{
+      Ok = $false
+      Output = "no result files supplied"
+    }
+  }
+
+  $Args = @(
+    $Analyzer,
+    "--minMeasuredSeconds", [string]$MinMeasuredSeconds,
+    "--minScenes", [string]$RequiredScenes.Count,
+    "--minAvgFpsDeltaPct", [string]$MinAvgFpsDeltaPct,
+    "--sceneRegressionPct", [string]$SceneRegressionPct,
+    "--droppedFramesRegression", [string]$DroppedFramesRegression,
+    "--cpuFrameRegressionMs", [string]$CpuFrameRegressionMs,
+    "--renderSubmissionRegressionMs", [string]$RenderSubmissionRegressionMs,
+    "--pipelineCreateRegressionMs", [string]$PipelineCreateRegressionMs,
+    "--requireFrameTimes",
+    "--requireCheckout",
+    "--requirePackageSize",
+    "--quiet"
+  )
+  if ($ExpectedChromiumRevision) {
+    $Args += @("--expectedChromiumRevision", $ExpectedChromiumRevision)
+  }
+  if ($ExpectedForkRevision) {
+    $Args += @("--expectedForkRevision", $ExpectedForkRevision)
+  }
+  foreach ($Scene in $RequiredScenes) {
+    $Args += @("--requiredScene", $Scene)
+  }
+  foreach ($Renderer in @($RequiredRenderers | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })) {
+    $Args += @("--requireCandidateRenderer", $Renderer)
+  }
+  $Args += @($ResolvedFiles)
+
+  $OldErrorActionPreference = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
+  try {
+    $OutputText = (& node @Args 2>&1)
+  } finally {
+    $ErrorActionPreference = $OldErrorActionPreference
+  }
+
+  return [pscustomobject]@{
+    Ok = ($LASTEXITCODE -eq 0)
+    Output = ($OutputText -join " ")
+  }
+}
+
 function Add-BenchmarkSuiteRow {
   param(
     [string]$Area,
@@ -905,11 +1542,13 @@ function Add-BenchmarkSuiteRow {
     [string]$ExpectedBuildArgsHash = "",
     [string]$ExpectedForkRevision = "",
     [switch]$RejectSoftwareRendering,
+    [switch]$RejectGpuInstability,
     [switch]$RequireGpuMetadata,
     [switch]$RequirePackageSize,
     [switch]$RequireFrameTimes,
     [double]$ExpectedMeasuredSeconds = -1,
     [double]$ExpectedWarmupSeconds = -1,
+    [double]$ExpectedComplexity = -1,
     [string[]]$ExpectedFlagMetadata = @(),
     [string[]]$RequiredBrowserFlags = @()
   )
@@ -946,11 +1585,13 @@ function Add-BenchmarkSuiteRow {
     -RequireForkRevision:$RequireForkRevision `
     -ExpectedForkRevision $ExpectedForkRevision `
     -RejectSoftwareRendering:$RejectSoftwareRendering `
+    -RejectGpuInstability:$RejectGpuInstability `
     -RequireGpuMetadata:$RequireGpuMetadata `
     -RequirePackageSize:$RequirePackageSize `
     -RequireFrameTimes:$RequireFrameTimes `
     -ExpectedMeasuredSeconds $ExpectedMeasuredSeconds `
     -ExpectedWarmupSeconds $ExpectedWarmupSeconds `
+    -ExpectedComplexity $ExpectedComplexity `
     -ExpectedFlagMetadata $ExpectedFlagMetadata `
     -RequiredBrowserFlags $RequiredBrowserFlags `
     -ExpectedScenes $RequiredScenes
@@ -975,11 +1616,13 @@ function Add-AnyVariantBenchmarkSuiteRow {
     [string]$ExpectedBuildArgsHash = "",
     [string]$ExpectedForkRevision = "",
     [switch]$RejectSoftwareRendering,
+    [switch]$RejectGpuInstability,
     [switch]$RequireGpuMetadata,
     [switch]$RequirePackageSize,
     [switch]$RequireFrameTimes,
     [double]$ExpectedMeasuredSeconds = -1,
     [double]$ExpectedWarmupSeconds = -1,
+    [double]$ExpectedComplexity = -1,
     [string[]]$ExpectedFlagMetadata = @(),
     [string[]]$RequiredBrowserFlags = @()
   )
@@ -1018,11 +1661,13 @@ function Add-AnyVariantBenchmarkSuiteRow {
       -RequireForkRevision:$RequireForkRevision `
       -ExpectedForkRevision $ExpectedForkRevision `
       -RejectSoftwareRendering:$RejectSoftwareRendering `
+      -RejectGpuInstability:$RejectGpuInstability `
       -RequireGpuMetadata:$RequireGpuMetadata `
       -RequirePackageSize:$RequirePackageSize `
       -RequireFrameTimes:$RequireFrameTimes `
       -ExpectedMeasuredSeconds $ExpectedMeasuredSeconds `
       -ExpectedWarmupSeconds $ExpectedWarmupSeconds `
+      -ExpectedComplexity $ExpectedComplexity `
       -ExpectedFlagMetadata $ExpectedFlagMetadata `
       -RequiredBrowserFlags $RequiredBrowserFlags `
       -ExpectedScenes $RequiredScenes
@@ -1473,6 +2118,7 @@ function Get-MissingTrustedMatrixFlagEvidence {
   $Expected = @(
     [pscustomobject]@{ Label = "fork-viewer-exp-default"; Flags = @() },
     [pscustomobject]@{ Label = "fork-viewer-exp-aggressive-gpu"; Flags = @("--viewerAggressiveGpu") },
+    [pscustomobject]@{ Label = "fork-viewer-exp-zero-copy"; Flags = @("--viewerZeroCopy") },
     [pscustomobject]@{ Label = "fork-viewer-exp-in-process-gpu"; Flags = @("--viewerInProcessGpu") },
     [pscustomobject]@{ Label = "fork-viewer-exp-single-process"; Flags = @("--viewerSingleProcess") },
     [pscustomobject]@{ Label = "fork-viewer-exp-relaxed-webgl-validation-gate"; Flags = @("--viewerRelaxedWebglValidation") },
@@ -1588,7 +2234,7 @@ function Add-TrustedMatrixManifestRow {
     } elseif ($ExperimentCount -lt 1) {
       Add-AuditRow "Official performance" "Trusted experiment matrix manifest" "pending" "$PathValue records no experiments" "Run at least one trusted experiment variant."
     } elseif ($MissingFlagEvidence.Count -gt 0) {
-      Add-AuditRow "Official performance" "Trusted experiment matrix manifest" "pending" "$PathValue missing trusted experiment flag evidence: $($MissingFlagEvidence -join ', ')" "Regenerate with the full trusted experiment matrix including default, aggressive GPU, in-process GPU, single-process, ANGLE backend, relaxed WebGL validation, and reserved no-op gate experiments."
+      Add-AuditRow "Official performance" "Trusted experiment matrix manifest" "pending" "$PathValue missing trusted experiment flag evidence: $($MissingFlagEvidence -join ', ')" "Regenerate with the full trusted experiment matrix including default, aggressive GPU, zero-copy, in-process GPU, single-process, ANGLE backend, relaxed WebGL validation, and reserved no-op gate experiments."
     } elseif ($ResultCount -ne $ExpectedResultCount) {
       Add-AuditRow "Official performance" "Trusted experiment matrix manifest" "pending" "$PathValue result file count=$ResultCount expected=$ExpectedResultCount for $ExperimentCount experiments and $($RequiredScenes.Count) scenes" "Regenerate with the complete required scene suite."
     } elseif (-not $Manifest.artifact_metadata.inputs.browser.exists) {
@@ -1610,11 +2256,11 @@ function Add-TrustedMatrixManifestRow {
     } elseif ($TrustedInvalidPackageExecutables.Count -gt 0) {
       Add-AuditRow "Official performance" "Trusted experiment matrix manifest" "pending" "$PathValue has package executable hash that does not match the manifest browser: $($TrustedInvalidPackageExecutables -join ', ')" "Regenerate after staging the fork package from the same fork binary used for the trusted experiment matrix."
     } elseif ($TrustedReportContentIssues.Count -gt 0) {
-      Add-AuditRow "Official performance" "Trusted experiment matrix manifest" "pending" "$PathValue report content validation failed: $($TrustedReportContentIssues -join '; ')" "Regenerate trusted summary and comparison reports with summarize_results.mjs and compare_results.mjs from the exact trusted matrix result files."
+      Add-AuditRow "Official performance" "Trusted experiment matrix manifest" "pending" "$PathValue report content validation failed: $($TrustedReportContentIssues -join '; ')" "Regenerate trusted summary reports with summarize_results.mjs --strictEvidence and trusted comparison reports with compare_results.mjs --strictEvidence from the exact trusted matrix result files."
     } elseif (-not $TrustedSuiteValidation.Ok) {
       Add-AuditRow "Official performance" "Trusted experiment matrix manifest" "pending" "$PathValue suite validation failed: $($TrustedSuiteValidation.Output)" "Regenerate after every exact trusted experiment result JSON file in the manifest passes validate_benchmark_suite.mjs with checkout, build-args, revision, GPU, package-size, duration/warmup, and viewer flag metadata checks."
     } else {
-      Add-AuditRow "Official performance" "Trusted experiment matrix manifest" "done" "$PathValue records $ExperimentCount trusted experiment suite(s), expected risky flag mappings, $HashedResultCount hashed result files, report hashes with content validation, build-args hash, viewer patch hash, required package metadata with executable hash matched to browser, artifact paths/hashes verified on disk, benchmark suites semantically validated against exact manifest files, expected fork revision, pin-refresh provenance, and full suite-validation settings" "Feed measured effects into docs/optimization_log.md."
+      Add-AuditRow "Official performance" "Trusted experiment matrix manifest" "done" "$PathValue records $ExperimentCount trusted experiment suite(s), expected risky flag mappings, $HashedResultCount hashed result files, report hashes with strict-summary, raw-input-digest, and strict-comparison content validation, build-args hash, viewer patch-series hash, required package metadata with executable hash matched to browser, artifact paths/hashes verified on disk, benchmark suites semantically validated against exact manifest files, expected fork revision, pin-refresh provenance, and full suite-validation settings" "Feed measured effects into docs/optimization_log.md."
     }
   } catch {
     Add-AuditRow "Official performance" "Trusted experiment matrix manifest" "pending" "$PathValue is invalid JSON or could not be audited: $($_.Exception.Message)" "Regenerate after fork build."
@@ -1636,6 +2282,18 @@ function Get-ObjectPropertyValue {
     return $null
   }
   return $Property.Value
+}
+
+function ConvertTo-AuditArray {
+  param([AllowNull()][object]$Value)
+
+  if ($null -eq $Value) {
+    return @()
+  }
+  if ($Value -is [System.Array]) {
+    return @($Value)
+  }
+  return @($Value)
 }
 
 function Format-SuiteValidationValue {
@@ -1718,6 +2376,20 @@ function Add-SuiteValidationFlagMetadataIssue {
   }
 }
 
+function Add-SuiteValidationRequiredFlagMetadataIssue {
+  param(
+    [System.Collections.Generic.List[string]]$Issues,
+    [AllowNull()][object]$ExpectedFlagMetadata,
+    [string]$Name,
+    [string]$Metadata
+  )
+
+  $Values = @(Get-ObjectPropertyValue $ExpectedFlagMetadata $Name | ForEach-Object { [string]$_ })
+  if ($Values -notcontains $Metadata) {
+    $Issues.Add("expected_flag_metadata.$Name missing $Metadata") | Out-Null
+  }
+}
+
 function Get-ReportContent {
   param([string]$PathValue)
 
@@ -1742,6 +2414,22 @@ function Add-ReportContentIssueIfMissing {
   if (-not $Content.Contains($Needle)) {
     $Issues.Add($Label) | Out-Null
   }
+}
+
+function Add-ReportInputDigestIssue {
+  param(
+    [System.Collections.Generic.List[string]]$Issues,
+    [string]$Content,
+    [string]$ExpectedDigest,
+    [string]$ReportLabel
+  )
+
+  if (-not $ExpectedDigest) {
+    $Issues.Add("$ReportLabel missing expected raw input digest from manifest result files") | Out-Null
+    return
+  }
+
+  Add-ReportContentIssueIfMissing $Issues $Content "Input file digest: ``$ExpectedDigest``" "$ReportLabel input digest does not match manifest result files"
 }
 
 function Get-ManifestReportSceneNames {
@@ -1781,6 +2469,30 @@ function Add-ComparisonReportMetricColumnIssues {
   }
 }
 
+function Add-SummaryReportContentIssues {
+  param(
+    [System.Collections.Generic.List[string]]$Issues,
+    [string]$Content,
+    [string]$Renderer,
+    [string[]]$Labels,
+    [string[]]$Scenes,
+    [string]$ReportLabel,
+    [string]$ExpectedInputDigest = ""
+  )
+
+  Add-ReportContentIssueIfMissing $Issues $Content "# Benchmark Summary" "$ReportLabel missing summary heading"
+  if ($ExpectedInputDigest) {
+    Add-ReportInputDigestIssue $Issues $Content $ExpectedInputDigest $ReportLabel
+  }
+  Add-ReportContentIssueIfMissing $Issues $Content "Strict summary evidence validation was enabled" "$ReportLabel missing strict summary evidence validation note"
+  Add-ReportContentIssueIfMissing $Issues $Content "| Scene | Renderer | Variant | Avg FPS" "$ReportLabel missing summary table header"
+  Add-ReportContentIssueIfMissing $Issues $Content $Renderer "$ReportLabel missing $Renderer renderer rows"
+  Add-ReportContentSceneIssues $Issues $Content $Scenes $ReportLabel
+  foreach ($Label in @($Labels)) {
+    Add-ReportContentIssueIfMissing $Issues $Content $Label "$ReportLabel missing variant label $Label"
+  }
+}
+
 function Get-OfficialComparisonReportContentIssues {
   param([object]$Manifest)
 
@@ -1793,10 +2505,46 @@ function Get-OfficialComparisonReportContentIssues {
   } else {
     "fork-viewer-aggressive-gpu"
   }
+  if ([bool]$Manifest.options.aggressive_webgl2_relaxed_validation) {
+    $AggressiveLabelFallback = "$AggressiveLabelFallback-relaxed"
+  }
+  if ([bool]$Manifest.options.aggressive_webgl2_zero_copy) {
+    $AggressiveLabelFallback = "$AggressiveLabelFallback-zerocopy"
+  }
   $AggressiveLabel = Get-OfficialManifestLabel -Manifest $Manifest -Name "aggressive" -Fallback $AggressiveLabelFallback
+  $AggressiveWebGpuLabelFallback = "fork-viewer-aggressive-gpu-webgpu"
+  $AggressiveWebGpuLabel = Get-OfficialManifestLabel -Manifest $Manifest -Name "aggressive_webgpu" -Fallback $AggressiveWebGpuLabelFallback
 
+  $BaselineSummaryDigest = Get-ReportInputDigest $Manifest.result_files.baseline_webgl2
+  $BaselineSummary = Get-ReportContent ([string]$Manifest.report_files.baseline_webgl2_summary)
+  Add-SummaryReportContentIssues `
+    -Issues $Issues `
+    -Content $BaselineSummary `
+    -Renderer "webgl2" `
+    -Labels @($BaselineLabel) `
+    -Scenes $Scenes `
+    -ReportLabel "baseline_webgl2_summary" `
+    -ExpectedInputDigest $BaselineSummaryDigest
+
+  $ForkSummaryDigest = Get-ReportInputDigest $Manifest.result_files.fork_default_webgl2
+  $ForkSummary = Get-ReportContent ([string]$Manifest.report_files.fork_default_webgl2_summary)
+  Add-SummaryReportContentIssues `
+    -Issues $Issues `
+    -Content $ForkSummary `
+    -Renderer "webgl2" `
+    -Labels @($ForkDefaultLabel) `
+    -Scenes $Scenes `
+    -ReportLabel "fork_default_webgl2_summary" `
+    -ExpectedInputDigest $ForkSummaryDigest
+
+  $WebGlComparisonInputs = @($Manifest.result_files.baseline_webgl2) + @($Manifest.result_files.fork_default_webgl2)
+  if ($Manifest.options.include_aggressive_gpu) {
+    $WebGlComparisonInputs += @($Manifest.result_files.aggressive_webgl2)
+  }
+  $WebGlComparisonDigest = Get-ReportInputDigest $WebGlComparisonInputs
   $WebGlReport = Get-ReportContent ([string]$Manifest.report_files.official_webgl2_comparison)
   Add-ReportContentIssueIfMissing $Issues $WebGlReport "# Benchmark Comparison" "official_webgl2_comparison missing comparison heading"
+  Add-ReportInputDigestIssue $Issues $WebGlReport $WebGlComparisonDigest "official_webgl2_comparison"
   Add-ReportContentIssueIfMissing $Issues $WebGlReport "Strict official input validation was enabled" "official_webgl2_comparison missing strict official validation note"
   Add-ReportContentIssueIfMissing $Issues $WebGlReport "| Scene | Renderer | Variant | Avg FPS" "official_webgl2_comparison missing comparison table header"
   Add-ComparisonReportMetricColumnIssues $Issues $WebGlReport "official_webgl2_comparison"
@@ -1809,8 +2557,14 @@ function Get-OfficialComparisonReportContentIssues {
   }
 
   if ($Manifest.options.include_webgpu) {
+    $WebGpuComparisonInputs = @($Manifest.result_files.baseline_webgpu) + @($Manifest.result_files.fork_default_webgpu)
+    if ($Manifest.options.include_aggressive_gpu) {
+      $WebGpuComparisonInputs += @($Manifest.result_files.aggressive_webgpu)
+    }
+    $WebGpuComparisonDigest = Get-ReportInputDigest $WebGpuComparisonInputs
     $WebGpuReport = Get-ReportContent ([string]$Manifest.report_files.official_webgpu_comparison)
     Add-ReportContentIssueIfMissing $Issues $WebGpuReport "# Benchmark Comparison" "official_webgpu_comparison missing comparison heading"
+    Add-ReportInputDigestIssue $Issues $WebGpuReport $WebGpuComparisonDigest "official_webgpu_comparison"
     Add-ReportContentIssueIfMissing $Issues $WebGpuReport "Strict official input validation was enabled" "official_webgpu_comparison missing strict official validation note"
     Add-ReportContentIssueIfMissing $Issues $WebGpuReport "| Scene | Renderer | Variant | Avg FPS" "official_webgpu_comparison missing comparison table header"
     Add-ComparisonReportMetricColumnIssues $Issues $WebGpuReport "official_webgpu_comparison"
@@ -1819,7 +2573,7 @@ function Get-OfficialComparisonReportContentIssues {
     Add-ReportContentIssueIfMissing $Issues $WebGpuReport "$ForkDefaultLabel-webgpu" "official_webgpu_comparison missing WebGPU fork default label"
     Add-ReportContentSceneIssues $Issues $WebGpuReport $Scenes "official_webgpu_comparison"
     if ($Manifest.options.include_aggressive_gpu) {
-      Add-ReportContentIssueIfMissing $Issues $WebGpuReport "$AggressiveLabel-webgpu" "official_webgpu_comparison missing WebGPU aggressive label"
+      Add-ReportContentIssueIfMissing $Issues $WebGpuReport $AggressiveWebGpuLabel "official_webgpu_comparison missing WebGPU aggressive label"
     }
   }
 
@@ -1843,6 +2597,8 @@ function Add-TraceSummaryReportContentIssues {
   Add-ReportContentIssueIfMissing $Issues $Content "Total events:" "$ReportLabel missing total events line"
   Add-ReportContentIssueIfMissing $Issues $Content "## Classified Events" "$ReportLabel missing classified events heading"
   Add-ReportContentIssueIfMissing $Issues $Content "| Class | Count | Total Duration ms |" "$ReportLabel missing classified events table"
+  Add-ReportContentIssueIfMissing $Issues $Content "## WebGPU Texture Copy Path Verdict" "$ReportLabel missing WebGPU texture copy path verdict"
+  Add-ReportContentIssueIfMissing $Issues $Content "Status:" "$ReportLabel missing WebGPU texture copy path status"
   Add-ReportContentIssueIfMissing $Issues $Content "## Top Duration Events" "$ReportLabel missing top duration events heading"
   Add-ReportContentIssueIfMissing $Issues $Content "| Event | Count | Total ms | Max ms |" "$ReportLabel missing top duration events table"
   Add-ReportContentIssueIfMissing $Issues $Content "Classification is name-based" "$ReportLabel missing trace summary caveat"
@@ -1871,20 +2627,22 @@ function Get-TrustedMatrixReportContentIssues {
   $Issues = [System.Collections.Generic.List[string]]::new()
   $Renderer = if ([string]$Manifest.renderer) { [string]$Manifest.renderer } else { "webgl2" }
   $Scenes = @(Get-ManifestReportSceneNames -Manifest $Manifest)
+  $TrustedInputDigest = Get-ReportInputDigest $Manifest.result_files.all
   $Summary = Get-ReportContent ([string]$Manifest.report_files.summary)
-  Add-ReportContentIssueIfMissing $Issues $Summary "# Benchmark Summary" "trusted summary missing summary heading"
-  Add-ReportContentIssueIfMissing $Issues $Summary "| Scene | Renderer | Variant | Avg FPS" "trusted summary missing summary table header"
-  Add-ReportContentIssueIfMissing $Issues $Summary $Renderer "trusted summary missing renderer rows"
-  Add-ReportContentSceneIssues $Issues $Summary $Scenes "trusted summary"
-  foreach ($Experiment in @($Manifest.experiments)) {
-    $Label = [string]$Experiment.label
-    if ($Label) {
-      Add-ReportContentIssueIfMissing $Issues $Summary $Label "trusted summary missing experiment label $Label"
-    }
-  }
+  $TrustedLabels = @($Manifest.experiments | ForEach-Object { [string]$_.label } | Where-Object { $_ })
+  Add-SummaryReportContentIssues `
+    -Issues $Issues `
+    -Content $Summary `
+    -Renderer $Renderer `
+    -Labels $TrustedLabels `
+    -Scenes $Scenes `
+    -ReportLabel "trusted summary" `
+    -ExpectedInputDigest $TrustedInputDigest
 
   $Comparison = Get-ReportContent ([string]$Manifest.report_files.comparison)
   Add-ReportContentIssueIfMissing $Issues $Comparison "# Benchmark Comparison" "trusted comparison missing comparison heading"
+  Add-ReportInputDigestIssue $Issues $Comparison $TrustedInputDigest "trusted comparison"
+  Add-ReportContentIssueIfMissing $Issues $Comparison "Strict comparison evidence validation was enabled" "trusted comparison missing strict comparison evidence validation note"
   Add-ReportContentIssueIfMissing $Issues $Comparison "| Scene | Renderer | Variant | Avg FPS" "trusted comparison missing comparison table header"
   Add-ComparisonReportMetricColumnIssues $Issues $Comparison "trusted comparison"
   Add-ReportContentIssueIfMissing $Issues $Comparison $Renderer "trusted comparison missing renderer rows"
@@ -1980,6 +2738,7 @@ function Get-OfficialManifestSuiteValidationIssues {
     [pscustomobject]@{ Name = "expected_fork_build_args_hash"; Expected = $ExpectedForkBuildArgsHash },
     [pscustomobject]@{ Name = "forbid_smoke"; Expected = $true },
     [pscustomobject]@{ Name = "reject_software_rendering"; Expected = $true },
+    [pscustomobject]@{ Name = "reject_gpu_instability"; Expected = $true },
     [pscustomobject]@{ Name = "require_gpu_metadata"; Expected = $true },
     [pscustomobject]@{ Name = "require_frame_times"; Expected = $true },
     [pscustomobject]@{ Name = "expected_chromium_revision"; Expected = $ExpectedChromiumRevision },
@@ -2000,6 +2759,24 @@ function Get-OfficialManifestSuiteValidationIssues {
   if ($null -eq $ExpectedFlagMetadata) {
     $Issues.Add("expected_flag_metadata missing") | Out-Null
   } else {
+    $ResourceWarmupPrecompile = [bool]$Manifest.options.precompile
+    $ResourceWarmupPrerenderFrames = if ($null -ne $Manifest.options.prerender_frames) { [int]$Manifest.options.prerender_frames } else { 0 }
+    $ResourceWarmupEnabled = ($ResourceWarmupPrecompile -or $ResourceWarmupPrerenderFrames -gt 0).ToString().ToLowerInvariant()
+    $ExpectedResourceWarmupMetadata = @(
+      "resource_warmup_enabled=$ResourceWarmupEnabled",
+      "resource_warmup_precompile=$($ResourceWarmupPrecompile.ToString().ToLowerInvariant())",
+      "resource_warmup_prerender_frames=$ResourceWarmupPrerenderFrames"
+    )
+    $ExpectedFlagMetadataNames = @("baseline", "fork_default")
+    if ($Manifest.options.include_aggressive_gpu) {
+      $ExpectedFlagMetadataNames += "aggressive"
+    }
+    if ($Manifest.options.include_webgpu) {
+      $ExpectedFlagMetadataNames += @("baseline_webgpu", "fork_default_webgpu")
+      if ($Manifest.options.include_aggressive_gpu) {
+        $ExpectedFlagMetadataNames += "aggressive_webgpu"
+      }
+    }
     Add-SuiteValidationFlagMetadataIssue $Issues $ExpectedFlagMetadata "baseline"
     Add-SuiteValidationFlagMetadataIssue $Issues $ExpectedFlagMetadata "fork_default"
     if ($Manifest.options.include_aggressive_gpu) {
@@ -2010,6 +2787,51 @@ function Get-OfficialManifestSuiteValidationIssues {
       Add-SuiteValidationFlagMetadataIssue $Issues $ExpectedFlagMetadata "fork_default_webgpu"
       if ($Manifest.options.include_aggressive_gpu) {
         Add-SuiteValidationFlagMetadataIssue $Issues $ExpectedFlagMetadata "aggressive_webgpu"
+      }
+    }
+    foreach ($Name in $ExpectedFlagMetadataNames) {
+      $Values = @(Get-ObjectPropertyValue $ExpectedFlagMetadata $Name)
+      foreach ($Metadata in $ExpectedResourceWarmupMetadata) {
+        if ($Values -notcontains $Metadata) {
+          $Issues.Add("expected_flag_metadata.$Name missing $Metadata") | Out-Null
+        }
+      }
+    }
+    if ($Manifest.options.include_webgpu -and $Manifest.options.include_aggressive_gpu) {
+      if ([bool]$Manifest.options.aggressive_webgpu_source_fast_path) {
+        foreach ($Metadata in @(
+            "viewer_defer_webgpu_pipeline_flush=true",
+            "viewer_defer_webgpu_queue_flush=true",
+            "viewer_defer_webgpu_submit_flush=true",
+            "viewer_skip_webgpu_canvas_texture_validation=true",
+            "viewer_skip_webgpu_canvas_memory_accounting=true",
+            "viewer_skip_webgpu_write_texture_layout_validation=true",
+            "viewer_skip_webgpu_use_counters=true",
+            "viewer_cache_webgpu_bind_group_layouts=true",
+            "viewer_skip_webgpu_command_labels=true",
+            "viewer_skip_webgpu_resource_labels=true",
+            "viewer_skip_webgpu_shader_source_null_check=true",
+            "viewer_skip_webgpu_shader_memory_accounting=true",
+            "viewer_skip_webgpu_redundant_pipeline_sets=true",
+            "viewer_skip_webgpu_redundant_bind_group_sets=true",
+            "viewer_skip_webgpu_redundant_buffer_sets=true",
+            "viewer_skip_webgpu_redundant_render_state_sets=true"
+          )) {
+          Add-SuiteValidationRequiredFlagMetadataIssue $Issues $ExpectedFlagMetadata "aggressive_webgpu" $Metadata
+        }
+      }
+      if ([bool]$Manifest.options.aggressive_webgpu_upload_fast_path) {
+        foreach ($Metadata in @(
+            "viewer_skip_webgpu_copy_external_image_color_conversion=true",
+            "viewer_skip_webgpu_copy_external_image_color_space_validation=true",
+            "viewer_skip_webgpu_copy_external_image_dest_validation=true",
+            "viewer_skip_webgpu_copy_external_image_source_validation=true",
+            "viewer_skip_webgpu_copy_external_image_copy_size_validation=true",
+            "viewer_skip_webgpu_write_texture_layout_validation=true",
+            "viewer_reject_webgpu_cpu_texture_fallback=true"
+          )) {
+          Add-SuiteValidationRequiredFlagMetadataIssue $Issues $ExpectedFlagMetadata "aggressive_webgpu" $Metadata
+        }
       }
     }
   }
@@ -2037,6 +2859,7 @@ function Get-TrustedMatrixManifestSuiteValidationIssues {
     [pscustomobject]@{ Name = "expected_fork_revision"; Expected = $ExpectedForkRevision },
     [pscustomobject]@{ Name = "forbid_smoke"; Expected = $true },
     [pscustomobject]@{ Name = "reject_software_rendering"; Expected = $true },
+    [pscustomobject]@{ Name = "reject_gpu_instability"; Expected = $true },
     [pscustomobject]@{ Name = "require_gpu_metadata"; Expected = $true },
     [pscustomobject]@{ Name = "require_frame_times"; Expected = $true },
     [pscustomobject]@{ Name = "expected_chromium_revision"; Expected = $ExpectedChromiumRevision },
@@ -2075,6 +2898,7 @@ function Invoke-TrustedMatrixBenchmarkSuiteValidation {
   }
   $ExpectedMeasuredSeconds = if ($null -ne $Manifest.options.duration) { [double]$Manifest.options.duration } else { -1 }
   $ExpectedWarmupSeconds = if ($null -ne $Manifest.options.warmup) { [double]$Manifest.options.warmup } else { -1 }
+  $ExpectedComplexity = if ($null -ne $Manifest.options.complexity) { [double]$Manifest.options.complexity } else { -1 }
   $ExpectedBuildArgsHash = if ($Manifest.artifact_metadata.inputs.build_args.sha256) {
     ([string]$Manifest.artifact_metadata.inputs.build_args.sha256).ToLowerInvariant()
   } else {
@@ -2082,6 +2906,14 @@ function Invoke-TrustedMatrixBenchmarkSuiteValidation {
   }
   $Ok = $true
   $Outputs = [System.Collections.Generic.List[string]]::new()
+  $ResourceWarmupPrecompile = [bool]$Manifest.options.precompile
+  $ResourceWarmupPrerenderFrames = if ($null -ne $Manifest.options.prerender_frames) { [int]$Manifest.options.prerender_frames } else { 0 }
+  $ResourceWarmupEnabled = ($ResourceWarmupPrecompile -or $ResourceWarmupPrerenderFrames -gt 0).ToString().ToLowerInvariant()
+  $ExpectedResourceWarmupMetadata = @(
+    "resource_warmup_enabled=$ResourceWarmupEnabled",
+    "resource_warmup_precompile=$($ResourceWarmupPrecompile.ToString().ToLowerInvariant())",
+    "resource_warmup_prerender_frames=$ResourceWarmupPrerenderFrames"
+  )
 
   foreach ($Experiment in @($Manifest.experiments)) {
     $Label = [string]$Experiment.label
@@ -2093,6 +2925,10 @@ function Invoke-TrustedMatrixBenchmarkSuiteValidation {
 
     $Files = @($Experiment.result_files | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
     $ExpectedFlagMetadata = @($Experiment.expected_flag_metadata | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
+    $ExperimentRequiredBrowserFlags = @($Experiment.required_browser_flags | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
+    if ($ExperimentRequiredBrowserFlags.Count -eq 0) {
+      $ExperimentRequiredBrowserFlags = @($RequiredBrowserFlags)
+    }
     if ($Files.Count -ne $ExpectedScenes.Count) {
       $Ok = $false
       $Outputs.Add("${Label}: file count=$($Files.Count) expected=$($ExpectedScenes.Count)") | Out-Null
@@ -2102,6 +2938,12 @@ function Invoke-TrustedMatrixBenchmarkSuiteValidation {
       $Ok = $false
       $Outputs.Add("${Label}: missing expected flag metadata in manifest experiments") | Out-Null
       continue
+    }
+    foreach ($Metadata in $ExpectedResourceWarmupMetadata) {
+      if ($ExpectedFlagMetadata -notcontains $Metadata) {
+        $Ok = $false
+        $Outputs.Add("${Label}: missing expected resource warmup metadata $Metadata") | Out-Null
+      }
     }
 
     $Validation = Invoke-BenchmarkSuiteValidator `
@@ -2117,13 +2959,15 @@ function Invoke-TrustedMatrixBenchmarkSuiteValidation {
       -RequireForkRevision `
       -ExpectedForkRevision $ExpectedForkRevision `
       -RejectSoftwareRendering `
+      -RejectGpuInstability `
       -RequireGpuMetadata `
       -RequireFrameTimes `
       -RequirePackageSize:$RequirePackageSize `
       -ExpectedMeasuredSeconds $ExpectedMeasuredSeconds `
       -ExpectedWarmupSeconds $ExpectedWarmupSeconds `
+      -ExpectedComplexity $ExpectedComplexity `
       -ExpectedFlagMetadata $ExpectedFlagMetadata `
-      -RequiredBrowserFlags $RequiredBrowserFlags `
+      -RequiredBrowserFlags $ExperimentRequiredBrowserFlags `
       -ExpectedScenes $ExpectedScenes
 
     if (-not $Validation.Ok) {
@@ -2159,6 +3003,7 @@ function Invoke-OfficialManifestBenchmarkSuiteValidation {
 
   $ExpectedMeasuredSeconds = if ($null -ne $Manifest.options.duration) { [double]$Manifest.options.duration } else { -1 }
   $ExpectedWarmupSeconds = if ($null -ne $Manifest.options.warmup) { [double]$Manifest.options.warmup } else { -1 }
+  $ExpectedComplexity = if ($null -ne $Manifest.options.complexity) { [double]$Manifest.options.complexity } else { -1 }
   $ExpectedBaselineBuildArgsHash = if ($Manifest.artifact_metadata.inputs.baseline_build_args.sha256) {
     ([string]$Manifest.artifact_metadata.inputs.baseline_build_args.sha256).ToLowerInvariant()
   } else {
@@ -2176,7 +3021,15 @@ function Invoke-OfficialManifestBenchmarkSuiteValidation {
   } else {
     "fork-viewer-aggressive-gpu"
   }
+  if ([bool]$Manifest.options.aggressive_webgl2_relaxed_validation) {
+    $AggressiveLabelFallback = "$AggressiveLabelFallback-relaxed"
+  }
+  if ([bool]$Manifest.options.aggressive_webgl2_zero_copy) {
+    $AggressiveLabelFallback = "$AggressiveLabelFallback-zerocopy"
+  }
   $AggressiveLabel = Get-OfficialManifestLabel -Manifest $Manifest -Name "aggressive" -Fallback $AggressiveLabelFallback
+  $AggressiveWebGpuLabelFallback = "fork-viewer-aggressive-gpu-webgpu"
+  $AggressiveWebGpuLabel = Get-OfficialManifestLabel -Manifest $Manifest -Name "aggressive_webgpu" -Fallback $AggressiveWebGpuLabelFallback
 
   $Cases = [System.Collections.Generic.List[object]]::new()
   $Cases.Add([pscustomobject]@{
@@ -2244,7 +3097,7 @@ function Invoke-OfficialManifestBenchmarkSuiteValidation {
           Name = "aggressive_webgpu"
           Files = @($Manifest.result_files.aggressive_webgpu)
           Renderer = "webgpu"
-          Variant = "$AggressiveLabel-webgpu"
+          Variant = $AggressiveWebGpuLabel
           RequireForkRevision = $true
           RequirePackageSize = [bool]$ForkPackageRequired
           ExpectedBrowser = [string]$Manifest.browsers.fork
@@ -2283,11 +3136,13 @@ function Invoke-OfficialManifestBenchmarkSuiteValidation {
       -RequireForkRevision:([bool]$Case.RequireForkRevision) `
       -ExpectedForkRevision $(if ($Case.RequireForkRevision) { $ExpectedForkRevision } else { "" }) `
       -RejectSoftwareRendering `
+      -RejectGpuInstability `
       -RequireGpuMetadata `
       -RequireFrameTimes `
       -RequirePackageSize:([bool]$Case.RequirePackageSize) `
       -ExpectedMeasuredSeconds $ExpectedMeasuredSeconds `
       -ExpectedWarmupSeconds $ExpectedWarmupSeconds `
+      -ExpectedComplexity $ExpectedComplexity `
       -ExpectedFlagMetadata $ExpectedFlagMetadata `
       -RequiredBrowserFlags $RequiredBrowserFlags `
       -ExpectedScenes $RequiredScenes
@@ -2339,6 +3194,14 @@ function Add-OfficialComparisonManifestRow {
       } else {
         ""
       }
+      $ExpectedAggressiveWebGlLabel = $ExpectedAggressiveLabel
+      if ($ExpectedAggressiveWebGlLabel -and [bool]$Manifest.options.aggressive_webgl2_relaxed_validation) {
+        $ExpectedAggressiveWebGlLabel = "$ExpectedAggressiveWebGlLabel-relaxed"
+      }
+      if ($ExpectedAggressiveWebGlLabel -and [bool]$Manifest.options.aggressive_webgl2_zero_copy) {
+        $ExpectedAggressiveWebGlLabel = "$ExpectedAggressiveWebGlLabel-zerocopy"
+      }
+      $ExpectedAggressiveWebGpuLabel = if ($Manifest.options.include_webgpu) { "fork-viewer-aggressive-gpu-webgpu" } else { "" }
       $AggressiveLabel = [string]$Manifest.labels.aggressive
       $AggressiveExpectedFlags = @($Manifest.suite_validation.expected_flag_metadata.aggressive)
       $AggressiveWebGpuExpectedFlags = @($Manifest.suite_validation.expected_flag_metadata.aggressive_webgpu)
@@ -2352,6 +3215,9 @@ function Add-OfficialComparisonManifestRow {
       } else {
         ""
       }
+      $UnexpectedAggressiveWebGpuBackendFlags = @($AggressiveWebGpuExpectedFlags | Where-Object {
+          $_ -match "^(viewer_force_angle_backend|requested_angle_backend)=" -and $_ -notmatch "=(null)?$"
+        })
       $AggressiveFileNames = @($Manifest.result_files.aggressive_webgl2 | ForEach-Object {
           [System.IO.Path]::GetFileName([string]$_)
         })
@@ -2361,19 +3227,19 @@ function Add-OfficialComparisonManifestRow {
       $UnexpectedAggressiveFiles = @()
       if ($ExpectedAggressiveLabel) {
         $UnexpectedAggressiveFiles = @($AggressiveFileNames | Where-Object {
-            $_ -and -not $_.StartsWith("$ExpectedAggressiveLabel-", [System.StringComparison]::OrdinalIgnoreCase)
+            $_ -and -not $_.StartsWith("$ExpectedAggressiveWebGlLabel-", [System.StringComparison]::OrdinalIgnoreCase)
           })
         $UnexpectedAggressiveFiles += @($AggressiveWebGpuFileNames | Where-Object {
-            $_ -and -not $_.StartsWith("$ExpectedAggressiveLabel-webgpu-", [System.StringComparison]::OrdinalIgnoreCase)
+            $_ -and -not $_.StartsWith("$ExpectedAggressiveWebGpuLabel-", [System.StringComparison]::OrdinalIgnoreCase)
           })
       }
 
       if (-not $AggressiveBackend) {
         $AggressiveBackendConsistencyOk = $false
         $AggressiveBackendConsistencyOutput = "missing aggressive_angle_backend"
-      } elseif ($AggressiveLabel -ne $ExpectedAggressiveLabel) {
+      } elseif ($AggressiveLabel -ne $ExpectedAggressiveWebGlLabel) {
         $AggressiveBackendConsistencyOk = $false
-        $AggressiveBackendConsistencyOutput = "labels.aggressive=$AggressiveLabel expected=$ExpectedAggressiveLabel"
+        $AggressiveBackendConsistencyOutput = "labels.aggressive=$AggressiveLabel expected=$ExpectedAggressiveWebGlLabel"
       } elseif ($AggressiveExpectedFlags -notcontains "viewer_aggressive_gpu=true") {
         $AggressiveBackendConsistencyOk = $false
         $AggressiveBackendConsistencyOutput = "expected aggressive flag metadata missing viewer_aggressive_gpu=true"
@@ -2383,18 +3249,27 @@ function Add-OfficialComparisonManifestRow {
       } elseif ($AggressiveExpectedFlags -notcontains $ExpectedRequestedBackendFlag) {
         $AggressiveBackendConsistencyOk = $false
         $AggressiveBackendConsistencyOutput = "expected aggressive flag metadata missing $ExpectedRequestedBackendFlag"
+      } elseif ([bool]$Manifest.options.aggressive_webgl2_relaxed_validation -and ($AggressiveExpectedFlags -notcontains "viewer_relaxed_webgl_validation=true")) {
+        $AggressiveBackendConsistencyOk = $false
+        $AggressiveBackendConsistencyOutput = "expected aggressive flag metadata missing viewer_relaxed_webgl_validation=true"
+      } elseif ([bool]$Manifest.options.aggressive_webgl2_zero_copy -and ($AggressiveExpectedFlags -notcontains "viewer_zero_copy=true")) {
+        $AggressiveBackendConsistencyOk = $false
+        $AggressiveBackendConsistencyOutput = "expected aggressive flag metadata missing viewer_zero_copy=true"
+      } elseif ($Manifest.options.include_webgpu -and [bool]$Manifest.options.aggressive_webgl2_relaxed_validation -and ($AggressiveWebGpuExpectedFlags -contains "viewer_relaxed_webgl_validation=true")) {
+        $AggressiveBackendConsistencyOk = $false
+        $AggressiveBackendConsistencyOutput = "aggressive WebGPU flag metadata unexpectedly includes viewer_relaxed_webgl_validation=true"
+      } elseif ($Manifest.options.include_webgpu -and [bool]$Manifest.options.aggressive_webgl2_zero_copy -and ($AggressiveWebGpuExpectedFlags -contains "viewer_zero_copy=true")) {
+        $AggressiveBackendConsistencyOk = $false
+        $AggressiveBackendConsistencyOutput = "aggressive WebGPU flag metadata unexpectedly includes viewer_zero_copy=true"
       } elseif ($Manifest.options.include_webgpu -and ($AggressiveWebGpuExpectedFlags -notcontains "viewer_aggressive_gpu=true")) {
         $AggressiveBackendConsistencyOk = $false
         $AggressiveBackendConsistencyOutput = "expected aggressive WebGPU flag metadata missing viewer_aggressive_gpu=true"
-      } elseif ($Manifest.options.include_webgpu -and ($AggressiveWebGpuExpectedFlags -notcontains $ExpectedAggressiveBackendFlag)) {
+      } elseif ($Manifest.options.include_webgpu -and $UnexpectedAggressiveWebGpuBackendFlags.Count -gt 0) {
         $AggressiveBackendConsistencyOk = $false
-        $AggressiveBackendConsistencyOutput = "expected aggressive WebGPU flag metadata missing $ExpectedAggressiveBackendFlag"
-      } elseif ($Manifest.options.include_webgpu -and ($AggressiveWebGpuExpectedFlags -notcontains $ExpectedRequestedBackendFlag)) {
-        $AggressiveBackendConsistencyOk = $false
-        $AggressiveBackendConsistencyOutput = "expected aggressive WebGPU flag metadata missing $ExpectedRequestedBackendFlag"
+        $AggressiveBackendConsistencyOutput = "aggressive WebGPU flag metadata unexpectedly includes backend override: $($UnexpectedAggressiveWebGpuBackendFlags -join ', ')"
       } elseif ($UnexpectedAggressiveFiles.Count -gt 0) {
         $AggressiveBackendConsistencyOk = $false
-        $AggressiveBackendConsistencyOutput = "aggressive result files do not match ${ExpectedAggressiveLabel}: $($UnexpectedAggressiveFiles -join ', ')"
+        $AggressiveBackendConsistencyOutput = "aggressive result files do not match ${ExpectedAggressiveWebGlLabel}/${ExpectedAggressiveWebGpuLabel}: $($UnexpectedAggressiveFiles -join ', ')"
       }
     }
     $PinRefreshValidation = Test-PinRefreshForCompletedManifest `
@@ -2483,32 +3358,90 @@ function Add-OfficialComparisonManifestRow {
       $TraceStartDelayMs = if ($null -ne $Manifest.options.trace_start_delay_ms) { [int]$Manifest.options.trace_start_delay_ms } else { 2000 }
       $BaselineTraceResultPath = if ($Manifest.trace_result_files.baseline) { $Manifest.trace_result_files.baseline } else { $Manifest.artifact_metadata.traces.baseline_result.path }
       $ForkTraceResultPath = if ($Manifest.trace_result_files.fork) { $Manifest.trace_result_files.fork } else { $Manifest.artifact_metadata.traces.fork_result.path }
+      $TraceResourceWarmupPrecompile = [bool]$Manifest.options.precompile
+      $TraceResourceWarmupPrerenderFrames = if ($null -ne $Manifest.options.prerender_frames) { [int]$Manifest.options.prerender_frames } else { 0 }
+      $TraceResourceWarmupEnabled = ($TraceResourceWarmupPrecompile -or $TraceResourceWarmupPrerenderFrames -gt 0).ToString().ToLowerInvariant()
+      $TraceResourceWarmupFlags = @(
+        "resource_warmup_enabled=$TraceResourceWarmupEnabled",
+        "resource_warmup_precompile=$($TraceResourceWarmupPrecompile.ToString().ToLowerInvariant())",
+        "resource_warmup_prerender_frames=$TraceResourceWarmupPrerenderFrames"
+      )
       $BaselineTraceExpectedFlags = @(
         "viewer_mode=false",
         "viewer_block_external_navigation=false",
         "viewer_trusted_content=false",
         "viewer_aggressive_gpu=false",
         "viewer_relaxed_webgl_validation=false",
+        "viewer_zero_copy=false",
         "viewer_in_process_gpu=false",
         "viewer_single_process=false",
         "viewer_force_angle_backend=null",
         "requested_angle_backend=null",
+        "benchmark_hud_enabled=false",
         "viewer_disable_unneeded_blink_features=false",
-        "viewer_direct_gpu_presentation=false"
-      )
+        "viewer_direct_gpu_presentation=false",
+        "viewer_defer_webgpu_pipeline_flush=false",
+        "viewer_defer_webgpu_queue_flush=false",
+        "viewer_defer_webgpu_submit_flush=false",
+        "viewer_skip_webgpu_canvas_texture_validation=false",
+        "viewer_skip_webgpu_canvas_memory_accounting=false",
+        "viewer_skip_webgpu_copy_external_image_color_conversion=false",
+        "viewer_skip_webgpu_copy_external_image_color_space_validation=false",
+        "viewer_skip_webgpu_copy_external_image_dest_validation=false",
+        "viewer_skip_webgpu_copy_external_image_source_validation=false",
+        "viewer_skip_webgpu_copy_external_image_copy_size_validation=false",
+        "viewer_skip_webgpu_write_texture_layout_validation=false",
+        "viewer_reject_webgpu_cpu_texture_fallback=false",
+        "viewer_skip_webgpu_use_counters=false",
+        "viewer_cache_webgpu_bind_group_layouts=false",
+        "viewer_skip_webgpu_command_labels=false",
+        "viewer_skip_webgpu_resource_labels=false",
+        "viewer_skip_webgpu_shader_source_null_check=false",
+        "viewer_skip_webgpu_shader_memory_accounting=false",
+        "viewer_skip_webgpu_redundant_pipeline_sets=false",
+        "viewer_skip_webgpu_redundant_bind_group_sets=false",
+        "viewer_skip_webgpu_redundant_buffer_sets=false",
+        "viewer_skip_webgpu_redundant_render_state_sets=false",
+        "viewer_trace_webgpu_queue=false"
+      ) + $TraceResourceWarmupFlags
       $ForkTraceExpectedFlags = @(
         "viewer_mode=true",
         "viewer_block_external_navigation=true",
         "viewer_trusted_content=true",
         "viewer_aggressive_gpu=false",
         "viewer_relaxed_webgl_validation=false",
+        "viewer_zero_copy=false",
         "viewer_in_process_gpu=false",
         "viewer_single_process=false",
         "viewer_force_angle_backend=null",
         "requested_angle_backend=null",
+        "benchmark_hud_enabled=false",
         "viewer_disable_unneeded_blink_features=false",
-        "viewer_direct_gpu_presentation=false"
-      )
+        "viewer_direct_gpu_presentation=false",
+        "viewer_defer_webgpu_pipeline_flush=false",
+        "viewer_defer_webgpu_queue_flush=false",
+        "viewer_defer_webgpu_submit_flush=false",
+        "viewer_skip_webgpu_canvas_texture_validation=false",
+        "viewer_skip_webgpu_canvas_memory_accounting=false",
+        "viewer_skip_webgpu_copy_external_image_color_conversion=false",
+        "viewer_skip_webgpu_copy_external_image_color_space_validation=false",
+        "viewer_skip_webgpu_copy_external_image_dest_validation=false",
+        "viewer_skip_webgpu_copy_external_image_source_validation=false",
+        "viewer_skip_webgpu_copy_external_image_copy_size_validation=false",
+        "viewer_skip_webgpu_write_texture_layout_validation=false",
+        "viewer_reject_webgpu_cpu_texture_fallback=false",
+        "viewer_skip_webgpu_use_counters=false",
+        "viewer_cache_webgpu_bind_group_layouts=false",
+        "viewer_skip_webgpu_command_labels=false",
+        "viewer_skip_webgpu_resource_labels=false",
+        "viewer_skip_webgpu_shader_source_null_check=false",
+        "viewer_skip_webgpu_shader_memory_accounting=false",
+        "viewer_skip_webgpu_redundant_pipeline_sets=false",
+        "viewer_skip_webgpu_redundant_bind_group_sets=false",
+        "viewer_skip_webgpu_redundant_buffer_sets=false",
+        "viewer_skip_webgpu_redundant_render_state_sets=false",
+        "viewer_trace_webgpu_queue=false"
+      ) + $TraceResourceWarmupFlags
       $BaselineTraceResultValidation = Invoke-TraceResultValidator `
         -File $BaselineTraceResultPath `
         -ExpectedScene $Manifest.options.trace_scene `
@@ -2550,6 +3483,8 @@ function Add-OfficialComparisonManifestRow {
       [pscustomobject]@{ Label = "baseline_build_args"; Metadata = $Manifest.artifact_metadata.inputs.baseline_build_args; ExpectedPath = $Manifest.build_args.baseline },
       [pscustomobject]@{ Label = "fork_build_args"; Metadata = $Manifest.artifact_metadata.inputs.fork_build_args; ExpectedPath = $Manifest.build_args.fork },
       [pscustomobject]@{ Label = "viewer_patch"; Metadata = $Manifest.artifact_metadata.inputs.viewer_patch; ExpectedPath = "chromium_patches\0001-draft-minimal-three-viewer-entrypoint.patch" },
+      [pscustomobject]@{ Label = "report:baseline_webgl2_summary"; Metadata = $Manifest.artifact_metadata.reports.baseline_webgl2_summary; ExpectedPath = $Manifest.report_files.baseline_webgl2_summary },
+      [pscustomobject]@{ Label = "report:fork_default_webgl2_summary"; Metadata = $Manifest.artifact_metadata.reports.fork_default_webgl2_summary; ExpectedPath = $Manifest.report_files.fork_default_webgl2_summary },
       [pscustomobject]@{ Label = "report:official_webgl2_comparison"; Metadata = $Manifest.artifact_metadata.reports.official_webgl2_comparison; ExpectedPath = $Manifest.report_files.official_webgl2_comparison }
     )
     $BaselineWebGlMetadata = @($Manifest.artifact_metadata.results.baseline_webgl2)
@@ -2678,7 +3613,7 @@ function Add-OfficialComparisonManifestRow {
     } elseif ($OfficialSuiteSettingIssues.Count -gt 0) {
       Add-AuditRow "Official performance" "Official comparison manifest" "pending" "$PathValue suite validation settings mismatch: $($OfficialSuiteSettingIssues -join '; ')" "Regenerate with current run_official_comparison.ps1 so the official manifest records checkout, build-args, revision, GPU, raw frame-time, exact-scene, no-smoke, and flag-metadata gates."
     } elseif (-not $AggressiveBackendConsistencyOk) {
-      Add-AuditRow "Official performance" "Official comparison manifest" "pending" "$PathValue aggressive backend metadata mismatch: $AggressiveBackendConsistencyOutput" "Regenerate with -IncludeAggressiveGpu -AggressiveAngleBackend d3d11 so aggressive result labels and expected flag metadata match the requested backend."
+      Add-AuditRow "Official performance" "Official comparison manifest" "pending" "$PathValue aggressive backend metadata mismatch: $AggressiveBackendConsistencyOutput" "Regenerate with -IncludeAggressiveGpu -AggressiveAngleBackend d3d11 so WebGL2 aggressive result labels and expected flag metadata match the requested backend while WebGPU aggressive evidence remains backend-neutral."
     } elseif ($BaselineCount -ne $RequiredScenes.Count -or $ForkCount -ne $RequiredScenes.Count) {
       Add-AuditRow "Official performance" "Official comparison manifest" "pending" "$PathValue webgl2 file counts baseline=$BaselineCount fork=$ForkCount expected=$($RequiredScenes.Count)" "Regenerate official comparison with the complete scene suite."
     } elseif ($BaselineWebGlHashCount -ne $RequiredScenes.Count -or $ForkWebGlHashCount -ne $RequiredScenes.Count) {
@@ -2709,6 +3644,8 @@ function Add-OfficialComparisonManifestRow {
       Add-AuditRow "Official performance" "Official comparison manifest" "pending" "$PathValue does not record build-args hashes" "Regenerate after stock/fork args.gn files exist."
     } elseif (-not $BaselinePackageOk -or -not $ForkPackageOk) {
       Add-AuditRow "Official performance" "Official comparison manifest" "pending" "$PathValue package_dir is set but package metadata is missing or empty" "Regenerate after staging requested packages with scripts/stage_viewer_package.ps1."
+    } elseif (-not $Manifest.artifact_metadata.reports.baseline_webgl2_summary.exists -or -not $Manifest.artifact_metadata.reports.baseline_webgl2_summary.sha256 -or -not $Manifest.artifact_metadata.reports.fork_default_webgl2_summary.exists -or -not $Manifest.artifact_metadata.reports.fork_default_webgl2_summary.sha256) {
+      Add-AuditRow "Official performance" "Official comparison manifest" "pending" "$PathValue does not record both official WebGL2 summary report hashes" "Regenerate after baseline and fork WebGL2 summary reports are written with summarize_results.mjs --strictEvidence."
     } elseif (-not $Manifest.artifact_metadata.reports.official_webgl2_comparison.exists -or -not $Manifest.artifact_metadata.reports.official_webgl2_comparison.sha256) {
       Add-AuditRow "Official performance" "Official comparison manifest" "pending" "$PathValue does not record the official WebGL2 comparison report hash" "Regenerate after official-webgl2-comparison.md is written."
     } elseif ($Manifest.options.include_webgpu -and (-not $Manifest.artifact_metadata.reports.official_webgpu_comparison.exists -or -not $Manifest.artifact_metadata.reports.official_webgpu_comparison.sha256)) {
@@ -2730,11 +3667,11 @@ function Add-OfficialComparisonManifestRow {
     } elseif ($OfficialInvalidPackageExecutables.Count -gt 0) {
       Add-AuditRow "Official performance" "Official comparison manifest" "pending" "$PathValue has package executable hash that does not match the manifest browser: $($OfficialInvalidPackageExecutables -join ', ')" "Regenerate after staging stock and fork packages from the same browser binaries used for the official comparison."
     } elseif ($OfficialReportContentIssues.Count -gt 0) {
-      Add-AuditRow "Official performance" "Official comparison manifest" "pending" "$PathValue report content validation failed: $($OfficialReportContentIssues -join '; ')" "Regenerate official comparison reports with compare_results.mjs --strictOfficial and trace summaries with summarize_trace.mjs from the exact official stock/fork artifacts."
+      Add-AuditRow "Official performance" "Official comparison manifest" "pending" "$PathValue report content validation failed: $($OfficialReportContentIssues -join '; ')" "Regenerate official summary reports with summarize_results.mjs --strictEvidence, comparison reports with compare_results.mjs --strictOfficial, and trace summaries with summarize_trace.mjs from the exact official stock/fork artifacts."
     } elseif (-not $OfficialSuiteValidation.Ok) {
       Add-AuditRow "Official performance" "Official comparison manifest" "pending" "$PathValue suite validation failed: $($OfficialSuiteValidation.Output)" "Regenerate after every exact official result JSON file in the manifest passes validate_benchmark_suite.mjs with checkout, build-args, revision, GPU, package-size, duration/warmup, and viewer flag metadata checks."
     } else {
-      Add-AuditRow "Official performance" "Official comparison manifest" "done" "$PathValue records exact stock/fork WebGL2 files, optional WebGPU/default-aggressive files, runtime/navigation smoke hashes, result/report hashes with comparison and trace-summary content validation, browser hashes, build-args hashes, viewer patch hash, package metadata with executable hashes matched to browsers when requested, artifact paths/hashes verified on disk, benchmark suites semantically validated against exact manifest files, validated trace hashes plus trace benchmark sidecars with launch metadata, expected fork revision, pin-refresh provenance, and full suite-validation settings" "Keep with the official reports and raw JSON artifacts."
+      Add-AuditRow "Official performance" "Official comparison manifest" "done" "$PathValue records exact stock/fork WebGL2 files, optional WebGPU/default-aggressive files, runtime/navigation smoke hashes, result/report hashes with strict-summary, raw-input-digest, comparison, and trace-summary content validation, browser hashes, build-args hashes, viewer patch-series hash, package metadata with executable hashes matched to browsers when requested, artifact paths/hashes verified on disk, benchmark suites semantically validated against exact manifest files, validated trace hashes plus trace benchmark sidecars with launch metadata, expected fork revision, pin-refresh provenance, and full suite-validation settings" "Keep with the official reports and raw JSON artifacts."
     }
   } catch {
     Add-AuditRow "Official performance" "Official comparison manifest" "pending" "$PathValue is invalid JSON or could not be audited: $($_.Exception.Message)" "Regenerate after official comparison."
@@ -2744,7 +3681,7 @@ function Add-OfficialComparisonManifestRow {
 function Add-OfficialRequiredOptionsRow {
   $PathValue = Get-OfficialComparisonManifestPathValue
   if (-not (Test-RepoPath $PathValue)) {
-    Add-AuditRow "Official performance" "Official comparison required options" "pending" "$PathValue missing" "Run the completion-oriented official comparison with WebGPU, aggressive GPU, -AggressiveAngleBackend d3d11, trace capture, and staged package directories."
+    Add-AuditRow "Official performance" "Official comparison required options" "pending" "$PathValue missing" "Run the completion-oriented official comparison with WebGPU, aggressive GPU, -AggressiveAngleBackend d3d11, -AggressiveWebGl2RelaxedValidation, -AggressiveWebGpuSourceFastPath, -AggressiveWebGpuUploadFastPath, trace capture, and staged package directories."
     return
   }
 
@@ -2760,6 +3697,15 @@ function Add-OfficialRequiredOptionsRow {
     if (-not [string]$Manifest.options.aggressive_angle_backend) {
       $Missing += "aggressive_angle_backend"
     }
+    if (-not [bool]$Manifest.options.aggressive_webgl2_relaxed_validation) {
+      $Missing += "aggressive_webgl2_relaxed_validation"
+    }
+    if (-not [bool]$Manifest.options.aggressive_webgpu_source_fast_path) {
+      $Missing += "aggressive_webgpu_source_fast_path"
+    }
+    if (-not [bool]$Manifest.options.aggressive_webgpu_upload_fast_path) {
+      $Missing += "aggressive_webgpu_upload_fast_path"
+    }
     if (-not [bool]$Manifest.options.capture_trace) {
       $Missing += "capture_trace"
     }
@@ -2771,12 +3717,1182 @@ function Add-OfficialRequiredOptionsRow {
     }
 
     if ($Missing.Count -eq 0) {
-      Add-AuditRow "Official performance" "Official comparison required options" "done" "$PathValue records WebGPU, aggressive GPU, aggressive ANGLE backend, trace capture, baseline package dir, and fork package dir" "Keep the official manifest aligned with the completion-oriented post-ATL command."
+      Add-AuditRow "Official performance" "Official comparison required options" "done" "$PathValue records WebGPU, aggressive GPU, aggressive ANGLE backend, WebGL2 relaxed-validation aggressive profile, WebGPU source/upload aggressive profiles, trace capture, baseline package dir, and fork package dir" "Keep the official manifest aligned with the completion-oriented post-ATL command."
     } else {
-      Add-AuditRow "Official performance" "Official comparison required options" "pending" "$PathValue missing required option evidence: $($Missing -join ', ')" "Regenerate with -IncludeWebGPU -IncludeAggressiveGpu -AggressiveAngleBackend d3d11 -CaptureTrace -BaselinePackageDir and -ForkPackageDir."
+      Add-AuditRow "Official performance" "Official comparison required options" "pending" "$PathValue missing required option evidence: $($Missing -join ', ')" "Regenerate with -IncludeWebGPU -IncludeAggressiveGpu -AggressiveAngleBackend d3d11 -AggressiveWebGl2RelaxedValidation -AggressiveWebGpuSourceFastPath -AggressiveWebGpuUploadFastPath -CaptureTrace -BaselinePackageDir and -ForkPackageDir."
     }
   } catch {
     Add-AuditRow "Official performance" "Official comparison required options" "pending" "$PathValue is invalid JSON" "Regenerate after official comparison."
+  }
+}
+
+function Add-SpeedupClaimGateRow {
+  $PathValue = Get-OfficialComparisonManifestPathValue
+  if (-not (Test-RepoPath $PathValue)) {
+    Add-AuditRow "Official performance" "Required WebGL2/WebGPU speedup claim gate" "pending" "$PathValue missing" "Run the official stock/fork comparison before claiming speed improvements over stock Chromium."
+    return
+  }
+
+  try {
+    $Manifest = Get-Content (Resolve-RepoPath $PathValue) -Raw | ConvertFrom-Json
+    if ($Manifest.dry_run) {
+      Add-AuditRow "Official performance" "Required WebGL2/WebGPU speedup claim gate" "pending" "$PathValue is a dry-run manifest" "Run without -DryRun after stock/fork binaries exist."
+      return
+    }
+    if ($Manifest.phase -ne "completed") {
+      Add-AuditRow "Official performance" "Required WebGL2/WebGPU speedup claim gate" "pending" "$PathValue phase=$($Manifest.phase)" "Regenerate after the official comparison completes successfully."
+      return
+    }
+    if (-not [bool]$Manifest.options.include_webgpu) {
+      Add-AuditRow "Official performance" "Required WebGL2/WebGPU speedup claim gate" "pending" "$PathValue was not generated with include_webgpu=true" "Regenerate with -IncludeWebGPU so WebGPU can be evaluated against stock."
+      return
+    }
+    $OfficialPinRefreshValidation = Test-PinRefreshForCompletedManifest `
+      -ManifestGeneratedAt ([string]$Manifest.generated_at) `
+      -ManifestChromiumRevision ([string]$Manifest.chromium_revision)
+    if (-not $OfficialPinRefreshValidation.Ok) {
+      Add-AuditRow "Official performance" "Required WebGL2/WebGPU speedup claim gate" "pending" "$PathValue does not follow the current Chromium pin refresh: $($OfficialPinRefreshValidation.Output)" "Regenerate official stock/fork evidence after the current upstream-head Chromium pin refresh before claiming speedups."
+      return
+    }
+
+    $Files = [System.Collections.Generic.List[string]]::new()
+    $FileSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    $AddCandidateFile = {
+      param([string]$File)
+      if ([string]::IsNullOrWhiteSpace($File)) {
+        return
+      }
+      if ($FileSet.Add($File)) {
+        $Files.Add($File) | Out-Null
+      }
+    }
+    foreach ($File in @($Manifest.result_files.baseline_webgl2)) { & $AddCandidateFile ([string]$File) }
+    foreach ($File in @($Manifest.result_files.fork_default_webgl2)) { & $AddCandidateFile ([string]$File) }
+    foreach ($File in @($Manifest.result_files.aggressive_webgl2)) { & $AddCandidateFile ([string]$File) }
+    foreach ($File in @($Manifest.result_files.baseline_webgpu)) { & $AddCandidateFile ([string]$File) }
+    foreach ($File in @($Manifest.result_files.fork_default_webgpu)) { & $AddCandidateFile ([string]$File) }
+    foreach ($File in @($Manifest.result_files.aggressive_webgpu)) { & $AddCandidateFile ([string]$File) }
+
+    $MinMeasuredSeconds = if ($null -ne $Manifest.options.duration) { [double]$Manifest.options.duration } else { 30 }
+    $ExpectedWarmupSeconds = if ($null -ne $Manifest.options.warmup) { [double]$Manifest.options.warmup } else { $null }
+    $ExpectedComplexity = if ($null -ne $Manifest.options.complexity) { [double]$Manifest.options.complexity } else { $null }
+    $TrustedCandidateFileCount = 0
+    $TrustedManifestNotes = [System.Collections.Generic.List[string]]::new()
+    foreach ($TrustedPathValue in @(Get-TrustedMatrixCandidateManifestPathValues | Select-Object -Unique)) {
+      if (-not (Test-RepoPath $TrustedPathValue)) {
+        continue
+      }
+      try {
+        $TrustedManifest = Get-Content (Resolve-RepoPath $TrustedPathValue) -Raw | ConvertFrom-Json
+        if ($TrustedManifest.dry_run) {
+          $TrustedManifestNotes.Add("$TrustedPathValue dry-run") | Out-Null
+          continue
+        }
+        if ($TrustedManifest.phase -ne "completed") {
+          $TrustedManifestNotes.Add("$TrustedPathValue phase=$($TrustedManifest.phase)") | Out-Null
+          continue
+        }
+        if ($TrustedManifest.chromium_revision -ne $Manifest.chromium_revision) {
+          $TrustedManifestNotes.Add("$TrustedPathValue chromium_revision mismatch") | Out-Null
+          continue
+        }
+        if ($TrustedManifest.fork_revision -ne $Manifest.fork_revision) {
+          $TrustedManifestNotes.Add("$TrustedPathValue fork_revision mismatch") | Out-Null
+          continue
+        }
+        $TrustedPinRefreshValidation = Test-PinRefreshForCompletedManifest `
+          -ManifestGeneratedAt ([string]$TrustedManifest.generated_at) `
+          -ManifestChromiumRevision ([string]$TrustedManifest.chromium_revision)
+        if (-not $TrustedPinRefreshValidation.Ok) {
+          $TrustedManifestNotes.Add("$TrustedPathValue pin refresh mismatch: $($TrustedPinRefreshValidation.Output)") | Out-Null
+          continue
+        }
+        if ($null -eq $TrustedManifest.options.duration -or [double]$TrustedManifest.options.duration -ne $MinMeasuredSeconds) {
+          $TrustedManifestNotes.Add("$TrustedPathValue duration mismatch") | Out-Null
+          continue
+        }
+        if ($null -ne $ExpectedWarmupSeconds -and ($null -eq $TrustedManifest.options.warmup -or [double]$TrustedManifest.options.warmup -ne $ExpectedWarmupSeconds)) {
+          $TrustedManifestNotes.Add("$TrustedPathValue warmup mismatch") | Out-Null
+          continue
+        }
+        if ($null -ne $ExpectedComplexity -and ($null -eq $TrustedManifest.options.complexity -or [double]$TrustedManifest.options.complexity -ne $ExpectedComplexity)) {
+          $TrustedManifestNotes.Add("$TrustedPathValue complexity mismatch") | Out-Null
+          continue
+        }
+        if (-not $TrustedManifest.package_dir) {
+          $TrustedManifestNotes.Add("$TrustedPathValue missing package_dir") | Out-Null
+          continue
+        }
+        if (-not $TrustedManifest.artifact_metadata.inputs.browser.exists) {
+          $TrustedManifestNotes.Add("$TrustedPathValue missing browser metadata") | Out-Null
+          continue
+        }
+        if (-not $TrustedManifest.artifact_metadata.inputs.build_args.sha256) {
+          $TrustedManifestNotes.Add("$TrustedPathValue missing build-args hash") | Out-Null
+          continue
+        }
+        $TrustedSuiteValidation = Invoke-TrustedMatrixBenchmarkSuiteValidation `
+          -Manifest $TrustedManifest `
+          -ExpectedForkRevision ([string]$Manifest.fork_revision) `
+          -RequirePackageSize
+        if (-not $TrustedSuiteValidation.Ok) {
+          $TrustedManifestNotes.Add("$TrustedPathValue suite validation failed: $($TrustedSuiteValidation.Output)") | Out-Null
+          continue
+        }
+        $TrustedFiles = @($TrustedManifest.result_files.all | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
+        foreach ($File in $TrustedFiles) {
+          $BeforeCount = $Files.Count
+          & $AddCandidateFile ([string]$File)
+          if ($Files.Count -gt $BeforeCount) {
+            $TrustedCandidateFileCount += 1
+          }
+        }
+      } catch {
+        $TrustedManifestNotes.Add("$TrustedPathValue invalid: $($_.Exception.Message)") | Out-Null
+      }
+    }
+    $TrustedGateDetail = if ($TrustedCandidateFileCount -gt 0) {
+      " Included $TrustedCandidateFileCount comparable trusted matrix result files."
+    } elseif ($TrustedManifestNotes.Count -gt 0) {
+      " Trusted matrix candidate files not included: $(@($TrustedManifestNotes) -join '; ')."
+    } else {
+      " No completed trusted matrix candidate manifest was available."
+    }
+
+    $SuitePromotionCandidateFileCount = 0
+    $SuitePromotionManifestNotes = [System.Collections.Generic.List[string]]::new()
+    $SuitePromotionPathValue = Get-SuitePromotionPlanManifestPathValue
+    if (Test-RepoPath $SuitePromotionPathValue) {
+      try {
+        $SuitePromotionManifest = Get-Content (Resolve-RepoPath $SuitePromotionPathValue) -Raw | ConvertFrom-Json
+        if ($SuitePromotionManifest.dry_run) {
+          $SuitePromotionManifestNotes.Add("$SuitePromotionPathValue dry-run") | Out-Null
+        } elseif ($SuitePromotionManifest.phase -ne "completed") {
+          $SuitePromotionManifestNotes.Add("$SuitePromotionPathValue phase=$($SuitePromotionManifest.phase)") | Out-Null
+        } elseif ($SuitePromotionManifest.chromium_revision -ne $Manifest.chromium_revision) {
+          $SuitePromotionManifestNotes.Add("$SuitePromotionPathValue chromium_revision mismatch") | Out-Null
+        } elseif ($SuitePromotionManifest.fork_revision -ne $Manifest.fork_revision) {
+          $SuitePromotionManifestNotes.Add("$SuitePromotionPathValue fork_revision mismatch") | Out-Null
+        } elseif ($null -eq $SuitePromotionManifest.options.duration -or [double]$SuitePromotionManifest.options.duration -ne $MinMeasuredSeconds) {
+          $SuitePromotionManifestNotes.Add("$SuitePromotionPathValue duration mismatch") | Out-Null
+        } elseif ($null -ne $ExpectedWarmupSeconds -and ($null -eq $SuitePromotionManifest.options.warmup -or [double]$SuitePromotionManifest.options.warmup -ne $ExpectedWarmupSeconds)) {
+          $SuitePromotionManifestNotes.Add("$SuitePromotionPathValue warmup mismatch") | Out-Null
+        } elseif ($null -ne $ExpectedComplexity -and ($null -eq $SuitePromotionManifest.options.complexity -or [double]$SuitePromotionManifest.options.complexity -ne $ExpectedComplexity)) {
+          $SuitePromotionManifestNotes.Add("$SuitePromotionPathValue complexity mismatch") | Out-Null
+        } elseif ([string]$SuitePromotionManifest.analysis.expected_chromium_revision -ne [string]$Manifest.chromium_revision) {
+          $SuitePromotionManifestNotes.Add("$SuitePromotionPathValue analysis expected_chromium_revision mismatch") | Out-Null
+        } elseif ([string]$SuitePromotionManifest.analysis.expected_fork_revision -ne [string]$Manifest.fork_revision) {
+          $SuitePromotionManifestNotes.Add("$SuitePromotionPathValue analysis expected_fork_revision mismatch") | Out-Null
+        } elseif ([int]$SuitePromotionManifest.generated_input_count -le 0) {
+          $SuitePromotionManifestNotes.Add("$SuitePromotionPathValue has no generated analyzer inputs") | Out-Null
+        } else {
+          $SuitePromotionInputListPath = [string]$SuitePromotionManifest.generated_input_list
+          if ([string]::IsNullOrWhiteSpace($SuitePromotionInputListPath)) {
+            $SuitePromotionManifestNotes.Add("$SuitePromotionPathValue missing generated_input_list") | Out-Null
+          } else {
+            $ResolvedSuitePromotionInputList = Resolve-RepoPath $SuitePromotionInputListPath
+            if (-not (Test-Path -LiteralPath $ResolvedSuitePromotionInputList -PathType Leaf)) {
+              $SuitePromotionManifestNotes.Add("$SuitePromotionPathValue generated_input_list missing on disk") | Out-Null
+            } else {
+              $SuitePromotionInputLines = @(Get-Content -LiteralPath $ResolvedSuitePromotionInputList | ForEach-Object { [string]$_ } | Where-Object { $_.Trim() })
+              $SuitePromotionDigestIssues = [System.Collections.Generic.List[string]]::new()
+              Add-CandidateAnalysisInputDigestIssues `
+                -Issues $SuitePromotionDigestIssues `
+                -InputLines $SuitePromotionInputLines `
+                -ExpectedInputCount ([int]$SuitePromotionManifest.generated_input_count) `
+                -ExpectedDigestFromManifest ([string]$SuitePromotionManifest.analysis.expected_input_file_digest) `
+                -AnalysisJsonPath ([string]$SuitePromotionManifest.analysis.json) `
+                -Label "suite-promotion speedup gate analysis" `
+                -RequireEvidence $true
+              if ($SuitePromotionDigestIssues.Count -gt 0) {
+                $SuitePromotionManifestNotes.Add("$SuitePromotionPathValue digest validation failed: $($SuitePromotionDigestIssues -join '; ')") | Out-Null
+              } else {
+                foreach ($File in $SuitePromotionInputLines) {
+                  $BeforeCount = $Files.Count
+                  & $AddCandidateFile ([string]$File)
+                  if ($Files.Count -gt $BeforeCount) {
+                    $SuitePromotionCandidateFileCount += 1
+                  }
+                }
+              }
+            }
+          }
+        }
+      } catch {
+        $SuitePromotionManifestNotes.Add("$SuitePromotionPathValue invalid: $($_.Exception.Message)") | Out-Null
+      }
+    }
+    $SuitePromotionGateDetail = if ($SuitePromotionCandidateFileCount -gt 0) {
+      " Included $SuitePromotionCandidateFileCount comparable suite-promotion result files."
+    } elseif ($SuitePromotionManifestNotes.Count -gt 0) {
+      " Suite-promotion candidate files not included: $(@($SuitePromotionManifestNotes) -join '; ')."
+    } else {
+      " No completed suite-promotion manifest was available."
+    }
+
+    $Gate = Invoke-CandidateSpeedupClaimGate `
+      -Files @($Files.ToArray()) `
+      -RequiredRenderers @("webgl2", "webgpu") `
+      -MinMeasuredSeconds $MinMeasuredSeconds `
+      -MinAvgFpsDeltaPct 0.5 `
+      -SceneRegressionPct 1.0 `
+      -DroppedFramesRegression 0.0 `
+      -CpuFrameRegressionMs 0.5 `
+      -RenderSubmissionRegressionMs 0.5 `
+      -ExpectedChromiumRevision ([string]$Manifest.chromium_revision) `
+      -ExpectedForkRevision ([string]$Manifest.fork_revision)
+
+    if ($Gate.Ok) {
+      Add-AuditRow "Official performance" "Required WebGL2/WebGPU speedup claim gate" "done" "scripts\analyze_candidates.mjs found retained fresh-profile candidate families for both WebGL2 and WebGPU with minScenes=$($RequiredScenes.Count), requiredScenes=$($RequiredScenes -join ','), minAvgFpsDeltaPct=0.5, sceneRegressionPct=1.0, droppedFramesRegression=0.0, cpuFrameRegressionMs=0.5, renderSubmissionRegressionMs=0.5, pipelineCreateRegressionMs=1.0, checkout-built browser evidence, no software/GPU-instability/stability/CPU-fallback inputs, required benchmark metric evidence, required package-size evidence, required frame-time samples, no material per-scene average-FPS regression, no dropped-frame regression, no CPU/render-submission regression, no WebGPU pipeline-create timing regression, no material low-FPS/p95/p99 regression, and no warm-profile-only cache-attribution wins counted as retained evidence.$TrustedGateDetail$SuitePromotionGateDetail" "Keep final performance claims tied to the official manifest, comparable trusted matrix manifests, completed suite-promotion manifests when used, and exact raw JSON files."
+    } else {
+      Add-AuditRow "Official performance" "Required WebGL2/WebGPU speedup claim gate" "pending" "$PathValue speedup claim gate failed: $($Gate.Output)$TrustedGateDetail$SuitePromotionGateDetail" "Iterate on WebGL2/WebGPU optimizations until analyze_candidates.mjs reports at least one retained fresh-profile candidate family for each renderer versus same-revision stock; cache-attribution rows are diagnostic only."
+    }
+  } catch {
+    Add-AuditRow "Official performance" "Required WebGL2/WebGPU speedup claim gate" "pending" "$PathValue could not be evaluated for speedup claims: $($_.Exception.Message)" "Regenerate after official comparison."
+  }
+}
+
+function Add-TargetedBlockerPlanManifestRow {
+  $PathValue = Get-TargetedBlockerPlanManifestPathValue
+  if (-not (Test-RepoPath $PathValue)) {
+    Add-AuditRow "Official performance" "Targeted blocker experiment plan manifest" "pending" "$PathValue missing" "Run scripts\run_blocker_experiments.ps1 -AnalyzeAfterRun -PlanSuitePromotionAfterTriage after candidate analysis identifies blockers."
+    return
+  }
+
+  try {
+    $Manifest = Get-Content (Resolve-RepoPath $PathValue) -Raw | ConvertFrom-Json
+    $Issues = [System.Collections.Generic.List[string]]::new()
+
+    $CandidateAnalysis = $null
+    if ([string]::IsNullOrWhiteSpace([string]$Manifest.candidate_analysis_json) -or
+        -not (Test-Path -LiteralPath (Resolve-RepoPath ([string]$Manifest.candidate_analysis_json)) -PathType Leaf)) {
+      $Issues.Add("candidate_analysis_json missing on disk") | Out-Null
+    } else {
+      try {
+        $CandidateAnalysis = Get-Content -LiteralPath (Resolve-RepoPath ([string]$Manifest.candidate_analysis_json)) -Raw | ConvertFrom-Json
+      } catch {
+        $Issues.Add("candidate_analysis_json is invalid or unreadable: $($_.Exception.Message)") | Out-Null
+      }
+    }
+    if ([string]::IsNullOrWhiteSpace([string]$Manifest.chromium_revision)) {
+      $Issues.Add("chromium_revision missing") | Out-Null
+    } elseif ([string]$Manifest.chromium_revision -ne $ExpectedChromiumRevision) {
+      $Issues.Add("chromium_revision=$($Manifest.chromium_revision) expected=$ExpectedChromiumRevision") | Out-Null
+    }
+    $ExpectedForkRevision = Get-ExpectedViewerForkRevision
+    if ([string]::IsNullOrWhiteSpace([string]$Manifest.fork_revision)) {
+      $Issues.Add("fork_revision missing") | Out-Null
+    } elseif ([string]$Manifest.fork_revision -ne $ExpectedForkRevision) {
+      $Issues.Add("fork_revision=$($Manifest.fork_revision) expected=$ExpectedForkRevision") | Out-Null
+    }
+    $PinRefreshValidation = Test-PinRefreshForCompletedManifest `
+      -ManifestGeneratedAt ([string]$Manifest.generated_at) `
+      -ManifestChromiumRevision ([string]$Manifest.chromium_revision)
+    if (-not $PinRefreshValidation.Ok) {
+      $Issues.Add("targeted blocker manifest does not follow current Chromium pin refresh: $($PinRefreshValidation.Output)") | Out-Null
+    }
+
+    if ($null -ne $CandidateAnalysis) {
+      $CandidateOptions = $CandidateAnalysis.options
+      if ($null -eq $CandidateOptions) {
+        $Issues.Add("candidate_analysis_json missing options") | Out-Null
+      } else {
+        if ([string]::IsNullOrWhiteSpace([string]$CandidateOptions.expected_chromium_revision)) {
+          $Issues.Add("candidate_analysis_json expected_chromium_revision missing") | Out-Null
+        } elseif ([string]$CandidateOptions.expected_chromium_revision -ne $ExpectedChromiumRevision) {
+          $Issues.Add("candidate_analysis_json expected_chromium_revision=$($CandidateOptions.expected_chromium_revision) expected=$ExpectedChromiumRevision") | Out-Null
+        }
+        if ([string]::IsNullOrWhiteSpace([string]$CandidateOptions.expected_fork_revision)) {
+          $Issues.Add("candidate_analysis_json expected_fork_revision missing") | Out-Null
+        } elseif ([string]$CandidateOptions.expected_fork_revision -ne $ExpectedForkRevision) {
+          $Issues.Add("candidate_analysis_json expected_fork_revision=$($CandidateOptions.expected_fork_revision) expected=$ExpectedForkRevision") | Out-Null
+        }
+        if ($Manifest.chromium_revision -and $CandidateOptions.expected_chromium_revision -and
+            [string]$Manifest.chromium_revision -ne [string]$CandidateOptions.expected_chromium_revision) {
+          $Issues.Add("candidate_analysis_json expected_chromium_revision does not match manifest chromium_revision") | Out-Null
+        }
+        if ($Manifest.fork_revision -and $CandidateOptions.expected_fork_revision -and
+            [string]$Manifest.fork_revision -ne [string]$CandidateOptions.expected_fork_revision) {
+          $Issues.Add("candidate_analysis_json expected_fork_revision does not match manifest fork_revision") | Out-Null
+        }
+        if ([string]$CandidateOptions.build_args_compatibility_policy -ne "same-build-args-hash") {
+          $Issues.Add("candidate_analysis_json build-args policy is not same-build-args-hash") | Out-Null
+        }
+        if ([string]$CandidateOptions.environment_compatibility_policy -ne "same-platform-driver-gpu-device") {
+          $Issues.Add("candidate_analysis_json environment policy is not same-platform-driver-gpu-device") | Out-Null
+        }
+        if ([string]$CandidateOptions.complexity_compatibility_policy -ne "same-explicit-benchmark-complexity") {
+          $Issues.Add("candidate_analysis_json complexity policy is not same-explicit-benchmark-complexity") | Out-Null
+        }
+        $RequiredCandidatePolicies = @(
+          [pscustomobject]@{ Name = "webgpu_bundle_mode_compatibility_policy"; Expected = "same-webgpu-bundle-mode" },
+          [pscustomobject]@{ Name = "webgpu_pipeline_instrumentation_compatibility_policy"; Expected = "same-webgpu-pipeline-instrumentation-mode" },
+          [pscustomobject]@{ Name = "resource_warmup_compatibility_policy"; Expected = "same-precompile-prerender-compile-texture-render-target-count-gpu-settle-and-webgpu-pipeline-quiet-mode" },
+          [pscustomobject]@{ Name = "profile_cache_compatibility_policy"; Expected = "same-profile-cache-mode-and-key" },
+          [pscustomobject]@{ Name = "warm_profile_speed_claim_policy"; Expected = "explicit-reuse-is-cache-attribution-not-retained-candidate" },
+          [pscustomobject]@{ Name = "required_benchmark_evidence_policy"; Expected = "candidate-analysis-filters-missing-required-metric-fields" },
+          [pscustomobject]@{ Name = "gpu_timing_evidence_policy"; Expected = "candidate-analysis-requires-explicit-gpu-timing-mode" },
+          [pscustomobject]@{ Name = "stability_evidence_policy"; Expected = "candidate-analysis-filters-stability-artifacts" },
+          [pscustomobject]@{ Name = "trace_instrumentation_policy"; Expected = "candidate-analysis-filters-viewer-and-source-webgpu-attribution-runs" },
+          [pscustomobject]@{ Name = "webgpu_cpu_fallback_policy"; Expected = "candidate-analysis-filters-webgpu-cpu-texture-fallback-and-missing-copyexternalimage-rejection" },
+          [pscustomobject]@{ Name = "webgpu_pipeline_quiet_success_policy"; Expected = "candidate-analysis-filters-unachieved-or-measured-pipeline-create-webgpu-pipeline-quiet-warmup" },
+          [pscustomobject]@{ Name = "shader_compile_stall_policy"; Expected = "candidate-analysis-blocks-shader-compile-event-and-webgpu-pipeline-create-time-regressions" },
+          [pscustomobject]@{ Name = "dropped_frame_regression_policy"; Expected = "candidate-analysis-blocks-dropped-frame-regressions" },
+          [pscustomobject]@{ Name = "cpu_submission_regression_policy"; Expected = "candidate-analysis-blocks-cpu-frame-and-render-submission-regressions" },
+          [pscustomobject]@{ Name = "package_size_speed_claim_policy"; Expected = "require-package-size-when-enabled" },
+          [pscustomobject]@{ Name = "baseline_selection_policy"; Expected = "fastest-compatible-baseline" }
+        )
+        foreach ($Policy in $RequiredCandidatePolicies) {
+          $PolicyProperty = $CandidateOptions.PSObject.Properties[$Policy.Name]
+          $ActualPolicyValue = if ($null -ne $PolicyProperty) { $PolicyProperty.Value } else { $null }
+          if ([string]$ActualPolicyValue -ne [string]$Policy.Expected) {
+            $Issues.Add("candidate_analysis_json $($Policy.Name) is not $($Policy.Expected)") | Out-Null
+          }
+        }
+        $CandidateRenderers = @(ConvertTo-AuditArray $CandidateOptions.required_candidate_renderers | ForEach-Object { [string]$_ } | Where-Object { $_ })
+        foreach ($Renderer in @("webgl2", "webgpu")) {
+          if ($CandidateRenderers -notcontains $Renderer) {
+            $Issues.Add("candidate_analysis_json missing required renderer $Renderer") | Out-Null
+          }
+        }
+      }
+
+      Add-CandidateAnalysisSelfDigestIssues `
+        -Issues $Issues `
+        -AnalysisJsonPath ([string]$Manifest.candidate_analysis_json) `
+        -Label "candidate_analysis_json source analysis"
+
+      $SeedIssues = [System.Collections.Generic.List[string]]::new()
+      $SeedInputLines = @(Get-CurrentCandidateAnalysisSeedInputFiles `
+          -Issues $SeedIssues `
+          -ExpectedForkRevision $ExpectedForkRevision)
+      if ($SeedInputLines.Count -gt 0) {
+        $SeedInputDigest = Get-ReportInputDigest $SeedInputLines
+        Add-CandidateAnalysisInputDigestIssues `
+          -Issues $Issues `
+          -InputLines $SeedInputLines `
+          -ExpectedInputCount $SeedInputLines.Count `
+          -ExpectedDigestFromManifest $SeedInputDigest `
+          -AnalysisJsonPath ([string]$Manifest.candidate_analysis_json) `
+          -Label "candidate_analysis_json current official/trusted analysis" `
+          -RequireEvidence $true
+      }
+    }
+
+    $Analysis = $Manifest.post_run_analysis
+    $InputLines = @()
+    if ($null -eq $Analysis -or $Analysis.enabled -ne $true) {
+      $Issues.Add("post_run_analysis missing or disabled") | Out-Null
+    } else {
+      if ([int]$Analysis.triage_min_scenes -ne 1) {
+        $Issues.Add("triage_min_scenes=$($Analysis.triage_min_scenes) expected=1") | Out-Null
+      }
+      if ([int]$Analysis.min_scenes -ne $RequiredScenes.Count) {
+        $Issues.Add("min_scenes=$($Analysis.min_scenes) expected=$($RequiredScenes.Count)") | Out-Null
+      }
+      if ([double]$Analysis.min_avg_fps_delta_pct -lt 0.5) {
+        $Issues.Add("min_avg_fps_delta_pct=$($Analysis.min_avg_fps_delta_pct) below retention threshold 0.5") | Out-Null
+      }
+      if ([double]$Analysis.scene_regression_pct -gt 1.0) {
+        $Issues.Add("scene_regression_pct=$($Analysis.scene_regression_pct) above retention threshold 1.0") | Out-Null
+      }
+      if ($null -eq $Analysis.PSObject.Properties["dropped_frames_regression"]) {
+        $Issues.Add("dropped_frames_regression missing") | Out-Null
+      } elseif ([double]$Analysis.dropped_frames_regression -gt 0.0) {
+        $Issues.Add("dropped_frames_regression=$($Analysis.dropped_frames_regression) above retention threshold 0.0") | Out-Null
+      }
+      if ($null -eq $Analysis.PSObject.Properties["cpu_frame_regression_ms"]) {
+        $Issues.Add("cpu_frame_regression_ms missing") | Out-Null
+      } elseif ([double]$Analysis.cpu_frame_regression_ms -gt 0.5) {
+        $Issues.Add("cpu_frame_regression_ms=$($Analysis.cpu_frame_regression_ms) above retention threshold 0.5") | Out-Null
+      }
+      if ($null -eq $Analysis.PSObject.Properties["render_submission_regression_ms"]) {
+        $Issues.Add("render_submission_regression_ms missing") | Out-Null
+      } elseif ([double]$Analysis.render_submission_regression_ms -gt 0.5) {
+        $Issues.Add("render_submission_regression_ms=$($Analysis.render_submission_regression_ms) above retention threshold 0.5") | Out-Null
+      }
+      if ($null -eq $Analysis.PSObject.Properties["pipeline_create_regression_ms"]) {
+        $Issues.Add("pipeline_create_regression_ms missing") | Out-Null
+      } elseif ([double]$Analysis.pipeline_create_regression_ms -gt 1.0) {
+        $Issues.Add("pipeline_create_regression_ms=$($Analysis.pipeline_create_regression_ms) above retention threshold 1.0") | Out-Null
+      }
+      if ($Analysis.require_frame_times -ne $true) {
+        $Issues.Add("post-run analysis does not require frame times") | Out-Null
+      }
+      if ($Analysis.require_checkout -ne $true) {
+        $Issues.Add("post-run analysis does not require checkout-built browsers") | Out-Null
+      }
+      if ($Analysis.require_package_size -ne $true) {
+        $Issues.Add("post-run analysis does not require package-size evidence") | Out-Null
+      }
+      if ([string]$Analysis.build_args_compatibility_policy -ne "same-build-args-hash") {
+        $Issues.Add("post-run analysis build-args policy is not same-build-args-hash") | Out-Null
+      }
+      if ([string]$Analysis.environment_compatibility_policy -ne "same-platform-driver-gpu-device") {
+        $Issues.Add("post-run analysis environment policy is not same-platform-driver-gpu-device") | Out-Null
+      }
+      if ([string]$Analysis.complexity_compatibility_policy -ne "same-explicit-benchmark-complexity") {
+        $Issues.Add("post-run analysis complexity policy is not same-explicit-benchmark-complexity") | Out-Null
+      }
+      if ([string]$Analysis.webgpu_bundle_mode_compatibility_policy -ne "same-webgpu-bundle-mode") {
+        $Issues.Add("post-run analysis WebGPU bundle-mode policy is not same-webgpu-bundle-mode") | Out-Null
+      }
+      if ([string]$Analysis.webgpu_pipeline_instrumentation_compatibility_policy -ne "same-webgpu-pipeline-instrumentation-mode") {
+        $Issues.Add("post-run analysis WebGPU pipeline instrumentation policy is not same-webgpu-pipeline-instrumentation-mode") | Out-Null
+      }
+      if ([string]$Analysis.baseline_selection_policy -ne "fastest-compatible-baseline") {
+        $Issues.Add("post-run analysis baseline selection policy is not fastest-compatible-baseline") | Out-Null
+      }
+      if ([string]::IsNullOrWhiteSpace([string]$Analysis.expected_chromium_revision)) {
+        $Issues.Add("expected_chromium_revision missing") | Out-Null
+      } elseif ([string]$Analysis.expected_chromium_revision -ne $ExpectedChromiumRevision) {
+        $Issues.Add("expected_chromium_revision=$($Analysis.expected_chromium_revision) expected=$ExpectedChromiumRevision") | Out-Null
+      }
+      if ([string]::IsNullOrWhiteSpace([string]$Analysis.expected_fork_revision)) {
+        $Issues.Add("expected_fork_revision missing") | Out-Null
+      } elseif ([string]$Analysis.expected_fork_revision -ne $ExpectedForkRevision) {
+        $Issues.Add("expected_fork_revision=$($Analysis.expected_fork_revision) expected=$ExpectedForkRevision") | Out-Null
+      }
+      if ($Manifest.chromium_revision -and $Analysis.expected_chromium_revision -and
+          [string]$Manifest.chromium_revision -ne [string]$Analysis.expected_chromium_revision) {
+        $Issues.Add("expected_chromium_revision does not match manifest chromium_revision") | Out-Null
+      }
+      if ($Manifest.fork_revision -and $Analysis.expected_fork_revision -and
+          [string]$Manifest.fork_revision -ne [string]$Analysis.expected_fork_revision) {
+        $Issues.Add("expected_fork_revision does not match manifest fork_revision") | Out-Null
+      }
+
+      $ManifestRequiredScenes = @(ConvertTo-AuditArray $Analysis.required_scenes | ForEach-Object { [string]$_ } | Where-Object { $_ })
+      foreach ($Scene in $RequiredScenes) {
+        if ($ManifestRequiredScenes -notcontains $Scene) {
+          $Issues.Add("post-run analysis missing required scene $Scene") | Out-Null
+        }
+      }
+      if ($ManifestRequiredScenes.Count -ne $RequiredScenes.Count) {
+        $Issues.Add("post-run required scene count=$($ManifestRequiredScenes.Count) expected=$($RequiredScenes.Count)") | Out-Null
+      }
+
+      $RequiredRenderers = @(ConvertTo-AuditArray $Analysis.required_candidate_renderers | ForEach-Object { ([string]$_).ToLowerInvariant() } | Where-Object { $_ })
+      foreach ($Renderer in @("webgl2", "webgpu")) {
+        if ($RequiredRenderers -notcontains $Renderer) {
+          $Issues.Add("post-run analysis missing required renderer $Renderer") | Out-Null
+        }
+      }
+
+      $InputListPath = [string]$Analysis.input_list
+      if ([string]::IsNullOrWhiteSpace($InputListPath)) {
+        $Issues.Add("post-run input_list missing") | Out-Null
+      } else {
+        $ResolvedInputList = Resolve-RepoPath $InputListPath
+        if (-not (Test-Path -LiteralPath $ResolvedInputList -PathType Leaf)) {
+          $Issues.Add("post-run input_list file missing on disk") | Out-Null
+        } else {
+          $InputLines = @(Get-Content -LiteralPath $ResolvedInputList | ForEach-Object { [string]$_ } | Where-Object { $_.Trim() })
+          if ($InputLines.Count -ne [int]$Analysis.generated_input_count) {
+            $Issues.Add("generated_input_count=$($Analysis.generated_input_count) actual_input_lines=$($InputLines.Count)") | Out-Null
+          }
+          if (@($InputLines | Where-Object { $_ -match "[*?]" }).Count -gt 0) {
+            $Issues.Add("post-run input_list contains wildcard input instead of exact result files") | Out-Null
+          }
+        }
+      }
+
+      $RequireAnalysisDigestEvidence = (
+        $Manifest.dry_run -ne $true -and
+        [string]$Manifest.phase -eq "completed" -and
+        [int]$Analysis.generated_input_count -gt 0
+      )
+      Add-CandidateAnalysisInputDigestIssues `
+        -Issues $Issues `
+        -InputLines $InputLines `
+        -ExpectedInputCount ([int]$Analysis.generated_input_count) `
+        -ExpectedDigestFromManifest ([string]$Analysis.expected_input_file_digest) `
+        -AnalysisJsonPath ([string]$Analysis.triage_json) `
+        -Label "targeted blocker triage analysis" `
+        -RequireEvidence $RequireAnalysisDigestEvidence
+      Add-CandidateAnalysisInputDigestIssues `
+        -Issues $Issues `
+        -InputLines $InputLines `
+        -ExpectedInputCount ([int]$Analysis.generated_input_count) `
+        -ExpectedDigestFromManifest ([string]$Analysis.expected_input_file_digest) `
+        -AnalysisJsonPath ([string]$Analysis.json) `
+        -Label "targeted blocker candidate analysis" `
+        -RequireEvidence $RequireAnalysisDigestEvidence
+    }
+
+    $Steps = @(ConvertTo-AuditArray $Manifest.steps)
+    $TriageStep = @($Steps | Where-Object { [string]$_.name -eq "post-run blocker triage analysis" })
+    $CandidateStep = @($Steps | Where-Object { [string]$_.name -eq "post-run candidate speed analysis" })
+    foreach ($StepInfo in @(
+        [pscustomobject]@{ Label = "triage"; Step = $TriageStep; RequireFullSuite = $false },
+        [pscustomobject]@{ Label = "candidate"; Step = $CandidateStep; RequireFullSuite = $true }
+      )) {
+      if (@($StepInfo.Step).Count -eq 0) {
+        $Issues.Add("post-run $($StepInfo.Label) analysis step missing") | Out-Null
+        continue
+      }
+      $CommandLine = [string]$StepInfo.Step[0].command_line
+      foreach ($RequiredToken in @("--fileList", "--droppedFramesRegression", "--cpuFrameRegressionMs", "--renderSubmissionRegressionMs", "--pipelineCreateRegressionMs", "--requireFrameTimes", "--requireCheckout", "--requirePackageSize", "--expectedChromiumRevision", "--expectedForkRevision")) {
+        if ($CommandLine -notmatch "$([regex]::Escape($RequiredToken))\b") {
+          $Issues.Add("post-run $($StepInfo.Label) command missing $RequiredToken") | Out-Null
+        }
+      }
+      if ($StepInfo.RequireFullSuite) {
+        foreach ($Scene in $RequiredScenes) {
+          if ($CommandLine -notmatch "--requiredScene\s+$([regex]::Escape($Scene))\b") {
+            $Issues.Add("post-run candidate command missing required scene $Scene") | Out-Null
+          }
+        }
+        foreach ($Renderer in @("webgl2", "webgpu")) {
+          if ($CommandLine -notmatch "--requireCandidateRenderer\s+$Renderer\b") {
+            $Issues.Add("post-run candidate command missing required renderer $Renderer") | Out-Null
+          }
+        }
+      }
+    }
+
+    if ($Manifest.suite_promotion.enabled -ne $true) {
+      $Issues.Add("suite_promotion is not enabled") | Out-Null
+    }
+    if ($Steps.Count -eq 0) {
+      $Issues.Add("command steps missing") | Out-Null
+    }
+
+    $PlannedWebGpuScenes = @(ConvertTo-AuditArray $Manifest.planned_scenes.webgpu | ForEach-Object { [string]$_ } | Where-Object { $_ })
+    if ($PlannedWebGpuScenes.Count -gt 0) {
+      $Trace = $Manifest.targeted_trace
+      if ($null -eq $Trace -or $Trace.enabled -ne $true) {
+        $Issues.Add("targeted_trace missing or disabled for planned WebGPU blocker scenes") | Out-Null
+      } else {
+        if ([string]$Trace.renderer -ne "webgpu") {
+          $Issues.Add("targeted_trace renderer=$($Trace.renderer) expected=webgpu") | Out-Null
+        }
+        if ([int]$Trace.duration -le 0) {
+          $Issues.Add("targeted_trace duration must be greater than zero") | Out-Null
+        }
+        if ([int]$Trace.warmup -lt 0) {
+          $Issues.Add("targeted_trace warmup must be zero or greater") | Out-Null
+        }
+        if ([int]$Trace.start_delay_ms -lt 0) {
+          $Issues.Add("targeted_trace start_delay_ms must be zero or greater") | Out-Null
+        }
+        if ($Trace.viewer_trace_webgpu_queue -ne $true) {
+          $Issues.Add("targeted_trace does not enable viewer WebGPU queue tracing") | Out-Null
+        }
+        if ($Trace.reject_webgpu_cpu_fallback -ne $true) {
+          $Issues.Add("targeted_trace does not reject WebGPU CPU texture fallback/readback") | Out-Null
+        }
+
+        $TraceFiles = @(ConvertTo-AuditArray $Trace.trace_files)
+        $ExpectedTraceFileCount = $PlannedWebGpuScenes.Count * 2
+        if ($TraceFiles.Count -ne $ExpectedTraceFileCount) {
+          $Issues.Add("targeted_trace trace file count=$($TraceFiles.Count) expected=$ExpectedTraceFileCount") | Out-Null
+        }
+
+        foreach ($Scene in $PlannedWebGpuScenes) {
+          $BaselineTraceFiles = @($TraceFiles | Where-Object {
+              [string]$_.scene -eq $Scene -and
+              [string]$_.renderer -eq "webgpu" -and
+              [string]$_.label -match "^baseline-content-shell-targeted-blocker-webgpu-trace"
+            })
+          $ForkTraceFiles = @($TraceFiles | Where-Object {
+              [string]$_.scene -eq $Scene -and
+              [string]$_.renderer -eq "webgpu" -and
+              [string]$_.label -match "^fork-viewer-default-targeted-blocker-webgpu-trace"
+            })
+          if ($BaselineTraceFiles.Count -ne 1) {
+            $Issues.Add("targeted_trace missing baseline trace artifact for WebGPU scene $Scene") | Out-Null
+          }
+          if ($ForkTraceFiles.Count -ne 1) {
+            $Issues.Add("targeted_trace missing fork trace artifact for WebGPU scene $Scene") | Out-Null
+          }
+
+          foreach ($TraceFile in @($BaselineTraceFiles + $ForkTraceFiles)) {
+            foreach ($PropertyName in @("trace", "trace_result", "trace_summary")) {
+              if ([string]::IsNullOrWhiteSpace([string]$TraceFile.$PropertyName)) {
+                $Issues.Add("targeted_trace $PropertyName missing for WebGPU scene $Scene") | Out-Null
+              }
+            }
+            if ([string]$TraceFile.trace -and [string]$TraceFile.trace -notmatch "$([regex]::Escape($Scene))-webgpu-targeted-trace\.json$") {
+              $Issues.Add("targeted_trace trace path does not match scene/renderer naming for $Scene") | Out-Null
+            }
+            if ([string]$TraceFile.trace_result -and [string]$TraceFile.trace_result -notmatch "$([regex]::Escape($Scene))-webgpu-targeted-trace\.result\.json$") {
+              $Issues.Add("targeted_trace sidecar path does not match scene/renderer naming for $Scene") | Out-Null
+            }
+            if ([string]$TraceFile.trace_summary -and [string]$TraceFile.trace_summary -notmatch "$([regex]::Escape($Scene))-webgpu-targeted-trace-summary\.md$") {
+              $Issues.Add("targeted_trace summary path does not match scene/renderer naming for $Scene") | Out-Null
+            }
+          }
+
+          $BaselineCaptureStep = @($Steps | Where-Object { [string]$_.name -eq "targeted WebGPU baseline trace ($Scene)" })
+          $ForkCaptureStep = @($Steps | Where-Object { [string]$_.name -eq "targeted WebGPU fork trace ($Scene)" })
+          $BaselineFileValidationStep = @($Steps | Where-Object { [string]$_.name -eq "validate targeted WebGPU baseline trace file ($Scene)" })
+          $ForkFileValidationStep = @($Steps | Where-Object { [string]$_.name -eq "validate targeted WebGPU fork trace file ($Scene)" })
+          $BaselineSidecarStep = @($Steps | Where-Object { [string]$_.name -eq "validate targeted WebGPU baseline trace sidecar ($Scene)" })
+          $ForkSidecarStep = @($Steps | Where-Object { [string]$_.name -eq "validate targeted WebGPU fork trace sidecar ($Scene)" })
+          $BaselineSummaryStep = @($Steps | Where-Object { [string]$_.name -eq "summarize targeted WebGPU baseline trace ($Scene)" })
+          $ForkSummaryStep = @($Steps | Where-Object { [string]$_.name -eq "summarize targeted WebGPU fork trace ($Scene)" })
+
+          foreach ($StepInfo in @(
+              [pscustomobject]@{ Label = "baseline trace capture"; Step = $BaselineCaptureStep; Pattern = "run_trace_capture\.mjs\b.*--scene\s+$([regex]::Escape($Scene))\b.*--renderer\s+webgpu\b.*--duration\s+$([int]$Trace.duration)\b.*--warmup\s+$([int]$Trace.warmup)\b.*--startDelayMs\s+$([int]$Trace.start_delay_ms)\b" },
+              [pscustomobject]@{ Label = "fork trace capture"; Step = $ForkCaptureStep; Pattern = "run_trace_capture\.mjs\b.*--scene\s+$([regex]::Escape($Scene))\b.*--renderer\s+webgpu\b.*--duration\s+$([int]$Trace.duration)\b.*--warmup\s+$([int]$Trace.warmup)\b.*--startDelayMs\s+$([int]$Trace.start_delay_ms)\b.*--viewerMode\b.*--viewerTrustedContent\b.*--viewerTraceWebgpuQueue\b" },
+              [pscustomobject]@{ Label = "baseline trace file validation"; Step = $BaselineFileValidationStep; Pattern = "validate_trace_file\.mjs\b.*--minEvents\s+1\b.*$([regex]::Escape($Scene))-webgpu-targeted-trace\.json\b" },
+              [pscustomobject]@{ Label = "fork trace file validation"; Step = $ForkFileValidationStep; Pattern = "validate_trace_file\.mjs\b.*--minEvents\s+1\b.*$([regex]::Escape($Scene))-webgpu-targeted-trace\.json\b" },
+              [pscustomobject]@{ Label = "baseline trace sidecar validation"; Step = $BaselineSidecarStep; Pattern = "validate_trace_result\.mjs\b.*--expectedScene\s+$([regex]::Escape($Scene))\b.*--expectedRenderer\s+webgpu\b.*--expectedStartDelayMs\s+$([int]$Trace.start_delay_ms)\b.*--rejectSoftwareRendering\b.*viewer_trace_webgpu_queue=false" },
+              [pscustomobject]@{ Label = "fork trace sidecar validation"; Step = $ForkSidecarStep; Pattern = "validate_trace_result\.mjs\b.*--expectedScene\s+$([regex]::Escape($Scene))\b.*--expectedRenderer\s+webgpu\b.*--expectedStartDelayMs\s+$([int]$Trace.start_delay_ms)\b.*--rejectSoftwareRendering\b.*viewer_trace_webgpu_queue=true\b.*--viewer-trace-webgpu-queue\b" },
+              [pscustomobject]@{ Label = "baseline trace summary"; Step = $BaselineSummaryStep; Pattern = "summarize_trace\.mjs\b.*$([regex]::Escape($Scene))-webgpu-targeted-trace\.json\b.*--output\b.*$([regex]::Escape($Scene))-webgpu-targeted-trace-summary\.md\b" },
+              [pscustomobject]@{ Label = "fork trace summary"; Step = $ForkSummaryStep; Pattern = "summarize_trace\.mjs\b.*$([regex]::Escape($Scene))-webgpu-targeted-trace\.json\b.*--output\b.*$([regex]::Escape($Scene))-webgpu-targeted-trace-summary\.md\b" }
+            )) {
+            if (@($StepInfo.Step).Count -eq 0) {
+              $Issues.Add("targeted WebGPU $($StepInfo.Label) step missing for scene $Scene") | Out-Null
+              continue
+            }
+            $CommandLine = [string]$StepInfo.Step[0].command_line
+            if ($CommandLine -notmatch $StepInfo.Pattern) {
+              $Issues.Add("targeted WebGPU $($StepInfo.Label) command incomplete for scene $Scene") | Out-Null
+            }
+          }
+
+          if ($Trace.queue_instrumentation -eq $true) {
+            foreach ($CaptureStep in @($BaselineCaptureStep + $ForkCaptureStep)) {
+              if ([string]$CaptureStep.command_line -notmatch "--queueInstrumentation\b") {
+                $Issues.Add("targeted trace queue instrumentation missing from capture command for scene $Scene") | Out-Null
+              }
+            }
+          }
+
+          if ($Trace.bind_group_instrumentation -eq $true) {
+            foreach ($CaptureStep in @($BaselineCaptureStep + $ForkCaptureStep)) {
+              if ([string]$CaptureStep.command_line -notmatch "--bindGroupInstrumentation\b") {
+                $Issues.Add("targeted trace bind-group instrumentation missing from capture command for scene $Scene") | Out-Null
+              }
+            }
+            foreach ($SidecarStep in @($BaselineSidecarStep + $ForkSidecarStep)) {
+              if ([string]$SidecarStep.command_line -notmatch "webgpu_bind_group_instrumentation_enabled=true\b") {
+                $Issues.Add("targeted trace bind-group instrumentation metadata missing from sidecar validation for scene $Scene") | Out-Null
+              }
+            }
+          }
+
+          if ($Trace.pipeline_state_instrumentation -eq $true) {
+            foreach ($CaptureStep in @($BaselineCaptureStep + $ForkCaptureStep)) {
+              if ([string]$CaptureStep.command_line -notmatch "--pipelineStateInstrumentation\b") {
+                $Issues.Add("targeted trace pipeline-state instrumentation missing from capture command for scene $Scene") | Out-Null
+              }
+            }
+            foreach ($SidecarStep in @($BaselineSidecarStep + $ForkSidecarStep)) {
+              if ([string]$SidecarStep.command_line -notmatch "webgpu_pipeline_state_instrumentation_enabled=true\b") {
+                $Issues.Add("targeted trace pipeline-state instrumentation metadata missing from sidecar validation for scene $Scene") | Out-Null
+              }
+            }
+          }
+
+          if ($Trace.buffer_state_instrumentation -eq $true) {
+            foreach ($CaptureStep in @($BaselineCaptureStep + $ForkCaptureStep)) {
+              if ([string]$CaptureStep.command_line -notmatch "--bufferStateInstrumentation\b") {
+                $Issues.Add("targeted trace buffer-state instrumentation missing from capture command for scene $Scene") | Out-Null
+              }
+            }
+            foreach ($SidecarStep in @($BaselineSidecarStep + $ForkSidecarStep)) {
+              if ([string]$SidecarStep.command_line -notmatch "webgpu_buffer_state_instrumentation_enabled=true\b") {
+                $Issues.Add("targeted trace buffer-state instrumentation metadata missing from sidecar validation for scene $Scene") | Out-Null
+              }
+            }
+          }
+
+          if ($Trace.render_state_instrumentation -eq $true) {
+            foreach ($CaptureStep in @($BaselineCaptureStep + $ForkCaptureStep)) {
+              if ([string]$CaptureStep.command_line -notmatch "--renderStateInstrumentation\b") {
+                $Issues.Add("targeted trace render-state instrumentation missing from capture command for scene $Scene") | Out-Null
+              }
+            }
+            foreach ($SidecarStep in @($BaselineSidecarStep + $ForkSidecarStep)) {
+              if ([string]$SidecarStep.command_line -notmatch "webgpu_render_state_instrumentation_enabled=true\b") {
+                $Issues.Add("targeted trace render-state instrumentation metadata missing from sidecar validation for scene $Scene") | Out-Null
+              }
+            }
+          }
+
+          if ($Trace.immediate_instrumentation -eq $true) {
+            foreach ($CaptureStep in @($BaselineCaptureStep + $ForkCaptureStep)) {
+              if ([string]$CaptureStep.command_line -notmatch "--immediateInstrumentation\b") {
+                $Issues.Add("targeted trace immediate instrumentation missing from capture command for scene $Scene") | Out-Null
+              }
+            }
+            foreach ($SidecarStep in @($BaselineSidecarStep + $ForkSidecarStep)) {
+              if ([string]$SidecarStep.command_line -notmatch "webgpu_immediate_instrumentation_enabled=true\b") {
+                $Issues.Add("targeted trace immediate instrumentation metadata missing from sidecar validation for scene $Scene") | Out-Null
+              }
+            }
+          }
+
+          if ($Trace.reject_webgpu_cpu_fallback -eq $true) {
+            foreach ($ValidationStep in @($BaselineFileValidationStep + $ForkFileValidationStep)) {
+              if ([string]$ValidationStep.command_line -notmatch "--rejectWebGpuCpuFallback\b") {
+                $Issues.Add("targeted trace CPU-fallback rejection missing from trace-file validation for scene $Scene") | Out-Null
+              }
+            }
+            if ([string]$ForkCaptureStep[0].command_line -notmatch "--viewerRejectWebgpuCpuTextureFallback\b") {
+              $Issues.Add("trusted fork targeted trace does not request WebGPU CPU texture-fallback rejection for scene $Scene") | Out-Null
+            }
+            if ([string]$BaselineSidecarStep[0].command_line -notmatch "viewer_reject_webgpu_cpu_texture_fallback=false\b") {
+              $Issues.Add("baseline targeted trace sidecar validation missing WebGPU CPU texture-fallback metadata for scene $Scene") | Out-Null
+            }
+            if ([string]$ForkSidecarStep[0].command_line -notmatch "viewer_reject_webgpu_cpu_texture_fallback=true\b") {
+              $Issues.Add("fork targeted trace sidecar validation missing WebGPU CPU texture-fallback rejection metadata for scene $Scene") | Out-Null
+            }
+            if ([string]$ForkSidecarStep[0].command_line -notmatch "--viewer-reject-webgpu-cpu-texture-fallback\b") {
+              $Issues.Add("fork targeted trace sidecar validation missing WebGPU CPU texture-fallback required browser flag for scene $Scene") | Out-Null
+            }
+            foreach ($SummaryStep in @($BaselineSummaryStep + $ForkSummaryStep)) {
+              if ([string]$SummaryStep.command_line -notmatch "--rejectWebGpuCpuFallback\b") {
+                $Issues.Add("targeted trace CPU-fallback rejection missing from trace summary for scene $Scene") | Out-Null
+              }
+            }
+          }
+        }
+      }
+    }
+
+    if ($Issues.Count -gt 0) {
+      Add-AuditRow "Official performance" "Targeted blocker experiment plan manifest" "pending" "$PathValue validation failed: $($Issues -join '; ')" "Regenerate with scripts\run_blocker_experiments.ps1 -AnalyzeAfterRun -PlanSuitePromotionAfterTriage before using targeted blocker runs for retained speed claims."
+      return
+    }
+
+      Add-AuditRow "Official performance" "Targeted blocker experiment plan manifest" "done" "$PathValue records focused WebGL2/WebGPU blocker scenes, source candidate-analysis policy and input digest checks, current official/trusted seed digest checks when current completed manifests are available, scoped analyzer inputs with completed-run digest and exact input-file metadata checks, checkout-built browser gating, package-size evidence, frame-time requirements, exact revision filters, seven-scene retention gates, WebGL2/WebGPU renderer gates, dropped-frame/CPU/render-submission/tail diagnostics, targeted WebGPU trace capture with CPU-fallback and software-renderer rejection, and suite-promotion handoff" "Run the planned commands after checkout-built Chromium binaries are available, then promote only analyzer-retained profiles."
+  } catch {
+    Add-AuditRow "Official performance" "Targeted blocker experiment plan manifest" "pending" "$PathValue is invalid JSON or could not be audited: $($_.Exception.Message)" "Regenerate with scripts\run_blocker_experiments.ps1 -AnalyzeAfterRun -PlanSuitePromotionAfterTriage."
+  }
+}
+
+function Add-SuitePromotionPlanManifestRow {
+  $PathValue = Get-SuitePromotionPlanManifestPathValue
+  if (-not (Test-RepoPath $PathValue)) {
+    Add-AuditRow "Official performance" "Targeted suite-promotion plan manifest" "pending" "$PathValue missing" "Run scripts\run_blocker_experiments.ps1 -AnalyzeAfterRun -PlanSuitePromotionAfterTriage after the next targeted speed iteration."
+    return
+  }
+
+  try {
+    $Manifest = Get-Content (Resolve-RepoPath $PathValue) -Raw | ConvertFrom-Json
+    $Issues = [System.Collections.Generic.List[string]]::new()
+    $ExpectedForkRevision = Get-ExpectedViewerForkRevision
+    if ([string]::IsNullOrWhiteSpace([string]$Manifest.chromium_revision)) {
+      $Issues.Add("chromium_revision missing") | Out-Null
+    } elseif ([string]$Manifest.chromium_revision -ne $ExpectedChromiumRevision) {
+      $Issues.Add("chromium_revision=$($Manifest.chromium_revision) expected=$ExpectedChromiumRevision") | Out-Null
+    }
+    if ([string]::IsNullOrWhiteSpace([string]$Manifest.fork_revision)) {
+      $Issues.Add("fork_revision missing") | Out-Null
+    } elseif ([string]$Manifest.fork_revision -ne $ExpectedForkRevision) {
+      $Issues.Add("fork_revision=$($Manifest.fork_revision) expected=$ExpectedForkRevision") | Out-Null
+    }
+    $PinRefreshValidation = Test-PinRefreshForCompletedManifest `
+      -ManifestGeneratedAt ([string]$Manifest.generated_at) `
+      -ManifestChromiumRevision ([string]$Manifest.chromium_revision)
+    if (-not $PinRefreshValidation.Ok) {
+      $Issues.Add("suite-promotion manifest does not follow current Chromium pin refresh: $($PinRefreshValidation.Output)") | Out-Null
+    }
+    $ManifestRequiredScenes = @(ConvertTo-AuditArray $Manifest.required_scenes | ForEach-Object { [string]$_ } | Where-Object { $_ })
+    $MissingScenes = @($RequiredScenes | Where-Object { $ManifestRequiredScenes -notcontains $_ })
+    $UnexpectedScenes = @($ManifestRequiredScenes | Where-Object { $RequiredScenes -notcontains $_ })
+    if ($MissingScenes.Count -gt 0) {
+      $Issues.Add("missing required scenes: $($MissingScenes -join ', ')") | Out-Null
+    }
+    if ($UnexpectedScenes.Count -gt 0) {
+      $Issues.Add("unexpected scenes: $($UnexpectedScenes -join ', ')") | Out-Null
+    }
+    if ($ManifestRequiredScenes.Count -ne $RequiredScenes.Count) {
+      $Issues.Add("required scene count=$($ManifestRequiredScenes.Count) expected=$($RequiredScenes.Count)") | Out-Null
+    }
+
+    $RequiredRenderers = @(ConvertTo-AuditArray $Manifest.required_candidate_renderers | ForEach-Object { ([string]$_).ToLowerInvariant() } | Where-Object { $_ } | Select-Object -Unique)
+    if ($RequiredRenderers.Count -eq 0) {
+      $Issues.Add("required_candidate_renderers missing") | Out-Null
+    }
+    foreach ($Renderer in $RequiredRenderers) {
+      if (@("webgl2", "webgpu") -notcontains $Renderer) {
+        $Issues.Add("unsupported required candidate renderer: $Renderer") | Out-Null
+      }
+    }
+
+    $ManifestOptions = $Manifest.options
+    $SettleGpuAfterWarmup = $false
+    if ($null -eq $ManifestOptions) {
+      $Issues.Add("options missing") | Out-Null
+    } else {
+      if ($null -ne $ManifestOptions.settle_gpu_after_warmup) {
+        $SettleGpuAfterWarmup = [bool]$ManifestOptions.settle_gpu_after_warmup
+      }
+      $LabelSuffix = [string]$ManifestOptions.label_suffix
+      if ($LabelSuffix -match "settlegpu" -and -not $SettleGpuAfterWarmup) {
+        $Issues.Add("settlegpu label suffix but settle_gpu_after_warmup is not true") | Out-Null
+      }
+    }
+
+    if ([string]::IsNullOrWhiteSpace([string]$Manifest.triage_analysis_json) -or
+        -not (Test-Path -LiteralPath (Resolve-RepoPath ([string]$Manifest.triage_analysis_json)) -PathType Leaf)) {
+      $Issues.Add("triage_analysis_json missing on disk") | Out-Null
+    }
+    $TargetedPlan = $null
+    if ([string]::IsNullOrWhiteSpace([string]$Manifest.targeted_plan_manifest) -or
+        -not (Test-Path -LiteralPath (Resolve-RepoPath ([string]$Manifest.targeted_plan_manifest)) -PathType Leaf)) {
+      $Issues.Add("targeted_plan_manifest missing on disk") | Out-Null
+    } else {
+      try {
+        $TargetedPlan = Get-Content -LiteralPath (Resolve-RepoPath ([string]$Manifest.targeted_plan_manifest)) -Raw | ConvertFrom-Json
+      } catch {
+        $Issues.Add("targeted_plan_manifest could not be parsed: $($_.Exception.Message)") | Out-Null
+      }
+    }
+
+    if ($null -ne $ManifestOptions -and $null -ne $TargetedPlan -and $null -ne $TargetedPlan.options) {
+      $TargetedCommonSuffix = [string]$TargetedPlan.options.resource_warmup_label_suffix
+      $TargetedWebGlSuffix = if ($null -ne $TargetedPlan.options.PSObject.Properties["webgl2_resource_warmup_label_suffix"]) {
+        [string]$TargetedPlan.options.webgl2_resource_warmup_label_suffix
+      } else {
+        $TargetedCommonSuffix
+      }
+      $TargetedWebGpuSuffix = if ($null -ne $TargetedPlan.options.PSObject.Properties["webgpu_resource_warmup_label_suffix"]) {
+        [string]$TargetedPlan.options.webgpu_resource_warmup_label_suffix
+      } else {
+        $TargetedCommonSuffix
+      }
+      $ManifestCommonSuffix = [string]$ManifestOptions.label_suffix
+      $ManifestWebGlSuffix = if ($null -ne $ManifestOptions.PSObject.Properties["webgl2_label_suffix"]) {
+        [string]$ManifestOptions.webgl2_label_suffix
+      } else {
+        $ManifestCommonSuffix
+      }
+      $ManifestWebGpuSuffix = if ($null -ne $ManifestOptions.PSObject.Properties["webgpu_label_suffix"]) {
+        [string]$ManifestOptions.webgpu_label_suffix
+      } else {
+        $ManifestCommonSuffix
+      }
+
+      if ($RequiredRenderers -contains "webgl2" -and $ManifestWebGlSuffix -ne $TargetedWebGlSuffix) {
+        $Issues.Add("webgl2_label_suffix=$ManifestWebGlSuffix expected targeted webgl2 suffix $TargetedWebGlSuffix") | Out-Null
+      }
+      if ($RequiredRenderers -contains "webgpu" -and $ManifestWebGpuSuffix -ne $TargetedWebGpuSuffix) {
+        $Issues.Add("webgpu_label_suffix=$ManifestWebGpuSuffix expected targeted webgpu suffix $TargetedWebGpuSuffix") | Out-Null
+      }
+
+      $TargetedQuietFrames = if ($null -ne $TargetedPlan.options.PSObject.Properties["webgpu_pipeline_quiet_frames"]) {
+        [int]$TargetedPlan.options.webgpu_pipeline_quiet_frames
+      } else {
+        0
+      }
+      $ManifestQuietFrames = if ($null -ne $ManifestOptions.PSObject.Properties["webgpu_pipeline_quiet_frames"]) {
+        [int]$ManifestOptions.webgpu_pipeline_quiet_frames
+      } else {
+        0
+      }
+      if ($RequiredRenderers -contains "webgpu" -and $ManifestQuietFrames -ne $TargetedQuietFrames) {
+        $Issues.Add("webgpu_pipeline_quiet_frames=$ManifestQuietFrames expected targeted value $TargetedQuietFrames") | Out-Null
+      }
+    }
+
+    $Analysis = $Manifest.analysis
+    if ($null -eq $Analysis) {
+      $Issues.Add("analysis settings missing") | Out-Null
+    } else {
+      if ([int]$Analysis.min_scenes -ne $RequiredScenes.Count) {
+        $Issues.Add("analysis min_scenes=$($Analysis.min_scenes) expected=$($RequiredScenes.Count)") | Out-Null
+      }
+      if ([double]$Analysis.min_avg_fps_delta_pct -lt 0.5) {
+        $Issues.Add("analysis min_avg_fps_delta_pct=$($Analysis.min_avg_fps_delta_pct) below retention threshold 0.5") | Out-Null
+      }
+      if ([double]$Analysis.scene_regression_pct -gt 1.0) {
+        $Issues.Add("analysis scene_regression_pct=$($Analysis.scene_regression_pct) above retention threshold 1.0") | Out-Null
+      }
+      if ($null -eq $Analysis.PSObject.Properties["dropped_frames_regression"]) {
+        $Issues.Add("analysis dropped_frames_regression missing") | Out-Null
+      } elseif ([double]$Analysis.dropped_frames_regression -gt 0.0) {
+        $Issues.Add("analysis dropped_frames_regression=$($Analysis.dropped_frames_regression) above retention threshold 0.0") | Out-Null
+      }
+      if ($null -eq $Analysis.PSObject.Properties["cpu_frame_regression_ms"]) {
+        $Issues.Add("analysis cpu_frame_regression_ms missing") | Out-Null
+      } elseif ([double]$Analysis.cpu_frame_regression_ms -gt 0.5) {
+        $Issues.Add("analysis cpu_frame_regression_ms=$($Analysis.cpu_frame_regression_ms) above retention threshold 0.5") | Out-Null
+      }
+      if ($null -eq $Analysis.PSObject.Properties["render_submission_regression_ms"]) {
+        $Issues.Add("analysis render_submission_regression_ms missing") | Out-Null
+      } elseif ([double]$Analysis.render_submission_regression_ms -gt 0.5) {
+        $Issues.Add("analysis render_submission_regression_ms=$($Analysis.render_submission_regression_ms) above retention threshold 0.5") | Out-Null
+      }
+      if ($null -eq $Analysis.PSObject.Properties["pipeline_create_regression_ms"]) {
+        $Issues.Add("analysis pipeline_create_regression_ms missing") | Out-Null
+      } elseif ([double]$Analysis.pipeline_create_regression_ms -gt 1.0) {
+        $Issues.Add("analysis pipeline_create_regression_ms=$($Analysis.pipeline_create_regression_ms) above retention threshold 1.0") | Out-Null
+      }
+      if ($Analysis.require_frame_times -ne $true) {
+        $Issues.Add("analysis does not require frame times") | Out-Null
+      }
+      if ($Analysis.require_checkout -ne $true) {
+        $Issues.Add("analysis does not require checkout-built browsers") | Out-Null
+      }
+      if ($Analysis.require_package_size -ne $true) {
+        $Issues.Add("analysis does not require package-size evidence") | Out-Null
+      }
+      if ([string]::IsNullOrWhiteSpace([string]$Analysis.expected_chromium_revision)) {
+        $Issues.Add("analysis expected_chromium_revision missing") | Out-Null
+      } elseif ([string]$Analysis.expected_chromium_revision -ne $ExpectedChromiumRevision) {
+        $Issues.Add("analysis expected_chromium_revision=$($Analysis.expected_chromium_revision) expected=$ExpectedChromiumRevision") | Out-Null
+      }
+      if ([string]::IsNullOrWhiteSpace([string]$Analysis.expected_fork_revision)) {
+        $Issues.Add("analysis expected_fork_revision missing") | Out-Null
+      } elseif ([string]$Analysis.expected_fork_revision -ne $ExpectedForkRevision) {
+        $Issues.Add("analysis expected_fork_revision=$($Analysis.expected_fork_revision) expected=$ExpectedForkRevision") | Out-Null
+      }
+      if ($Manifest.chromium_revision -and $Analysis.expected_chromium_revision -and
+          [string]$Manifest.chromium_revision -ne [string]$Analysis.expected_chromium_revision) {
+        $Issues.Add("analysis expected_chromium_revision does not match manifest chromium_revision") | Out-Null
+      }
+      if ($Manifest.fork_revision -and $Analysis.expected_fork_revision -and
+          [string]$Manifest.fork_revision -ne [string]$Analysis.expected_fork_revision) {
+        $Issues.Add("analysis expected_fork_revision does not match manifest fork_revision") | Out-Null
+      }
+    }
+
+    $InputListPath = [string]$Manifest.generated_input_list
+    $InputLines = @()
+    if ([string]::IsNullOrWhiteSpace($InputListPath)) {
+      $Issues.Add("generated_input_list missing") | Out-Null
+    } else {
+      $ResolvedInputList = Resolve-RepoPath $InputListPath
+      if (-not (Test-Path -LiteralPath $ResolvedInputList -PathType Leaf)) {
+        $Issues.Add("generated_input_list file missing on disk") | Out-Null
+      } else {
+        $InputLines = @(Get-Content -LiteralPath $ResolvedInputList | ForEach-Object { [string]$_ } | Where-Object { $_.Trim() })
+        if ($InputLines.Count -ne [int]$Manifest.generated_input_count) {
+          $Issues.Add("generated_input_count=$($Manifest.generated_input_count) actual_input_lines=$($InputLines.Count)") | Out-Null
+        }
+        if (@($InputLines | Where-Object { $_ -match "[*?]" }).Count -gt 0) {
+          $Issues.Add("generated_input_list contains wildcard input instead of exact result files") | Out-Null
+        }
+      }
+    }
+
+    $Promotions = @(ConvertTo-AuditArray $Manifest.promotion_profiles)
+    $Confirmations = @(ConvertTo-AuditArray $Manifest.cache_attribution_confirmations)
+    $Steps = @(ConvertTo-AuditArray $Manifest.steps)
+    $HasPlannedProfiles = ($Promotions.Count -gt 0 -or $Confirmations.Count -gt 0)
+    if (-not $HasPlannedProfiles) {
+      if ([int]$Manifest.generated_input_count -ne 0) {
+        $Issues.Add("zero promotion/confirmation profiles but generated_input_count=$($Manifest.generated_input_count)") | Out-Null
+      }
+      if ($Steps.Count -ne 0) {
+        $Issues.Add("zero promotion/confirmation profiles but steps were generated") | Out-Null
+      }
+    } else {
+      if ([int]$Manifest.generated_input_count -le 0) {
+        $Issues.Add("promotion or confirmation profiles exist but no analyzer inputs were generated") | Out-Null
+      }
+      foreach ($Promotion in $Promotions) {
+        $Renderer = ([string]$Promotion.renderer).ToLowerInvariant()
+        $Status = [string]$Promotion.status
+        if (@("webgl2", "webgpu") -notcontains $Renderer) {
+          $Issues.Add("promotion profile has unsupported renderer '$Renderer'") | Out-Null
+        }
+        if (@("candidate", "needs-suite") -notcontains $Status) {
+          $Issues.Add("promotion profile $($Promotion.candidate_family) has non-promotable status '$Status'") | Out-Null
+        }
+        if ([string]::IsNullOrWhiteSpace([string]$Promotion.candidate_family)) {
+          $Issues.Add("promotion profile missing candidate_family") | Out-Null
+        }
+        if ([string]::IsNullOrWhiteSpace([string]$Promotion.base_experiment_label)) {
+          $Issues.Add("promotion profile $($Promotion.candidate_family) missing base_experiment_label") | Out-Null
+        }
+        if (@(ConvertTo-AuditArray $Promotion.triage_scenes).Count -eq 0) {
+          $Issues.Add("promotion profile $($Promotion.candidate_family) missing triage_scenes") | Out-Null
+        }
+      }
+      foreach ($Confirmation in $Confirmations) {
+        $Renderer = ([string]$Confirmation.renderer).ToLowerInvariant()
+        if (@("webgl2", "webgpu") -notcontains $Renderer) {
+          $Issues.Add("cache-attribution confirmation has unsupported renderer '$Renderer'") | Out-Null
+        }
+        if ([string]$Confirmation.status -ne "fresh-profile-confirmation") {
+          $Issues.Add("cache-attribution confirmation $($Confirmation.candidate_family) has invalid status '$($Confirmation.status)'") | Out-Null
+        }
+        if ([string]$Confirmation.source_status -ne "cache-attribution") {
+          $Issues.Add("cache-attribution confirmation $($Confirmation.candidate_family) has invalid source_status '$($Confirmation.source_status)'") | Out-Null
+        }
+        if ([string]::IsNullOrWhiteSpace([string]$Confirmation.source_candidate_family)) {
+          $Issues.Add("cache-attribution confirmation missing source_candidate_family") | Out-Null
+        }
+        if ([string]::IsNullOrWhiteSpace([string]$Confirmation.candidate_family)) {
+          $Issues.Add("cache-attribution confirmation missing candidate_family") | Out-Null
+        }
+        if ([string]::IsNullOrWhiteSpace([string]$Confirmation.base_experiment_label)) {
+          $Issues.Add("cache-attribution confirmation $($Confirmation.candidate_family) missing base_experiment_label") | Out-Null
+        }
+        if (@(ConvertTo-AuditArray $Confirmation.triage_scenes).Count -eq 0) {
+          $Issues.Add("cache-attribution confirmation $($Confirmation.candidate_family) missing triage_scenes") | Out-Null
+        }
+        if ([string]$Confirmation.source_profile_cache_mode -ne "explicit-reuse") {
+          $Issues.Add("cache-attribution confirmation $($Confirmation.candidate_family) source_profile_cache_mode is not explicit-reuse") | Out-Null
+        }
+        if ([string]::IsNullOrWhiteSpace([string]$Confirmation.source_profile_cache_key)) {
+          $Issues.Add("cache-attribution confirmation $($Confirmation.candidate_family) missing source_profile_cache_key") | Out-Null
+        }
+        $FreshSuffixProperty = switch ($Renderer) {
+          "webgl2" { "webgl2_fresh_profile_confirmation_label_suffix" }
+          "webgpu" { "webgpu_fresh_profile_confirmation_label_suffix" }
+          default { "fresh_profile_confirmation_label_suffix" }
+        }
+        $FreshSuffix = if ($null -ne $Manifest.options.PSObject.Properties[$FreshSuffixProperty]) {
+          [string]$Manifest.options.$FreshSuffixProperty
+        } else {
+          [string]$Manifest.options.fresh_profile_confirmation_label_suffix
+        }
+        if (-not [string]::IsNullOrWhiteSpace($FreshSuffix) -and
+            -not ([string]$Confirmation.candidate_family).EndsWith($FreshSuffix, [System.StringComparison]::Ordinal)) {
+          $Issues.Add("cache-attribution confirmation $($Confirmation.candidate_family) does not use $FreshSuffixProperty $FreshSuffix") | Out-Null
+        }
+      }
+
+      $PlannedRenderers = @(
+        @($Promotions | ForEach-Object { ([string]$_.renderer).ToLowerInvariant() })
+        @($Confirmations | ForEach-Object { ([string]$_.renderer).ToLowerInvariant() })
+      ) | Where-Object { $_ } | Select-Object -Unique
+      foreach ($Renderer in $PlannedRenderers) {
+        if ($RequiredRenderers -notcontains $Renderer) {
+          $Issues.Add("required_candidate_renderers missing planned renderer: $Renderer") | Out-Null
+        }
+      }
+
+      $StepNames = @($Steps | ForEach-Object { [string]$_.name })
+      $AnalysisStep = @($Steps | Where-Object { [string]$_.name -eq "promotion full-suite candidate speed analysis" })
+      if ($AnalysisStep.Count -eq 0) {
+        $Issues.Add("promotion analysis step missing") | Out-Null
+      } else {
+        $AnalysisCommandLine = [string]$AnalysisStep[0].command_line
+        foreach ($Scene in $RequiredScenes) {
+          if ($AnalysisCommandLine -notmatch "--requiredScene\s+$([regex]::Escape($Scene))\b") {
+            $Issues.Add("analysis command missing required scene $Scene") | Out-Null
+          }
+        }
+        foreach ($Renderer in $RequiredRenderers) {
+          if ($AnalysisCommandLine -notmatch "--requireCandidateRenderer\s+$Renderer\b") {
+            $Issues.Add("analysis command missing required renderer $Renderer") | Out-Null
+          }
+        }
+        if ($AnalysisCommandLine -notmatch "--requireFrameTimes\b") {
+          $Issues.Add("analysis command missing --requireFrameTimes") | Out-Null
+        }
+        if ($AnalysisCommandLine -notmatch "--requireCheckout\b") {
+          $Issues.Add("analysis command missing --requireCheckout") | Out-Null
+        }
+        if ($AnalysisCommandLine -notmatch "--requirePackageSize\b") {
+          $Issues.Add("analysis command missing --requirePackageSize") | Out-Null
+        }
+        if ($AnalysisCommandLine -notmatch "--fileList\b") {
+          $Issues.Add("analysis command missing --fileList") | Out-Null
+        }
+        if ($AnalysisCommandLine -notmatch "--minMeasuredSeconds\s+$([regex]::Escape([string]$Analysis.min_measured_seconds))\b") {
+          $Issues.Add("analysis command missing minMeasuredSeconds=$($Analysis.min_measured_seconds)") | Out-Null
+        }
+        if ($AnalysisCommandLine -notmatch "--minScenes\s+$($RequiredScenes.Count)\b") {
+          $Issues.Add("analysis command missing minScenes=$($RequiredScenes.Count)") | Out-Null
+        }
+        if ($AnalysisCommandLine -notmatch "--minAvgFpsDeltaPct\s+$([regex]::Escape([string]$Analysis.min_avg_fps_delta_pct))\b") {
+          $Issues.Add("analysis command missing minAvgFpsDeltaPct=$($Analysis.min_avg_fps_delta_pct)") | Out-Null
+        }
+        if ($AnalysisCommandLine -notmatch "--sceneRegressionPct\s+$([regex]::Escape([string]$Analysis.scene_regression_pct))\b") {
+          $Issues.Add("analysis command missing sceneRegressionPct=$($Analysis.scene_regression_pct)") | Out-Null
+        }
+        if ($null -eq $Analysis.PSObject.Properties["dropped_frames_regression"]) {
+          $Issues.Add("analysis missing dropped_frames_regression") | Out-Null
+        } elseif ($AnalysisCommandLine -notmatch "--droppedFramesRegression\s+$([regex]::Escape([string]$Analysis.dropped_frames_regression))\b") {
+          $Issues.Add("analysis command missing droppedFramesRegression=$($Analysis.dropped_frames_regression)") | Out-Null
+        }
+        if ($null -eq $Analysis.PSObject.Properties["cpu_frame_regression_ms"]) {
+          $Issues.Add("analysis missing cpu_frame_regression_ms") | Out-Null
+        } elseif ($AnalysisCommandLine -notmatch "--cpuFrameRegressionMs\s+$([regex]::Escape([string]$Analysis.cpu_frame_regression_ms))\b") {
+          $Issues.Add("analysis command missing cpuFrameRegressionMs=$($Analysis.cpu_frame_regression_ms)") | Out-Null
+        }
+        if ($null -eq $Analysis.PSObject.Properties["render_submission_regression_ms"]) {
+          $Issues.Add("analysis missing render_submission_regression_ms") | Out-Null
+        } elseif ($AnalysisCommandLine -notmatch "--renderSubmissionRegressionMs\s+$([regex]::Escape([string]$Analysis.render_submission_regression_ms))\b") {
+          $Issues.Add("analysis command missing renderSubmissionRegressionMs=$($Analysis.render_submission_regression_ms)") | Out-Null
+        }
+        if ($null -eq $Analysis.PSObject.Properties["pipeline_create_regression_ms"]) {
+          $Issues.Add("analysis missing pipeline_create_regression_ms") | Out-Null
+        } elseif ($AnalysisCommandLine -notmatch "--pipelineCreateRegressionMs\s+$([regex]::Escape([string]$Analysis.pipeline_create_regression_ms))\b") {
+          $Issues.Add("analysis command missing pipelineCreateRegressionMs=$($Analysis.pipeline_create_regression_ms)") | Out-Null
+        }
+        if ($AnalysisCommandLine -notmatch "--expectedChromiumRevision\s+$([regex]::Escape([string]$Analysis.expected_chromium_revision))\b") {
+          $Issues.Add("analysis command missing expectedChromiumRevision=$($Analysis.expected_chromium_revision)") | Out-Null
+        }
+        if ($AnalysisCommandLine -notmatch "--expectedForkRevision\s+$([regex]::Escape([string]$Analysis.expected_fork_revision))\b") {
+          $Issues.Add("analysis command missing expectedForkRevision=$($Analysis.expected_fork_revision)") | Out-Null
+        }
+      }
+
+      foreach ($Renderer in @($Promotions | ForEach-Object { ([string]$_.renderer).ToLowerInvariant() } | Select-Object -Unique)) {
+        if (-not ($StepNames -contains "promotion $Renderer full-suite candidate matrix")) {
+          $Issues.Add("promotion $Renderer full-suite candidate matrix step missing") | Out-Null
+        }
+      }
+      foreach ($Renderer in @($Confirmations | ForEach-Object { ([string]$_.renderer).ToLowerInvariant() } | Select-Object -Unique)) {
+        $BaselineStep = @($Steps | Where-Object { [string]$_.name -eq "fresh-profile confirmation $Renderer comparable baseline suite" })
+        $MatrixStep = @($Steps | Where-Object { [string]$_.name -eq "fresh-profile confirmation $Renderer full-suite candidate matrix" })
+        if ($BaselineStep.Count -eq 0) {
+          $Issues.Add("fresh-profile confirmation $Renderer comparable baseline suite step missing") | Out-Null
+        }
+        if ($MatrixStep.Count -eq 0) {
+          $Issues.Add("fresh-profile confirmation $Renderer full-suite candidate matrix step missing") | Out-Null
+        }
+        foreach ($Step in @($BaselineStep + $MatrixStep)) {
+          $CommandLine = [string]$Step.command_line
+          if ($CommandLine -match "-ProfileCacheKey\b" -or
+              $CommandLine -match "-UserDataDirRoot\b" -or
+              $CommandLine -match "-PrimeProfileCache\b") {
+            $Issues.Add("fresh-profile confirmation step '$($Step.name)' carries profile-cache flags") | Out-Null
+          }
+        }
+      }
+      if ($SettleGpuAfterWarmup) {
+        foreach ($Step in @($Steps | Where-Object { [string]$_.name -match "^(promotion|fresh-profile confirmation) .+(suite|candidate matrix)$" })) {
+          $StepCommandLine = [string]$Step.command_line
+          if ($StepCommandLine -notmatch "-SettleGpuAfterWarmup\b") {
+            $Issues.Add("promotion step '$($Step.name)' missing -SettleGpuAfterWarmup") | Out-Null
+          }
+        }
+      }
+
+      $RequireAnalysisDigestEvidence = (
+        $Manifest.dry_run -ne $true -and
+        [string]$Manifest.phase -eq "completed" -and
+        [int]$Manifest.generated_input_count -gt 0
+      )
+      Add-CandidateAnalysisInputDigestIssues `
+        -Issues $Issues `
+        -InputLines $InputLines `
+        -ExpectedInputCount ([int]$Manifest.generated_input_count) `
+        -ExpectedDigestFromManifest ([string]$Analysis.expected_input_file_digest) `
+        -AnalysisJsonPath ([string]$Analysis.json) `
+        -Label "suite-promotion analysis" `
+        -RequireEvidence $RequireAnalysisDigestEvidence
+    }
+
+    if ($Issues.Count -gt 0) {
+      Add-AuditRow "Official performance" "Targeted suite-promotion plan manifest" "pending" "$PathValue validation failed: $($Issues -join '; ')" "Regenerate with scripts\run_blocker_experiments.ps1 -AnalyzeAfterRun -PlanSuitePromotionAfterTriage before using targeted winners for retained speed claims."
+      return
+    }
+
+    if ($Promotions.Count -eq 0 -and $Confirmations.Count -eq 0) {
+      Add-AuditRow "Official performance" "Targeted suite-promotion plan manifest" "done" "$PathValue records no promotable triage profiles, zero generated analyzer inputs, all required scenes, renderer gates, strict analysis thresholds, checkout-built browser gating, and package-size evidence requirements" "Run targeted blocker experiments again after the Chromium build blocker is cleared."
+    } elseif ($Promotions.Count -eq 0) {
+      $ConfirmationRenderers = @($Confirmations | ForEach-Object { ([string]$_.renderer).ToLowerInvariant() } | Select-Object -Unique)
+      Add-AuditRow "Official performance" "Targeted suite-promotion plan manifest" "done" "$PathValue converts $($Confirmations.Count) cache-attribution triage profile(s) for $($ConfirmationRenderers -join ', ') into fresh-profile confirmation suites with $($InputLines.Count) scoped analyzer inputs and completed-run digest plus exact input-file metadata checks, strict analysis thresholds, checkout-built browser gating, package-size evidence requirements, and no profile-cache flags in confirmation steps" "Execute the generated fresh-profile confirmation steps before retaining any warm-profile speed claim."
+    } else {
+      $PromotionRenderers = @($Promotions | ForEach-Object { ([string]$_.renderer).ToLowerInvariant() } | Select-Object -Unique)
+      $ConfirmationSummary = if ($Confirmations.Count -gt 0) { "; also converts $($Confirmations.Count) cache-attribution profile(s) to fresh-profile confirmation" } else { "" }
+      Add-AuditRow "Official performance" "Targeted suite-promotion plan manifest" "done" "$PathValue promotes $($Promotions.Count) triage profile(s) for $($PromotionRenderers -join ', ')$ConfirmationSummary with $($InputLines.Count) scoped analyzer inputs and completed-run digest plus exact input-file metadata checks, all required scenes, renderer gates, strict analysis thresholds, checkout-built browser gating, package-size evidence requirements, and full-suite matrix plus analysis steps" "Execute the generated promotion steps, then feed the resulting full-suite analyzer output into the final speedup gate."
+    }
+  } catch {
+    Add-AuditRow "Official performance" "Targeted suite-promotion plan manifest" "pending" "$PathValue is invalid JSON or could not be audited: $($_.Exception.Message)" "Regenerate with scripts\run_blocker_experiments.ps1 -AnalyzeAfterRun -PlanSuitePromotionAfterTriage."
   }
 }
 
@@ -2827,12 +4943,7 @@ function Get-ShortSha256 {
 }
 
 function Get-ExpectedViewerForkRevision {
-  $PatchPath = Resolve-RepoPath "chromium_patches\0001-draft-minimal-three-viewer-entrypoint.patch"
-  $PatchHash = Get-ShortSha256 $PatchPath
-  if (-not $PatchHash) {
-    return ""
-  }
-  return "$ExpectedChromiumRevision+viewerpatch-$PatchHash"
+  return Get-ViewerForkRevisionForChromiumRevision -ChromiumRevision $ExpectedChromiumRevision -Root $Root
 }
 
 function Invoke-GitApplyCheck {
@@ -2962,11 +5073,11 @@ function Add-ChromiumRows {
       }
 
       if ($CodeIntegrityCheck.Count -gt 0 -and $CodeIntegrityCheck[0].ok) {
-        Add-AuditRow "Build" "Host prerequisite: Windows Code Integrity allows Chromium Rust build DLLs" "done" $CodeIntegrityCheck[0].detail "Keep prebuild-environment.json current after toolchain or Windows security-policy changes."
+        Add-AuditRow "Build" "Host prerequisite: Windows Code Integrity allows Chromium Rust host tools" "done" $CodeIntegrityCheck[0].detail "Keep prebuild-environment.json current after toolchain or Windows security-policy changes."
       } elseif ($CodeIntegrityCheck.Count -gt 0) {
-        Add-AuditRow "Build" "Host prerequisite: Windows Code Integrity allows Chromium Rust build DLLs" "blocked" $CodeIntegrityCheck[0].detail "Allow generated Chromium Rust proc-macro DLLs through WDAC/Smart App Control, then rerun scripts/check_prereqs.ps1 and resume the fork build."
+        Add-AuditRow "Build" "Host prerequisite: Windows Code Integrity allows Chromium Rust host tools" "blocked" $CodeIntegrityCheck[0].detail "Allow generated Chromium Rust DLLs/EXEs through WDAC/Smart App Control, then rerun scripts/check_prereqs.ps1 and resume the fork build."
       } else {
-        Add-AuditRow "Build" "Host prerequisite: Windows Code Integrity allows Chromium Rust build DLLs" "pending" "$EnvManifestPath has no windows_code_integrity_chromium_rust check" "Regenerate with scripts/write_environment_manifest.ps1."
+        Add-AuditRow "Build" "Host prerequisite: Windows Code Integrity allows Chromium Rust host tools" "pending" "$EnvManifestPath has no windows_code_integrity_chromium_rust check" "Regenerate with scripts/write_environment_manifest.ps1."
       }
 
       if ($NavigationExternalCheck.Count -gt 0 -and $NavigationExternalCheck[0].ok) {
@@ -2978,12 +5089,12 @@ function Add-ChromiumRows {
       }
     } catch {
       Add-AuditRow "Build" "Host prerequisite: Visual Studio ATL/MFC" "pending" "$EnvManifestPath is invalid JSON" "Regenerate with scripts/write_environment_manifest.ps1."
-      Add-AuditRow "Build" "Host prerequisite: Windows Code Integrity allows Chromium Rust build DLLs" "pending" "$EnvManifestPath is invalid JSON" "Regenerate with scripts/write_environment_manifest.ps1."
+      Add-AuditRow "Build" "Host prerequisite: Windows Code Integrity allows Chromium Rust host tools" "pending" "$EnvManifestPath is invalid JSON" "Regenerate with scripts/write_environment_manifest.ps1."
       Add-AuditRow "Runtime tests" "Host prerequisite: external navigation test interface" "pending" "$EnvManifestPath is invalid JSON" "Regenerate with scripts/write_environment_manifest.ps1."
     }
   } else {
     Add-AuditRow "Build" "Host prerequisite: Visual Studio ATL/MFC" "pending" "$EnvManifestPath missing" "Run scripts/verify_prebuild.ps1 or scripts/write_environment_manifest.ps1."
-    Add-AuditRow "Build" "Host prerequisite: Windows Code Integrity allows Chromium Rust build DLLs" "pending" "$EnvManifestPath missing" "Run scripts/verify_prebuild.ps1 or scripts/write_environment_manifest.ps1."
+    Add-AuditRow "Build" "Host prerequisite: Windows Code Integrity allows Chromium Rust host tools" "pending" "$EnvManifestPath missing" "Run scripts/verify_prebuild.ps1 or scripts/write_environment_manifest.ps1."
     Add-AuditRow "Runtime tests" "Host prerequisite: external navigation test interface" "pending" "$EnvManifestPath missing" "Run scripts/verify_prebuild.ps1 or scripts/write_environment_manifest.ps1."
   }
 
@@ -3204,12 +5315,14 @@ function Add-ScriptRows {
     "scripts\install_vs_atl.ps1",
     "scripts\refresh_chromium_pin.ps1",
     "scripts\run_post_atl_pipeline.ps1",
+    "scripts\plan_suite_promotion.ps1",
     "scripts\test_atl_blocker_audit.ps1",
     "scripts\test_atl_remediation_handoff.ps1",
     "scripts\test_audit_manifest_override_guard.ps1",
     "scripts\test_benchmark_flag_metadata.ps1",
     "scripts\test_binary_audit_rows.ps1",
     "scripts\test_build_args_guard.ps1",
+    "scripts\test_candidate_analysis.ps1",
     "scripts\test_chromium_scope_guard.ps1",
     "scripts\test_documentation_structure.ps1",
     "scripts\test_documentation_completion_audit.ps1",
@@ -3248,6 +5361,7 @@ function Add-ScriptRows {
     "scripts\test_trusted_manifest_required_options_audit.ps1",
     "scripts\test_trusted_manifest_suite_semantics_audit.ps1",
     "scripts\test_trusted_content_flags_doc.ps1",
+    "scripts\test_webgpu_experiment_flag_sources.ps1",
     "scripts\test_upstream_freshness_audit.ps1",
     "scripts\test_verify_prebuild_manifest_gate.ps1",
     "scripts\test_viewer_bundle_integrity.ps1",
@@ -3264,6 +5378,7 @@ function Add-ScriptRows {
     "scripts\run_full_suite.ps1",
     "scripts\run_official_comparison.ps1",
     "scripts\run_trusted_experiment_matrix.ps1",
+    "scripts\run_blocker_experiments.ps1",
     "scripts\run_smoke_tests.mjs",
     "scripts\run_navigation_lock_tests.mjs",
     "scripts\run_file_navigation_lock_tests.mjs",
@@ -3272,6 +5387,7 @@ function Add-ScriptRows {
     "scripts\validate_stability_result.mjs",
     "scripts\summarize_results.mjs",
     "scripts\compare_results.mjs",
+    "scripts\analyze_candidates.mjs",
     "scripts\run_trace_capture.mjs",
     "scripts\summarize_trace.mjs",
     "scripts\stage_viewer_package.ps1",
@@ -3281,10 +5397,15 @@ function Add-ScriptRows {
     "scripts\test_benchmark_suite_flag_metadata.ps1",
     "scripts\test_benchmark_suite_package_validation.ps1",
     "scripts\test_benchmark_suite_rejects_software_rendering.ps1",
+    "scripts\test_blocker_experiment_plan.ps1",
+    "scripts\test_suite_promotion_plan.ps1",
+    "scripts\test_suite_promotion_manifest_audit.ps1",
+    "scripts\test_trusted_matrix_label_suffix.ps1",
     "scripts\test_revision_validation.ps1",
     "scripts\test_manifest_artifact_path_audit.ps1",
     "scripts\test_manifest_package_audit.ps1",
     "scripts\test_benchmark_metadata_enrichment.ps1",
+    "scripts\test_json_bom_tolerance.ps1",
     "scripts\test_metric_schema_consistency.ps1",
     "scripts\test_scene_coverage_consistency.ps1",
     "scripts\test_stage_viewer_package.ps1",
@@ -3294,6 +5415,7 @@ function Add-ScriptRows {
     "scripts\test_upstream_freshness_audit.ps1",
     "scripts\test_verify_prebuild_manifest_gate.ps1",
     "scripts\test_trusted_manifest_suite_semantics_audit.ps1",
+    "scripts\test_webgpu_experiment_flag_sources.ps1",
     "scripts\validate_benchmark_suite.mjs",
     "scripts\validate_trace_file.mjs",
     "scripts\validate_trace_result.mjs",
@@ -3382,15 +5504,99 @@ function Add-ScriptRows {
 
   $CompareText = if (Test-RepoPath "scripts\compare_results.mjs") { Get-Content (Resolve-RepoPath "scripts\compare_results.mjs") -Raw } else { "" }
   $OfficialText = if (Test-RepoPath "scripts\run_official_comparison.ps1") { Get-Content (Resolve-RepoPath "scripts\run_official_comparison.ps1") -Raw } else { "" }
-  if ($CompareText -match "--strictOfficial" -and $CompareText -match "fork_revision" -and $CompareText -match "measured_seconds" -and $CompareText -match "warmup_seconds" -and $OfficialText -match "--strictOfficial") {
-    Add-AuditRow "Automation" "Official comparison strict input validation" "done" "compare_results.mjs implements --strictOfficial with provenance, fork-revision, GPU, and duration/warmup consistency checks; run_official_comparison.ps1 invokes it" "Official reports still require stock/fork binaries and benchmark results."
+  if ($CompareText -match "--strictOfficial" -and $CompareText -match "fork_revision" -and $CompareText -match "measured_seconds" -and $CompareText -match "warmup_seconds" -and $CompareText -match "requiredBenchmarkEvidenceInvalidReason" -and $CompareText -match "package_size_mb missing or non-positive" -and $OfficialText -match "--strictOfficial") {
+    Add-AuditRow "Automation" "Official comparison strict input validation" "done" "compare_results.mjs implements --strictOfficial with provenance, fork-revision, GPU, complete metric/package-size evidence, and duration/warmup consistency checks; run_official_comparison.ps1 invokes it" "Official reports still require stock/fork binaries and benchmark results."
   } else {
-    Add-AuditRow "Automation" "Official comparison strict input validation" "pending" "Strict official comparison is not fully wired" "Ensure official reports reject installed-browser, mismatched-revision, missing-build-args, missing-fork-revision, missing-GPU, software-rendered, or mismatched-duration inputs."
+    Add-AuditRow "Automation" "Official comparison strict input validation" "pending" "Strict official comparison is not fully wired" "Ensure official reports reject installed-browser, mismatched-revision, missing-build-args, missing-fork-revision, missing-GPU, missing metric/package-size evidence, software-rendered, or mismatched-duration inputs."
+  }
+
+  $CandidateAnalysisTest = "scripts\test_candidate_analysis.ps1"
+  if (Test-RepoPath $CandidateAnalysisTest) {
+    try {
+      $OutputText = (& (Resolve-RepoPath $CandidateAnalysisTest) *>&1) -join " "
+      Add-AuditRow "Automation" "Candidate speedup claim gate regression test" "done" "$CandidateAnalysisTest passes; $OutputText" "Re-run after changing candidate analysis, final speedup gates, or benchmark classification thresholds."
+    } catch {
+      Add-AuditRow "Automation" "Candidate speedup claim gate regression test" "pending" "$CandidateAnalysisTest failed: $($_.Exception.Message)" "Ensure final performance claims require retained WebGL2 and WebGPU candidates and reject average-FPS wins with low-FPS or tail regressions."
+    }
+  } else {
+    Add-AuditRow "Automation" "Candidate speedup claim gate regression test" "missing" "$CandidateAnalysisTest missing" "Restore candidate analysis regression coverage."
+  }
+
+  $SpeedupGateSuitePromotionTest = "scripts\test_speedup_gate_suite_promotion_inputs.ps1"
+  if (Test-RepoPath $SpeedupGateSuitePromotionTest) {
+    try {
+      $OutputText = (& (Resolve-RepoPath $SpeedupGateSuitePromotionTest) *>&1) -join " "
+      Add-AuditRow "Automation" "Suite-promotion speedup gate regression test" "done" "$SpeedupGateSuitePromotionTest passes; $OutputText" "Re-run after changing final speedup gates or targeted suite-promotion manifests."
+    } catch {
+      Add-AuditRow "Automation" "Suite-promotion speedup gate regression test" "pending" "$SpeedupGateSuitePromotionTest failed: $($_.Exception.Message)" "Ensure completed, digest-verified suite-promotion inputs are included in the final WebGL2/WebGPU speedup gate."
+    }
+  } else {
+    Add-AuditRow "Automation" "Suite-promotion speedup gate regression test" "missing" "$SpeedupGateSuitePromotionTest missing" "Restore final speedup-gate coverage for suite-promotion inputs."
+  }
+
+  $BlockerExperimentPlanTest = "scripts\test_blocker_experiment_plan.ps1"
+  if (Test-RepoPath $BlockerExperimentPlanTest) {
+    try {
+      $OutputText = (& (Resolve-RepoPath $BlockerExperimentPlanTest) *>&1) -join " "
+      Add-AuditRow "Automation" "Blocker experiment plan regression test" "done" "$BlockerExperimentPlanTest passes; $OutputText" "Re-run after changing blocker diagnostics, targeted trusted matrix planning, focused WebGPU experiment filters, or speed-iteration handoff scripts."
+    } catch {
+      Add-AuditRow "Automation" "Blocker experiment plan regression test" "pending" "$BlockerExperimentPlanTest failed: $($_.Exception.Message)" "Ensure blocker diagnostics are converted into renderer-specific trusted matrix commands without treating coverage diagnostics as scenes."
+    }
+  } else {
+    Add-AuditRow "Automation" "Blocker experiment plan regression test" "missing" "$BlockerExperimentPlanTest missing" "Restore targeted blocker experiment dry-run coverage."
+  }
+
+  $TargetedBlockerManifestAuditTest = "scripts\test_targeted_blocker_manifest_audit.ps1"
+  if (Test-RepoPath $TargetedBlockerManifestAuditTest) {
+    try {
+      $OutputText = (& (Resolve-RepoPath $TargetedBlockerManifestAuditTest) *>&1) -join " "
+      Add-AuditRow "Automation" "Targeted blocker manifest audit regression test" "done" "$TargetedBlockerManifestAuditTest passes; $OutputText" "Re-run after changing targeted blocker manifest validation or speed-iteration handoff artifacts."
+    } catch {
+      Add-AuditRow "Automation" "Targeted blocker manifest audit regression test" "pending" "$TargetedBlockerManifestAuditTest failed: $($_.Exception.Message)" "Ensure generated targeted blocker manifests cannot pass with missing checkout gates, frame-time gates, revision filters, scoped analyzer inputs, required scenes, or renderer gates."
+    }
+  } else {
+    Add-AuditRow "Automation" "Targeted blocker manifest audit regression test" "missing" "$TargetedBlockerManifestAuditTest missing" "Restore targeted blocker manifest audit coverage."
+  }
+
+  $SuitePromotionPlanTest = "scripts\test_suite_promotion_plan.ps1"
+  if (Test-RepoPath $SuitePromotionPlanTest) {
+    try {
+      $OutputText = (& (Resolve-RepoPath $SuitePromotionPlanTest) *>&1) -join " "
+      Add-AuditRow "Automation" "Suite promotion plan regression test" "done" "$SuitePromotionPlanTest passes; $OutputText" "Re-run after changing targeted blocker triage, trusted matrix label filters, resource-warmup suffixes, or full-suite promotion handoff scripts."
+    } catch {
+      Add-AuditRow "Automation" "Suite promotion plan regression test" "pending" "$SuitePromotionPlanTest failed: $($_.Exception.Message)" "Ensure clean one-scene triage candidates are expanded to scoped seven-scene promotion commands before retention."
+    }
+  } else {
+    Add-AuditRow "Automation" "Suite promotion plan regression test" "missing" "$SuitePromotionPlanTest missing" "Restore full-suite promotion planning coverage."
+  }
+
+  $SuitePromotionManifestAuditTest = "scripts\test_suite_promotion_manifest_audit.ps1"
+  if (Test-RepoPath $SuitePromotionManifestAuditTest) {
+    try {
+      $OutputText = (& (Resolve-RepoPath $SuitePromotionManifestAuditTest) *>&1) -join " "
+      Add-AuditRow "Automation" "Suite promotion manifest audit regression test" "done" "$SuitePromotionManifestAuditTest passes; $OutputText" "Re-run after changing targeted suite-promotion manifest validation or speed-iteration handoff artifacts."
+    } catch {
+      Add-AuditRow "Automation" "Suite promotion manifest audit regression test" "pending" "$SuitePromotionManifestAuditTest failed: $($_.Exception.Message)" "Ensure generated suite-promotion manifests cannot pass with missing scenes, renderer gates, strict thresholds, analyzer inputs, or full-suite analysis steps."
+    }
+  } else {
+    Add-AuditRow "Automation" "Suite promotion manifest audit regression test" "missing" "$SuitePromotionManifestAuditTest missing" "Restore targeted suite-promotion manifest audit coverage."
+  }
+
+  $TrustedMatrixLabelSuffixTest = "scripts\test_trusted_matrix_label_suffix.ps1"
+  if (Test-RepoPath $TrustedMatrixLabelSuffixTest) {
+    try {
+      $OutputText = (& (Resolve-RepoPath $TrustedMatrixLabelSuffixTest) *>&1) -join " "
+      Add-AuditRow "Automation" "Trusted matrix label-suffix/filter regression test" "done" "$TrustedMatrixLabelSuffixTest passes; $OutputText" "Re-run after changing trusted matrix labels, experiment label filters, resource-warmup planning, or artifact naming."
+    } catch {
+      Add-AuditRow "Automation" "Trusted matrix label-suffix/filter regression test" "pending" "$TrustedMatrixLabelSuffixTest failed: $($_.Exception.Message)" "Ensure warmed trusted-matrix runs suffix benchmark variants and result files without losing base-label provenance, and focused experiment filters exclude unrequested rows."
+    }
+  } else {
+    Add-AuditRow "Automation" "Trusted matrix label-suffix/filter regression test" "missing" "$TrustedMatrixLabelSuffixTest missing" "Restore direct trusted-matrix label-suffix and filter coverage."
   }
 
   $SuiteText = if (Test-RepoPath "scripts\validate_benchmark_suite.mjs") { Get-Content (Resolve-RepoPath "scripts\validate_benchmark_suite.mjs") -Raw } else { "" }
-  if ($SuiteText -match "--requireCheckout" -and $SuiteText -match "--requireBuildArgs" -and $SuiteText -match "--expectedBuildArgsHash" -and $SuiteText -match "--expectedChromiumRevision" -and $SuiteText -match "--expectedBrowser" -and $SuiteText -match "--expectedForkRevision" -and $SuiteText -match "--rejectSoftwareRendering" -and $SuiteText -match "--requireGpuMetadata" -and $SuiteText -match "--requirePackageSize" -and $SuiteText -match "--requireFrameTimes" -and $SuiteText -match "--expectedMeasuredSeconds" -and $SuiteText -match "--expectedWarmupSeconds" -and $SuiteText -match "--expectedFlagMetadata" -and $SuiteText -match "--requiredBrowserFlag" -and $OfficialText -match "validate_benchmark_suite\.mjs" -and $OfficialText -match "--expectedScenes" -and $OfficialText -match "ExpectedChromiumRevision" -and $OfficialText -match "ExpectedBrowser" -and $OfficialText -match "ExpectedBuildArgsHash" -and $OfficialText -match "ExpectedForkRevision" -and $OfficialText -match "RequirePackageSize" -and $OfficialText -match "--rejectSoftwareRendering" -and $OfficialText -match "--requireGpuMetadata" -and $OfficialText -match "--requireFrameTimes" -and $OfficialText -match "--expectedMeasuredSeconds" -and $OfficialText -match "--expectedWarmupSeconds" -and $OfficialText -match "ExpectedFlagMetadata" -and $OfficialText -match "RequiredBrowserFlags") {
-    Add-AuditRow "Automation" "Official scene-suite validation" "done" "validate_benchmark_suite.mjs is wired into run_official_comparison.ps1 with expected scene list, expected Chromium revision, expected browser executable, expected build-args hash, expected fork-revision checks, exact scene output files, software-renderer rejection, required GPU metadata, required raw frame-time samples, package-size enforcement for packaged runs, expected duration/warmup checks, expected viewer-flag metadata, and required effective browser launch flags" "Official suite artifacts are still pending the stock/fork Chromium builds."
+  if ($SuiteText -match "--requireCheckout" -and $SuiteText -match "--requireBuildArgs" -and $SuiteText -match "--expectedBuildArgsHash" -and $SuiteText -match "--expectedChromiumRevision" -and $SuiteText -match "--expectedBrowser" -and $SuiteText -match "--expectedForkRevision" -and $SuiteText -match "--rejectSoftwareRendering" -and $SuiteText -match "--requireGpuMetadata" -and $SuiteText -match "--requirePackageSize" -and $SuiteText -match "--requireFrameTimes" -and $SuiteText -match "--expectedMeasuredSeconds" -and $SuiteText -match "--expectedWarmupSeconds" -and $SuiteText -match "--expectedComplexity" -and $SuiteText -match "--expectedFlagMetadata" -and $SuiteText -match "--requiredBrowserFlag" -and $OfficialText -match "validate_benchmark_suite\.mjs" -and $OfficialText -match "--expectedScenes" -and $OfficialText -match "ExpectedChromiumRevision" -and $OfficialText -match "ExpectedBrowser" -and $OfficialText -match "ExpectedBuildArgsHash" -and $OfficialText -match "ExpectedForkRevision" -and $OfficialText -match "RequirePackageSize" -and $OfficialText -match "--rejectSoftwareRendering" -and $OfficialText -match "--requireGpuMetadata" -and $OfficialText -match "--requireFrameTimes" -and $OfficialText -match "--expectedMeasuredSeconds" -and $OfficialText -match "--expectedWarmupSeconds" -and $OfficialText -match "--expectedComplexity" -and $OfficialText -match "ExpectedFlagMetadata" -and $OfficialText -match "RequiredBrowserFlags") {
+    Add-AuditRow "Automation" "Official scene-suite validation" "done" "validate_benchmark_suite.mjs is wired into run_official_comparison.ps1 with expected scene list, expected Chromium revision, expected browser executable, expected build-args hash, expected fork-revision checks, exact scene output files, software-renderer rejection, required GPU metadata, required raw frame-time samples, package-size enforcement for packaged runs, expected duration/warmup/complexity checks, expected viewer-flag metadata, and required effective browser launch flags" "Official suite artifacts are still pending the stock/fork Chromium builds."
   } else {
     Add-AuditRow "Automation" "Official scene-suite validation" "pending" "Suite validation is not fully wired" "Ensure official runs reject missing scenes, duplicate scenes, wrong renderer labels, and installed-browser inputs."
   }
@@ -3456,8 +5662,8 @@ function Add-ScriptRows {
   }
 
   $TrustedText = if (Test-RepoPath "scripts\run_trusted_experiment_matrix.ps1") { Get-Content (Resolve-RepoPath "scripts\run_trusted_experiment_matrix.ps1") -Raw } else { "" }
-  if ($TrustedText -match "validate_benchmark_suite\.mjs" -and $TrustedText -match "--expectedScenes" -and $TrustedText -match "--expectedChromiumRevision" -and $TrustedText -match "--expectedBrowser" -and $TrustedText -match "--expectedBuildArgsHash" -and $TrustedText -match "--expectedForkRevision" -and $TrustedText -match "--rejectSoftwareRendering" -and $TrustedText -match "--requireGpuMetadata" -and $TrustedText -match "--requirePackageSize" -and $TrustedText -match "--requireFrameTimes" -and $TrustedText -match "--expectedMeasuredSeconds" -and $TrustedText -match "--expectedWarmupSeconds" -and $TrustedText -match "--expectedFlagMetadata" -and $TrustedText -match "--requiredBrowserFlag" -and $TrustedText -match "Get-ExperimentExpectedFlagMetadata" -and $TrustedText -match "BuildArgs is required" -and $TrustedText -match "ResultFiles") {
-    Add-AuditRow "Automation" "Trusted experiment suite validation" "done" "run_trusted_experiment_matrix.ps1 validates each experiment suite with expected scenes, build args, expected build-args hash, Chromium revision, expected browser executable, fork revision, exact current-run files, software-renderer rejection, required GPU metadata, required raw frame-time samples, package-size enforcement for packaged runs, expected duration/warmup checks, expected trusted viewer flag metadata, and required effective browser launch flags" "Measured trusted experiment artifacts are still pending the fork build."
+  if ($TrustedText -match "validate_benchmark_suite\.mjs" -and $TrustedText -match "--expectedScenes" -and $TrustedText -match "--expectedChromiumRevision" -and $TrustedText -match "--expectedBrowser" -and $TrustedText -match "--expectedBuildArgsHash" -and $TrustedText -match "--expectedForkRevision" -and $TrustedText -match "--rejectSoftwareRendering" -and $TrustedText -match "--requireGpuMetadata" -and $TrustedText -match "--requirePackageSize" -and $TrustedText -match "--requireFrameTimes" -and $TrustedText -match "--expectedMeasuredSeconds" -and $TrustedText -match "--expectedWarmupSeconds" -and $TrustedText -match "--expectedComplexity" -and $TrustedText -match "--expectedFlagMetadata" -and $TrustedText -match "--requiredBrowserFlag" -and $TrustedText -match "Get-ExperimentExpectedFlagMetadata" -and $TrustedText -match "BuildArgs is required" -and $TrustedText -match "ResultFiles" -and $TrustedText -match "IncludeWebGpuUploadExperiments" -and $TrustedText -match "fork-viewer-exp-webgpu-d3d11-ipc-hlsl2021-cmd-slice-staging-upload" -and $TrustedText -match "Invoke-WebGpuExperimentSourceValidation" -and $TrustedText -match "test_webgpu_experiment_flag_sources\.ps1") {
+    Add-AuditRow "Automation" "Trusted experiment suite validation" "done" "run_trusted_experiment_matrix.ps1 validates each experiment suite with expected scenes, build args, expected build-args hash, Chromium revision, expected browser executable, fork revision, exact current-run files, software-renderer rejection, required GPU metadata, required raw frame-time samples, package-size enforcement for packaged runs, expected duration/warmup/complexity checks, expected trusted viewer flag metadata, required effective browser launch flags, WebGPU upload/command-buffer experiment coverage, focused D3D11 plus Chromium feature/upload interaction coverage, and source-registry validation before WebGPU experiment dry-runs or live runs launch" "Measured trusted experiment artifacts are still pending the fork build."
   } else {
     Add-AuditRow "Automation" "Trusted experiment suite validation" "pending" "Trusted experiment matrix does not fully validate per-experiment suites" "Wire validate_benchmark_suite.mjs into trusted experiment reporting."
   }
@@ -3953,6 +6159,18 @@ function Add-ScriptRows {
     Add-AuditRow "Automation" "Trusted manifest exact-suite semantic audit regression test" "missing" "$TrustedManifestSuiteSemanticsTest missing" "Restore exact-suite semantic validation coverage for trusted experiment matrix manifests."
   }
 
+  $WebGpuExperimentFlagSourcesTest = "scripts\test_webgpu_experiment_flag_sources.ps1"
+  if (Test-RepoPath $WebGpuExperimentFlagSourcesTest) {
+    try {
+      $OutputText = (& (Resolve-RepoPath $WebGpuExperimentFlagSourcesTest) *>&1) -join " "
+      Add-AuditRow "Automation" "WebGPU experiment flag source-registry regression test" "done" "$WebGpuExperimentFlagSourcesTest passes; $OutputText" "Re-run after changing trusted WebGPU experiment browser flags or refreshing Chromium/Dawn sources."
+    } catch {
+      Add-AuditRow "Automation" "WebGPU experiment flag source-registry regression test" "pending" "$WebGpuExperimentFlagSourcesTest failed: $($_.Exception.Message)" "Ensure every trusted WebGPU Dawn toggle, Chromium feature flag, and adapter value maps to this checkout's source registries before accepting experiment evidence."
+    }
+  } else {
+    Add-AuditRow "Automation" "WebGPU experiment flag source-registry regression test" "missing" "$WebGpuExperimentFlagSourcesTest missing" "Restore source-registry validation for trusted WebGPU experiment flags."
+  }
+
   $SoftwareRendererTest = "scripts\test_strict_official_rejects_software_rendering.ps1"
   if (Test-RepoPath $SoftwareRendererTest) {
     try {
@@ -3975,6 +6193,18 @@ function Add-ScriptRows {
     }
   } else {
     Add-AuditRow "Automation" "Stability threshold regression test" "missing" "$StabilityThresholdTest missing" "Restore the stability threshold regression test."
+  }
+
+  $JsonBomToleranceTest = "scripts\test_json_bom_tolerance.ps1"
+  if (Test-RepoPath $JsonBomToleranceTest) {
+    try {
+      $OutputText = (& (Resolve-RepoPath $JsonBomToleranceTest) *>&1) -join " "
+      Add-AuditRow "Automation" "JSON BOM tolerance regression test" "done" "$JsonBomToleranceTest passes; $OutputText" "Re-run after changing JSON readers for metric, smoke, suite, comparison, summary, or stability evidence."
+    } catch {
+      Add-AuditRow "Automation" "JSON BOM tolerance regression test" "pending" "$JsonBomToleranceTest failed: $($_.Exception.Message)" "Keep PowerShell-authored UTF-8 BOM JSON from being rejected before evidence validation."
+    }
+  } else {
+    Add-AuditRow "Automation" "JSON BOM tolerance regression test" "missing" "$JsonBomToleranceTest missing" "Restore BOM tolerance coverage for JSON evidence readers."
   }
 
   Add-PrebuildEnvironmentManifestRow
@@ -4063,6 +6293,7 @@ function Add-OfficialBenchmarkRows {
   $ExpectedForkRevision = Get-ExpectedViewerForkRevision
   $ExpectedMeasuredSeconds = -1
   $ExpectedWarmupSeconds = -1
+  $ExpectedComplexity = -1
   $BaselinePackageRequired = $false
   $ForkPackageRequired = $false
   $BrowserModeFlags = @(
@@ -4071,12 +6302,36 @@ function Add-OfficialBenchmarkRows {
     "viewer_trusted_content=false",
     "viewer_aggressive_gpu=false",
     "viewer_relaxed_webgl_validation=false",
+    "viewer_zero_copy=false",
     "viewer_in_process_gpu=false",
     "viewer_single_process=false",
     "viewer_force_angle_backend=null",
     "requested_angle_backend=null",
     "viewer_disable_unneeded_blink_features=false",
-    "viewer_direct_gpu_presentation=false"
+    "viewer_direct_gpu_presentation=false",
+    "viewer_defer_webgpu_pipeline_flush=false",
+    "viewer_defer_webgpu_queue_flush=false",
+    "viewer_defer_webgpu_submit_flush=false",
+    "viewer_skip_webgpu_canvas_texture_validation=false",
+    "viewer_skip_webgpu_canvas_memory_accounting=false",
+    "viewer_skip_webgpu_copy_external_image_color_conversion=false",
+    "viewer_skip_webgpu_copy_external_image_color_space_validation=false",
+    "viewer_skip_webgpu_copy_external_image_dest_validation=false",
+    "viewer_skip_webgpu_copy_external_image_source_validation=false",
+    "viewer_skip_webgpu_copy_external_image_copy_size_validation=false",
+    "viewer_skip_webgpu_write_texture_layout_validation=false",
+    "viewer_reject_webgpu_cpu_texture_fallback=false",
+    "viewer_skip_webgpu_use_counters=false",
+    "viewer_cache_webgpu_bind_group_layouts=false",
+    "viewer_skip_webgpu_command_labels=false",
+    "viewer_skip_webgpu_resource_labels=false",
+    "viewer_skip_webgpu_shader_source_null_check=false",
+    "viewer_skip_webgpu_shader_memory_accounting=false",
+    "viewer_skip_webgpu_redundant_pipeline_sets=false",
+    "viewer_skip_webgpu_redundant_bind_group_sets=false",
+    "viewer_skip_webgpu_redundant_buffer_sets=false",
+    "viewer_skip_webgpu_redundant_render_state_sets=false",
+    "viewer_trace_webgpu_queue=false"
   )
   $ForkDefaultFlags = @(
     "viewer_mode=true",
@@ -4084,12 +6339,36 @@ function Add-OfficialBenchmarkRows {
     "viewer_trusted_content=true",
     "viewer_aggressive_gpu=false",
     "viewer_relaxed_webgl_validation=false",
+    "viewer_zero_copy=false",
     "viewer_in_process_gpu=false",
     "viewer_single_process=false",
     "viewer_force_angle_backend=null",
     "requested_angle_backend=null",
     "viewer_disable_unneeded_blink_features=false",
-    "viewer_direct_gpu_presentation=false"
+    "viewer_direct_gpu_presentation=false",
+    "viewer_defer_webgpu_pipeline_flush=false",
+    "viewer_defer_webgpu_queue_flush=false",
+    "viewer_defer_webgpu_submit_flush=false",
+    "viewer_skip_webgpu_canvas_texture_validation=false",
+    "viewer_skip_webgpu_canvas_memory_accounting=false",
+    "viewer_skip_webgpu_copy_external_image_color_conversion=false",
+    "viewer_skip_webgpu_copy_external_image_color_space_validation=false",
+    "viewer_skip_webgpu_copy_external_image_dest_validation=false",
+    "viewer_skip_webgpu_copy_external_image_source_validation=false",
+    "viewer_skip_webgpu_copy_external_image_copy_size_validation=false",
+    "viewer_skip_webgpu_write_texture_layout_validation=false",
+    "viewer_reject_webgpu_cpu_texture_fallback=false",
+    "viewer_skip_webgpu_use_counters=false",
+    "viewer_cache_webgpu_bind_group_layouts=false",
+    "viewer_skip_webgpu_command_labels=false",
+    "viewer_skip_webgpu_resource_labels=false",
+    "viewer_skip_webgpu_shader_source_null_check=false",
+    "viewer_skip_webgpu_shader_memory_accounting=false",
+    "viewer_skip_webgpu_redundant_pipeline_sets=false",
+    "viewer_skip_webgpu_redundant_bind_group_sets=false",
+    "viewer_skip_webgpu_redundant_buffer_sets=false",
+    "viewer_skip_webgpu_redundant_render_state_sets=false",
+    "viewer_trace_webgpu_queue=false"
   )
   $ForkAggressiveCommonFlags = @(
     "viewer_mode=true",
@@ -4097,13 +6376,41 @@ function Add-OfficialBenchmarkRows {
     "viewer_trusted_content=true",
     "viewer_aggressive_gpu=true",
     "viewer_relaxed_webgl_validation=false",
+    "viewer_zero_copy=false",
     "viewer_in_process_gpu=false",
     "viewer_single_process=false",
     "viewer_disable_unneeded_blink_features=false",
-    "viewer_direct_gpu_presentation=false"
+    "viewer_direct_gpu_presentation=false",
+    "viewer_defer_webgpu_pipeline_flush=false",
+    "viewer_defer_webgpu_queue_flush=false",
+    "viewer_defer_webgpu_submit_flush=false",
+    "viewer_skip_webgpu_canvas_texture_validation=false",
+    "viewer_skip_webgpu_canvas_memory_accounting=false",
+    "viewer_skip_webgpu_copy_external_image_color_conversion=false",
+    "viewer_skip_webgpu_copy_external_image_color_space_validation=false",
+    "viewer_skip_webgpu_copy_external_image_dest_validation=false",
+    "viewer_skip_webgpu_copy_external_image_source_validation=false",
+    "viewer_skip_webgpu_copy_external_image_copy_size_validation=false",
+    "viewer_skip_webgpu_write_texture_layout_validation=false",
+    "viewer_reject_webgpu_cpu_texture_fallback=false",
+    "viewer_skip_webgpu_use_counters=false",
+    "viewer_cache_webgpu_bind_group_layouts=false",
+    "viewer_skip_webgpu_command_labels=false",
+    "viewer_skip_webgpu_resource_labels=false",
+    "viewer_skip_webgpu_shader_source_null_check=false",
+    "viewer_skip_webgpu_shader_memory_accounting=false",
+    "viewer_skip_webgpu_redundant_pipeline_sets=false",
+    "viewer_skip_webgpu_redundant_bind_group_sets=false",
+    "viewer_skip_webgpu_redundant_buffer_sets=false",
+    "viewer_skip_webgpu_redundant_render_state_sets=false",
+    "viewer_trace_webgpu_queue=false"
   )
   $ForkAggressiveBackendFlag = ""
   $ForkAggressiveRequestedBackendFlag = ""
+  $OfficialAggressiveWebGlExpectedFlags = @()
+  $OfficialAggressiveWebGpuExpectedFlags = @()
+  $ResourceWarmupPrecompile = $false
+  $ResourceWarmupPrerenderFrames = 0
   $ManifestPath = Get-OfficialComparisonManifestPathValue
   if (Test-JsonOk $ManifestPath) {
     try {
@@ -4112,35 +6419,76 @@ function Add-OfficialBenchmarkRows {
           $null -ne $Manifest.options.duration -and $null -ne $Manifest.options.warmup) {
         $ExpectedMeasuredSeconds = [double]$Manifest.options.duration
         $ExpectedWarmupSeconds = [double]$Manifest.options.warmup
+        if ($null -ne $Manifest.options.complexity) {
+          $ExpectedComplexity = [double]$Manifest.options.complexity
+        }
         $BaselinePackageRequired = -not [string]::IsNullOrWhiteSpace([string]$Manifest.package_dirs.baseline)
         $ForkPackageRequired = -not [string]::IsNullOrWhiteSpace([string]$Manifest.package_dirs.fork)
+        $ResourceWarmupPrecompile = [bool]$Manifest.options.precompile
+        if ($null -ne $Manifest.options.prerender_frames) {
+          $ResourceWarmupPrerenderFrames = [int]$Manifest.options.prerender_frames
+        }
         if ([string]$Manifest.options.aggressive_angle_backend) {
           $AggressiveBackend = [string]$Manifest.options.aggressive_angle_backend
           $ForkAggressiveBackendFlag = "viewer_force_angle_backend=$AggressiveBackend"
           $ForkAggressiveRequestedBackendFlag = "requested_angle_backend=$AggressiveBackend"
         }
+        $ExpectedFlagMetadata = Get-ObjectPropertyValue $Manifest.suite_validation "expected_flag_metadata"
+        $AggressiveManifestFlags = @(ConvertTo-AuditArray (Get-ObjectPropertyValue $ExpectedFlagMetadata "aggressive") | ForEach-Object { [string]$_ })
+        if ($AggressiveManifestFlags.Count -gt 0) {
+          $OfficialAggressiveWebGlExpectedFlags = @($AggressiveManifestFlags)
+        }
+        $AggressiveWebGpuManifestFlags = @(ConvertTo-AuditArray (Get-ObjectPropertyValue $ExpectedFlagMetadata "aggressive_webgpu") | ForEach-Object { [string]$_ })
+        if ($AggressiveWebGpuManifestFlags.Count -gt 0) {
+          $OfficialAggressiveWebGpuExpectedFlags = @($AggressiveWebGpuManifestFlags)
+        }
       }
     } catch {
       $ExpectedMeasuredSeconds = -1
       $ExpectedWarmupSeconds = -1
+      $ExpectedComplexity = -1
     }
   }
+  $ForkAggressiveWebGlFlags = @($ForkAggressiveCommonFlags)
   if ($ForkAggressiveBackendFlag) {
-    $ForkAggressiveCommonFlags += $ForkAggressiveBackendFlag
-    $ForkAggressiveCommonFlags += $ForkAggressiveRequestedBackendFlag
+    $ForkAggressiveWebGlFlags += $ForkAggressiveBackendFlag
+    $ForkAggressiveWebGlFlags += $ForkAggressiveRequestedBackendFlag
+  }
+  $ForkAggressiveWebGpuFlags = @($ForkAggressiveCommonFlags)
+  $ForkAggressiveWebGpuFlags += "viewer_force_angle_backend=null"
+  $ForkAggressiveWebGpuFlags += "requested_angle_backend=null"
+  $ResourceWarmupEnabled = ($ResourceWarmupPrecompile -or $ResourceWarmupPrerenderFrames -gt 0).ToString().ToLowerInvariant()
+  $ResourceWarmupPrecompileText = $ResourceWarmupPrecompile.ToString().ToLowerInvariant()
+  $ResourceWarmupFlags = @(
+    "resource_warmup_enabled=$ResourceWarmupEnabled",
+    "resource_warmup_precompile=$ResourceWarmupPrecompileText",
+    "resource_warmup_prerender_frames=$ResourceWarmupPrerenderFrames"
+  )
+  $BrowserModeFlags += $ResourceWarmupFlags
+  $ForkDefaultFlags += $ResourceWarmupFlags
+  $ForkAggressiveWebGlFlags += $ResourceWarmupFlags
+  $ForkAggressiveWebGpuFlags += $ResourceWarmupFlags
+  if ($OfficialAggressiveWebGlExpectedFlags.Count -gt 0) {
+    $ForkAggressiveWebGlFlags = @($OfficialAggressiveWebGlExpectedFlags)
+  }
+  if ($OfficialAggressiveWebGpuExpectedFlags.Count -gt 0) {
+    $ForkAggressiveWebGpuFlags = @($OfficialAggressiveWebGpuExpectedFlags)
   }
   $BaselineBuildArgsHash = Get-FileHashString "src\out\ReleaseBaseline\args.gn"
   $ForkBuildArgsHash = Get-FileHashString "src\out\ReleaseViewerDefault\args.gn"
 
-  Add-BenchmarkSuiteRow "Official performance" "Stock WebGL2 scene suite results" "benchmarks\raw\baseline-content-shell-*-webgl2.json" "webgl2" "baseline-content-shell" "Run scripts/run_official_comparison.ps1 after baseline build." -ExpectedChromiumRevision $ExpectedChromiumRevision -ExpectedBrowser (Resolve-RepoPath "src\out\ReleaseBaseline\content_shell.exe") -ExpectedBuildArgsHash $BaselineBuildArgsHash -RejectSoftwareRendering -RequireGpuMetadata -RequireFrameTimes -RequirePackageSize:$BaselinePackageRequired -ExpectedMeasuredSeconds $ExpectedMeasuredSeconds -ExpectedWarmupSeconds $ExpectedWarmupSeconds -ExpectedFlagMetadata $BrowserModeFlags -RequiredBrowserFlags $RequiredBrowserFlags
-  Add-BenchmarkSuiteRow "Official performance" "Fork default WebGL2 scene suite results" "benchmarks\raw\fork-viewer-default-*-webgl2.json" "webgl2" "fork-viewer-default" "Run scripts/run_official_comparison.ps1 after fork build." -RequireForkRevision -ExpectedChromiumRevision $ExpectedChromiumRevision -ExpectedBrowser (Resolve-RepoPath "src\out\ReleaseViewerDefault\content_shell.exe") -ExpectedBuildArgsHash $ForkBuildArgsHash -ExpectedForkRevision $ExpectedForkRevision -RejectSoftwareRendering -RequireGpuMetadata -RequireFrameTimes -RequirePackageSize:$ForkPackageRequired -ExpectedMeasuredSeconds $ExpectedMeasuredSeconds -ExpectedWarmupSeconds $ExpectedWarmupSeconds -ExpectedFlagMetadata $ForkDefaultFlags -RequiredBrowserFlags $RequiredBrowserFlags
-  Add-AnyVariantBenchmarkSuiteRow "Official performance" "Fork trusted/aggressive WebGL2 scene suite results" "benchmarks\raw\fork-viewer-aggressive-gpu*-*-webgl2.json" "webgl2" "Run with -IncludeAggressiveGpu and document each flag effect." -RequireForkRevision -ExpectedChromiumRevision $ExpectedChromiumRevision -ExpectedBrowser (Resolve-RepoPath "src\out\ReleaseViewerDefault\content_shell.exe") -ExpectedBuildArgsHash $ForkBuildArgsHash -ExpectedForkRevision $ExpectedForkRevision -RejectSoftwareRendering -RequireGpuMetadata -RequireFrameTimes -RequirePackageSize:$ForkPackageRequired -ExpectedMeasuredSeconds $ExpectedMeasuredSeconds -ExpectedWarmupSeconds $ExpectedWarmupSeconds -ExpectedFlagMetadata $ForkAggressiveCommonFlags -RequiredBrowserFlags $RequiredBrowserFlags
-  Add-BenchmarkSuiteRow "Official performance" "Stock WebGPU scene suite results" "benchmarks\raw\baseline-content-shell-webgpu-*-webgpu.json" "webgpu" "baseline-content-shell-webgpu" "Run with -IncludeWebGPU." -ExpectedChromiumRevision $ExpectedChromiumRevision -ExpectedBrowser (Resolve-RepoPath "src\out\ReleaseBaseline\content_shell.exe") -ExpectedBuildArgsHash $BaselineBuildArgsHash -RejectSoftwareRendering -RequireGpuMetadata -RequireFrameTimes -RequirePackageSize:$BaselinePackageRequired -ExpectedMeasuredSeconds $ExpectedMeasuredSeconds -ExpectedWarmupSeconds $ExpectedWarmupSeconds -ExpectedFlagMetadata $BrowserModeFlags -RequiredBrowserFlags $RequiredBrowserFlags
-  Add-BenchmarkSuiteRow "Official performance" "Fork WebGPU scene suite results" "benchmarks\raw\fork-viewer-default-webgpu-*-webgpu.json" "webgpu" "fork-viewer-default-webgpu" "Run with -IncludeWebGPU." -RequireForkRevision -ExpectedChromiumRevision $ExpectedChromiumRevision -ExpectedBrowser (Resolve-RepoPath "src\out\ReleaseViewerDefault\content_shell.exe") -ExpectedBuildArgsHash $ForkBuildArgsHash -ExpectedForkRevision $ExpectedForkRevision -RejectSoftwareRendering -RequireGpuMetadata -RequireFrameTimes -RequirePackageSize:$ForkPackageRequired -ExpectedMeasuredSeconds $ExpectedMeasuredSeconds -ExpectedWarmupSeconds $ExpectedWarmupSeconds -ExpectedFlagMetadata $ForkDefaultFlags -RequiredBrowserFlags $RequiredBrowserFlags
-  Add-AnyVariantBenchmarkSuiteRow "Official performance" "Fork trusted/aggressive WebGPU scene suite results" "benchmarks\raw\fork-viewer-aggressive-gpu*-webgpu-*-webgpu.json" "webgpu" "Run with -IncludeWebGPU -IncludeAggressiveGpu and document each flag effect." -RequireForkRevision -ExpectedChromiumRevision $ExpectedChromiumRevision -ExpectedBrowser (Resolve-RepoPath "src\out\ReleaseViewerDefault\content_shell.exe") -ExpectedBuildArgsHash $ForkBuildArgsHash -ExpectedForkRevision $ExpectedForkRevision -RejectSoftwareRendering -RequireGpuMetadata -RequireFrameTimes -RequirePackageSize:$ForkPackageRequired -ExpectedMeasuredSeconds $ExpectedMeasuredSeconds -ExpectedWarmupSeconds $ExpectedWarmupSeconds -ExpectedFlagMetadata $ForkAggressiveCommonFlags -RequiredBrowserFlags $RequiredBrowserFlags
+  Add-BenchmarkSuiteRow "Official performance" "Stock WebGL2 scene suite results" "benchmarks\raw\baseline-content-shell-*-webgl2.json" "webgl2" "baseline-content-shell" "Run scripts/run_official_comparison.ps1 after baseline build." -ExpectedChromiumRevision $ExpectedChromiumRevision -ExpectedBrowser (Resolve-RepoPath "src\out\ReleaseBaseline\content_shell.exe") -ExpectedBuildArgsHash $BaselineBuildArgsHash -RejectSoftwareRendering -RejectGpuInstability -RequireGpuMetadata -RequireFrameTimes -RequirePackageSize:$BaselinePackageRequired -ExpectedMeasuredSeconds $ExpectedMeasuredSeconds -ExpectedWarmupSeconds $ExpectedWarmupSeconds -ExpectedComplexity $ExpectedComplexity -ExpectedFlagMetadata $BrowserModeFlags -RequiredBrowserFlags $RequiredBrowserFlags
+  Add-BenchmarkSuiteRow "Official performance" "Fork default WebGL2 scene suite results" "benchmarks\raw\fork-viewer-default-*-webgl2.json" "webgl2" "fork-viewer-default" "Run scripts/run_official_comparison.ps1 after fork build." -RequireForkRevision -ExpectedChromiumRevision $ExpectedChromiumRevision -ExpectedBrowser (Resolve-RepoPath "src\out\ReleaseViewerDefault\content_shell.exe") -ExpectedBuildArgsHash $ForkBuildArgsHash -ExpectedForkRevision $ExpectedForkRevision -RejectSoftwareRendering -RejectGpuInstability -RequireGpuMetadata -RequireFrameTimes -RequirePackageSize:$ForkPackageRequired -ExpectedMeasuredSeconds $ExpectedMeasuredSeconds -ExpectedWarmupSeconds $ExpectedWarmupSeconds -ExpectedComplexity $ExpectedComplexity -ExpectedFlagMetadata $ForkDefaultFlags -RequiredBrowserFlags $RequiredBrowserFlags
+  Add-AnyVariantBenchmarkSuiteRow "Official performance" "Fork trusted/aggressive WebGL2 scene suite results" "benchmarks\raw\fork-viewer-aggressive-gpu*-*-webgl2.json" "webgl2" "Run with -IncludeAggressiveGpu and document each flag effect." -RequireForkRevision -ExpectedChromiumRevision $ExpectedChromiumRevision -ExpectedBrowser (Resolve-RepoPath "src\out\ReleaseViewerDefault\content_shell.exe") -ExpectedBuildArgsHash $ForkBuildArgsHash -ExpectedForkRevision $ExpectedForkRevision -RejectSoftwareRendering -RejectGpuInstability -RequireGpuMetadata -RequireFrameTimes -RequirePackageSize:$ForkPackageRequired -ExpectedMeasuredSeconds $ExpectedMeasuredSeconds -ExpectedWarmupSeconds $ExpectedWarmupSeconds -ExpectedComplexity $ExpectedComplexity -ExpectedFlagMetadata $ForkAggressiveWebGlFlags -RequiredBrowserFlags $RequiredBrowserFlags
+  Add-BenchmarkSuiteRow "Official performance" "Stock WebGPU scene suite results" "benchmarks\raw\baseline-content-shell-webgpu-*-webgpu.json" "webgpu" "baseline-content-shell-webgpu" "Run with -IncludeWebGPU." -ExpectedChromiumRevision $ExpectedChromiumRevision -ExpectedBrowser (Resolve-RepoPath "src\out\ReleaseBaseline\content_shell.exe") -ExpectedBuildArgsHash $BaselineBuildArgsHash -RejectSoftwareRendering -RejectGpuInstability -RequireGpuMetadata -RequireFrameTimes -RequirePackageSize:$BaselinePackageRequired -ExpectedMeasuredSeconds $ExpectedMeasuredSeconds -ExpectedWarmupSeconds $ExpectedWarmupSeconds -ExpectedComplexity $ExpectedComplexity -ExpectedFlagMetadata $BrowserModeFlags -RequiredBrowserFlags $RequiredBrowserFlags
+  Add-BenchmarkSuiteRow "Official performance" "Fork WebGPU scene suite results" "benchmarks\raw\fork-viewer-default-webgpu-*-webgpu.json" "webgpu" "fork-viewer-default-webgpu" "Run with -IncludeWebGPU." -RequireForkRevision -ExpectedChromiumRevision $ExpectedChromiumRevision -ExpectedBrowser (Resolve-RepoPath "src\out\ReleaseViewerDefault\content_shell.exe") -ExpectedBuildArgsHash $ForkBuildArgsHash -ExpectedForkRevision $ExpectedForkRevision -RejectSoftwareRendering -RejectGpuInstability -RequireGpuMetadata -RequireFrameTimes -RequirePackageSize:$ForkPackageRequired -ExpectedMeasuredSeconds $ExpectedMeasuredSeconds -ExpectedWarmupSeconds $ExpectedWarmupSeconds -ExpectedComplexity $ExpectedComplexity -ExpectedFlagMetadata $ForkDefaultFlags -RequiredBrowserFlags $RequiredBrowserFlags
+  Add-AnyVariantBenchmarkSuiteRow "Official performance" "Fork trusted/aggressive WebGPU scene suite results" "benchmarks\raw\fork-viewer-aggressive-gpu*-webgpu-*-webgpu.json" "webgpu" "Run with -IncludeWebGPU -IncludeAggressiveGpu and document each flag effect." -RequireForkRevision -ExpectedChromiumRevision $ExpectedChromiumRevision -ExpectedBrowser (Resolve-RepoPath "src\out\ReleaseViewerDefault\content_shell.exe") -ExpectedBuildArgsHash $ForkBuildArgsHash -ExpectedForkRevision $ExpectedForkRevision -RejectSoftwareRendering -RejectGpuInstability -RequireGpuMetadata -RequireFrameTimes -RequirePackageSize:$ForkPackageRequired -ExpectedMeasuredSeconds $ExpectedMeasuredSeconds -ExpectedWarmupSeconds $ExpectedWarmupSeconds -ExpectedComplexity $ExpectedComplexity -ExpectedFlagMetadata $ForkAggressiveWebGpuFlags -RequiredBrowserFlags $RequiredBrowserFlags
   Add-OfficialComparisonReportFilesRow
   Add-OfficialRequiredOptionsRow
   Add-OfficialComparisonManifestRow
+  Add-SpeedupClaimGateRow
+  Add-TargetedBlockerPlanManifestRow
+  Add-SuitePromotionPlanManifestRow
   Add-TrustedMatrixManifestRow
 }
 
@@ -4154,12 +6502,39 @@ function Add-StabilityRows {
     "viewer_trusted_content=false",
     "viewer_aggressive_gpu=false",
     "viewer_relaxed_webgl_validation=false",
+    "viewer_zero_copy=false",
     "viewer_in_process_gpu=false",
     "viewer_single_process=false",
     "viewer_force_angle_backend=null",
     "requested_angle_backend=null",
     "viewer_disable_unneeded_blink_features=false",
-    "viewer_direct_gpu_presentation=false"
+    "viewer_direct_gpu_presentation=false",
+    "viewer_defer_webgpu_pipeline_flush=false",
+    "viewer_defer_webgpu_queue_flush=false",
+    "viewer_defer_webgpu_submit_flush=false",
+    "viewer_skip_webgpu_canvas_texture_validation=false",
+    "viewer_skip_webgpu_canvas_memory_accounting=false",
+    "viewer_skip_webgpu_copy_external_image_color_conversion=false",
+    "viewer_skip_webgpu_copy_external_image_color_space_validation=false",
+    "viewer_skip_webgpu_copy_external_image_dest_validation=false",
+    "viewer_skip_webgpu_copy_external_image_source_validation=false",
+    "viewer_skip_webgpu_copy_external_image_copy_size_validation=false",
+    "viewer_skip_webgpu_write_texture_layout_validation=false",
+    "viewer_reject_webgpu_cpu_texture_fallback=false",
+    "viewer_skip_webgpu_use_counters=false",
+    "viewer_cache_webgpu_bind_group_layouts=false",
+    "viewer_skip_webgpu_command_labels=false",
+    "viewer_skip_webgpu_resource_labels=false",
+    "viewer_skip_webgpu_shader_source_null_check=false",
+    "viewer_skip_webgpu_shader_memory_accounting=false",
+    "viewer_skip_webgpu_redundant_pipeline_sets=false",
+    "viewer_skip_webgpu_redundant_bind_group_sets=false",
+    "viewer_skip_webgpu_redundant_buffer_sets=false",
+    "viewer_skip_webgpu_redundant_render_state_sets=false",
+    "viewer_trace_webgpu_queue=false",
+    "resource_warmup_enabled=false",
+    "resource_warmup_precompile=false",
+    "resource_warmup_prerender_frames=0"
   )
   $ForkStabilityFlags = @(
     "viewer_mode=true",
@@ -4167,12 +6542,39 @@ function Add-StabilityRows {
     "viewer_trusted_content=true",
     "viewer_aggressive_gpu=false",
     "viewer_relaxed_webgl_validation=false",
+    "viewer_zero_copy=false",
     "viewer_in_process_gpu=false",
     "viewer_single_process=false",
     "viewer_force_angle_backend=null",
     "requested_angle_backend=null",
     "viewer_disable_unneeded_blink_features=false",
-    "viewer_direct_gpu_presentation=false"
+    "viewer_direct_gpu_presentation=false",
+    "viewer_defer_webgpu_pipeline_flush=false",
+    "viewer_defer_webgpu_queue_flush=false",
+    "viewer_defer_webgpu_submit_flush=false",
+    "viewer_skip_webgpu_canvas_texture_validation=false",
+    "viewer_skip_webgpu_canvas_memory_accounting=false",
+    "viewer_skip_webgpu_copy_external_image_color_conversion=false",
+    "viewer_skip_webgpu_copy_external_image_color_space_validation=false",
+    "viewer_skip_webgpu_copy_external_image_dest_validation=false",
+    "viewer_skip_webgpu_copy_external_image_source_validation=false",
+    "viewer_skip_webgpu_copy_external_image_copy_size_validation=false",
+    "viewer_skip_webgpu_write_texture_layout_validation=false",
+    "viewer_reject_webgpu_cpu_texture_fallback=false",
+    "viewer_skip_webgpu_use_counters=false",
+    "viewer_cache_webgpu_bind_group_layouts=false",
+    "viewer_skip_webgpu_command_labels=false",
+    "viewer_skip_webgpu_resource_labels=false",
+    "viewer_skip_webgpu_shader_source_null_check=false",
+    "viewer_skip_webgpu_shader_memory_accounting=false",
+    "viewer_skip_webgpu_redundant_pipeline_sets=false",
+    "viewer_skip_webgpu_redundant_bind_group_sets=false",
+    "viewer_skip_webgpu_redundant_buffer_sets=false",
+    "viewer_skip_webgpu_redundant_render_state_sets=false",
+    "viewer_trace_webgpu_queue=false",
+    "resource_warmup_enabled=false",
+    "resource_warmup_precompile=false",
+    "resource_warmup_prerender_frames=0"
   )
   Add-StabilityResultRow `
     -Requirement "One-hour stock stability result" `
@@ -4498,8 +6900,18 @@ function Add-DocsRows {
     "-IncludeWebGPU",
     "-IncludeAggressiveGpu",
     "-AggressiveAngleBackend d3d11",
+    "-AggressiveWebGl2RelaxedValidation",
+    "-AggressiveWebGpuSourceFastPath",
+    "-AggressiveWebGpuUploadFastPath",
     "-CaptureTrace",
+    "-DisableWebGpuTiming",
+    "-DisableForkWebGpuTiming",
     "-RunTrustedExperimentMatrix",
+    "-RunTrustedWebGpuDawnMatrix",
+    "-TrustedMatrixZeroCopy",
+    "-TrustedMatrixWebGlCompositorExperiments",
+    "-TrustedMatrixWebGpuChromiumFeatureExperiments",
+    "-TrustedMatrixWebGpuUploadExperiments",
     "-TrustedMatrixInProcessGpu",
     "-TrustedMatrixSingleProcess",
     "-TrustedMatrixAngleBackend d3d11",
@@ -4661,7 +7073,7 @@ function Add-DocumentationFinalizationRow {
     "docs\stability_behavior.md",
     "docs\webgpu_scene_coverage.md"
   )
-  $MissingDocs = @($RequiredDocs | Where-Object { -not (Test-RepoPath $_) })
+  $MissingDocs = @($RequiredDocs | Where-Object { -not (Test-Path (Resolve-FinalDocumentationPath $_)) })
   if ($MissingDocs.Count -gt 0) {
     Add-AuditRow "Documentation" "Final documentation evidence" "missing" "Missing: $($MissingDocs -join ', ')" "Restore all required documentation files before final completion."
     return
@@ -4670,7 +7082,7 @@ function Add-DocumentationFinalizationRow {
   $Combined = [System.Text.StringBuilder]::new()
   foreach ($Doc in $RequiredDocs) {
     [void]$Combined.AppendLine("`n--- $Doc ---")
-    [void]$Combined.AppendLine((Get-Content -LiteralPath (Resolve-RepoPath $Doc) -Raw))
+    [void]$Combined.AppendLine((Get-Content -LiteralPath (Resolve-FinalDocumentationPath $Doc) -Raw))
   }
   $Text = $Combined.ToString()
 
@@ -4712,7 +7124,11 @@ function Add-DocumentationFinalizationRow {
     "viewer_aggressive_gpu=false",
     "viewer_in_process_gpu=false",
     "viewer_single_process=false",
-    "viewer_relaxed_webgl_validation=false"
+    "viewer_relaxed_webgl_validation=false",
+    "viewer_zero_copy=false",
+    "resource_warmup_enabled=false",
+    "resource_warmup_precompile=false",
+    "resource_warmup_prerender_frames=0"
   )
   $ForkStabilityFlags = @(
     "viewer_mode=true",
@@ -4721,7 +7137,11 @@ function Add-DocumentationFinalizationRow {
     "viewer_aggressive_gpu=false",
     "viewer_in_process_gpu=false",
     "viewer_single_process=false",
-    "viewer_relaxed_webgl_validation=false"
+    "viewer_relaxed_webgl_validation=false",
+    "viewer_zero_copy=false",
+    "resource_warmup_enabled=false",
+    "resource_warmup_precompile=false",
+    "resource_warmup_prerender_frames=0"
   )
   $BaselineEvidence = Get-StabilityResultEvidence `
     -Pattern "benchmarks\raw\baseline-content-shell*long-stability*.json" `
@@ -4759,6 +7179,9 @@ function Add-DocumentationFinalizationRow {
 if ($ManifestAuditOnly) {
   Add-OfficialRequiredOptionsRow
   Add-OfficialComparisonManifestRow
+  Add-SpeedupClaimGateRow
+  Add-TargetedBlockerPlanManifestRow
+  Add-SuitePromotionPlanManifestRow
   Add-TrustedMatrixManifestRow
 } elseif ($PatchStateOnly) {
   Add-PatchRows

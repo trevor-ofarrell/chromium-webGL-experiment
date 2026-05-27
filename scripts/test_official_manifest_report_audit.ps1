@@ -3,6 +3,7 @@ param()
 
 $ErrorActionPreference = "Stop"
 $Root = Resolve-Path (Join-Path $PSScriptRoot "..")
+. (Join-Path $PSScriptRoot "viewer_patch_series.ps1")
 $TempDir = Join-Path $Root "benchmarks\tmp\official-manifest-report-audit"
 $ManifestPath = Join-Path $TempDir "official-comparison-manifest.json"
 $BackupPath = Join-Path $TempDir "official-comparison-manifest.report-audit.backup.json"
@@ -173,8 +174,7 @@ function New-OfficialManifest {
   )
 
   $ChromiumRevision = Get-GitRevision (Join-Path $Root "src")
-  $PatchHash = Get-ShortSha256 (Join-Path $Root "chromium_patches\0001-draft-minimal-three-viewer-entrypoint.patch")
-  $ForkRevision = "$ChromiumRevision+viewerpatch-$PatchHash"
+  $ForkRevision = Get-ViewerForkRevisionForChromiumRevision -ChromiumRevision $ChromiumRevision -Root $Root
   $BaselineWebGl = New-ResultFiles "baseline-content-shell" "webgl2"
   $ForkWebGl = New-ResultFiles "fork-viewer-default" "webgl2"
   $BaselineWebGpu = if ($IncludeWebGPU) { New-ResultFiles "baseline-content-shell-webgpu" "webgpu" } else { @() }
@@ -219,6 +219,7 @@ function New-OfficialManifest {
       expected_fork_build_args_hash = "0123456789abcdef"
       forbid_smoke = $true
       reject_software_rendering = $true
+      reject_gpu_instability = $true
       require_gpu_metadata = $true
       require_frame_times = $true
       require_webgpu_runtime_smoke = [bool]$IncludeWebGPU
@@ -231,11 +232,11 @@ function New-OfficialManifest {
       expected_fork_revision = $ForkRevision
       exact_scene_output_files = $true
       expected_flag_metadata = [pscustomobject]@{
-        baseline = @("viewer_mode=false")
-        fork_default = @("viewer_mode=true")
+        baseline = @("viewer_mode=false", "resource_warmup_enabled=false", "resource_warmup_precompile=false", "resource_warmup_prerender_frames=0")
+        fork_default = @("viewer_mode=true", "resource_warmup_enabled=false", "resource_warmup_precompile=false", "resource_warmup_prerender_frames=0")
         aggressive = @()
-        baseline_webgpu = if ($IncludeWebGPU) { @("viewer_mode=false") } else { @() }
-        fork_default_webgpu = if ($IncludeWebGPU) { @("viewer_mode=true") } else { @() }
+        baseline_webgpu = if ($IncludeWebGPU) { @("viewer_mode=false", "resource_warmup_enabled=false", "resource_warmup_precompile=false", "resource_warmup_prerender_frames=0") } else { @() }
+        fork_default_webgpu = if ($IncludeWebGPU) { @("viewer_mode=true", "resource_warmup_enabled=false", "resource_warmup_precompile=false", "resource_warmup_prerender_frames=0") } else { @() }
         aggressive_webgpu = @()
       }
     }
@@ -247,6 +248,14 @@ function New-OfficialManifest {
       fork_default_webgpu = $ForkWebGpu
       runtime_smoke = $RuntimeSmoke
       navigation_lock = $NavigationLock
+    }
+    report_files = [pscustomobject]@{
+      baseline_webgl2_summary = "baseline-content-shell-webgl2-summary.md"
+      fork_default_webgl2_summary = "fork-viewer-default-webgl2-summary.md"
+      official_webgl2_comparison = "official-webgl2-comparison.md"
+      official_webgpu_comparison = if ($IncludeWebGPU) { "official-webgpu-comparison.md" } else { $null }
+      baseline_trace_summary = $null
+      fork_trace_summary = $null
     }
     artifact_metadata = [pscustomobject]@{
       inputs = [pscustomobject]@{
@@ -269,6 +278,8 @@ function New-OfficialManifest {
         navigation_lock = New-MetadataList $NavigationLock
       }
       reports = [pscustomobject]@{
+        baseline_webgl2_summary = New-FileMetadata "baseline-content-shell-webgl2-summary.md"
+        fork_default_webgl2_summary = New-FileMetadata "fork-viewer-default-webgl2-summary.md"
         official_webgl2_comparison = if ($MissingReport -eq "webgl2") { New-MissingFileMetadata "official-webgl2-comparison.md" } else { New-FileMetadata "official-webgl2-comparison.md" }
         official_webgpu_comparison = if ($MissingReport -eq "webgpu") { New-MissingFileMetadata "official-webgpu-comparison.md" } else { New-FileMetadata "official-webgpu-comparison.md" }
         baseline_trace_summary = New-MissingFileMetadata "baseline-trace-summary.md"

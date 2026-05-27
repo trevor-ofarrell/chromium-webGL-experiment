@@ -26,6 +26,7 @@ function New-Result {
     angle_backend = "ANGLE (NVIDIA, D3D11)"
     renderer_type = "webgl2"
     scene_name = "many-draw-calls"
+    complexity = 2
     warmup_seconds = 30
     measured_seconds = 3600
     avg_fps = 60
@@ -121,6 +122,7 @@ try {
     "--forbidSmoke",
     "--rejectSoftwareRendering",
     "--requireGpuMetadata",
+    "--expectedComplexity", "2",
     $SuitePath
   )
   if ($SuiteSuccess.ExitCode -ne 0) {
@@ -142,6 +144,7 @@ try {
     "--forbidSmoke",
     "--rejectSoftwareRendering",
     "--requireGpuMetadata",
+    "--expectedComplexity", "2",
     $SuitePath
   )
   Assert-FailedWithRevision $SuiteFailure "Benchmark suite validation"

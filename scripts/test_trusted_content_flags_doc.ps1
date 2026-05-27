@@ -14,7 +14,16 @@ foreach ($RequiredPhrase in @(
     'Unsafe behavior is gated by both `--viewer-app-url` and `--viewer-trusted-content`',
     'keeps reserved experiment gates as no-ops',
     'maps the relaxed WebGL validation experiment to Chromium''s pass-through command decoder switch',
-    'Each aggressive run must be compared against stock Chromium and the fork default profile from the same Chromium revision'
+    'Each aggressive run must be compared against stock Chromium and the fork default profile from the same Chromium revision',
+    'Chromium WebGPU/Dawn launch flags are also treated as trusted experiments',
+    'reject `--use-webgpu-adapter`, `--enable-dawn-features`, `--disable-dawn-features`, `--enable-features`, and `--disable-features` unless both `--viewerMode` and `--viewerTrustedContent` are present',
+    'Chromium feature probes through `-Renderer webgpu -IncludeWebGpuChromiumFeatureExperiments`',
+    'upload/command-buffer probes through `-Renderer webgpu -IncludeWebGpuUploadExperiments`',
+    'normal benchmark runs keep this off so source trace instrumentation is not paid on the default performance path',
+    'records the exact `browser_flags` and per-experiment `required_browser_flags`',
+    'WebGPU trusted matrix runs can also use `-DisableGpuTiming`',
+    'Raw compositor GPU-resource browser flags are also trusted-only',
+    'reject `--enable-gpu-memory-buffer-compositor-resources`, `--ui-enable-zero-copy`, and `--enable-gpu-rasterization` unless both `--viewerMode` and `--viewerTrustedContent` are present'
   )) {
   if ($Text -notmatch [regex]::Escape($RequiredPhrase)) {
     throw "Trusted-content flag doc is missing required guardrail text: $RequiredPhrase"
@@ -66,8 +75,32 @@ $RequiredSwitches = @(
   "--viewer-single-process",
   "--viewer-force-angle-backend",
   "--viewer-relaxed-webgl-validation",
+  "--viewer-zero-copy",
   "--viewer-disable-unneeded-blink-features",
-  "--viewer-direct-gpu-presentation"
+  "--viewer-direct-gpu-presentation",
+  "--viewer-defer-webgpu-pipeline-flush",
+  "--viewer-cache-webgpu-bind-group-layouts",
+  "--viewer-skip-webgpu-command-labels",
+  "--viewer-skip-webgpu-resource-labels",
+  "--viewer-skip-webgpu-shader-source-null-check",
+  "--viewer-skip-webgpu-shader-memory-accounting",
+  "--viewer-defer-webgpu-queue-flush",
+  "--viewer-defer-webgpu-submit-flush",
+  "--viewer-skip-webgpu-canvas-texture-validation",
+  "--viewer-skip-webgpu-canvas-memory-accounting",
+  "--viewer-skip-webgpu-copy-external-image-color-conversion",
+  "--viewer-skip-webgpu-copy-external-image-color-space-validation",
+  "--viewer-skip-webgpu-copy-external-image-dest-validation",
+  "--viewer-skip-webgpu-copy-external-image-source-validation",
+  "--viewer-skip-webgpu-copy-external-image-copy-size-validation",
+  "--viewer-skip-webgpu-write-texture-layout-validation",
+  "--viewer-reject-webgpu-cpu-texture-fallback",
+  "--viewer-skip-webgpu-use-counters",
+  "--viewer-skip-webgpu-redundant-pipeline-sets",
+  "--viewer-skip-webgpu-redundant-bind-group-sets",
+  "--viewer-skip-webgpu-redundant-buffer-sets",
+  "--viewer-skip-webgpu-redundant-render-state-sets",
+  "--viewer-trace-webgpu-queue"
 )
 
 foreach ($Switch in $RequiredSwitches) {
@@ -93,8 +126,32 @@ foreach ($UnsafeSwitch in @(
     "--viewer-single-process",
     "--viewer-force-angle-backend",
     "--viewer-relaxed-webgl-validation",
+    "--viewer-zero-copy",
     "--viewer-disable-unneeded-blink-features",
-    "--viewer-direct-gpu-presentation"
+    "--viewer-direct-gpu-presentation",
+    "--viewer-defer-webgpu-pipeline-flush",
+    "--viewer-cache-webgpu-bind-group-layouts",
+    "--viewer-skip-webgpu-command-labels",
+    "--viewer-skip-webgpu-resource-labels",
+    "--viewer-skip-webgpu-shader-source-null-check",
+    "--viewer-skip-webgpu-shader-memory-accounting",
+    "--viewer-defer-webgpu-queue-flush",
+    "--viewer-defer-webgpu-submit-flush",
+    "--viewer-skip-webgpu-canvas-texture-validation",
+    "--viewer-skip-webgpu-canvas-memory-accounting",
+    "--viewer-skip-webgpu-copy-external-image-color-conversion",
+    "--viewer-skip-webgpu-copy-external-image-color-space-validation",
+    "--viewer-skip-webgpu-copy-external-image-dest-validation",
+    "--viewer-skip-webgpu-copy-external-image-source-validation",
+    "--viewer-skip-webgpu-copy-external-image-copy-size-validation",
+    "--viewer-skip-webgpu-write-texture-layout-validation",
+    "--viewer-reject-webgpu-cpu-texture-fallback",
+    "--viewer-skip-webgpu-use-counters",
+    "--viewer-skip-webgpu-redundant-pipeline-sets",
+    "--viewer-skip-webgpu-redundant-bind-group-sets",
+    "--viewer-skip-webgpu-redundant-buffer-sets",
+    "--viewer-skip-webgpu-redundant-render-state-sets",
+    "--viewer-trace-webgpu-queue"
   )) {
   $Row = @($Rows | Where-Object { $_."Viewer switch" -match [regex]::Escape($UnsafeSwitch) })[0]
   if ($Row.Risk -notmatch "Medium|High|Very high") {
@@ -119,18 +176,59 @@ if ($RelaxedWebglRow."Current behavior" -notmatch [regex]::Escape("--use-cmd-dec
   throw "Trusted-content flag --viewer-relaxed-webgl-validation must document the pass-through command decoder alias and benchmark evidence status."
 }
 
+$ZeroCopyRow = @($Rows | Where-Object { $_."Viewer switch" -match [regex]::Escape("--viewer-zero-copy") })[0]
+if ($ZeroCopyRow."Current behavior" -notmatch [regex]::Escape("--enable-zero-copy") -or
+    $ZeroCopyRow."Current behavior" -notmatch "WebGL2" -or
+    $ZeroCopyRow.Status -notmatch "speed-candidate") {
+  throw "Trusted-content flag --viewer-zero-copy must document the zero-copy alias, WebGL2 gating, and candidate status."
+}
+
+$CommandLabelRow = @($Rows | Where-Object { $_."Viewer switch" -match [regex]::Escape("--viewer-skip-webgpu-command-labels") })[0]
+if ($CommandLabelRow."Current behavior" -notmatch "clears JS-visible Blink wrapper labels" -or
+    $CommandLabelRow."Current behavior" -match "preserving Blink wrapper labels" -or
+    $CommandLabelRow.Risk -notmatch "JS-visible command-object labels") {
+  throw "Trusted-content flag --viewer-skip-webgpu-command-labels must document command-object wrapper-label clearing and its JS-visible risk."
+}
+
 foreach ($MetadataField in @(
     "viewer_trusted_content",
     "viewer_block_external_navigation",
     "viewer_aggressive_gpu",
     "viewer_relaxed_webgl_validation",
+    "viewer_zero_copy",
     "viewer_in_process_gpu",
     "viewer_single_process",
     "viewer_force_angle_backend",
     "viewer_disable_unneeded_blink_features",
     "viewer_direct_gpu_presentation",
+    "viewer_defer_webgpu_pipeline_flush",
+    "viewer_cache_webgpu_bind_group_layouts",
+    "viewer_skip_webgpu_command_labels",
+    "viewer_skip_webgpu_resource_labels",
+    "viewer_skip_webgpu_shader_source_null_check",
+    "viewer_skip_webgpu_shader_memory_accounting",
+    "viewer_defer_webgpu_queue_flush",
+    "viewer_defer_webgpu_submit_flush",
+    "viewer_skip_webgpu_canvas_texture_validation",
+    "viewer_skip_webgpu_canvas_memory_accounting",
+    "viewer_skip_webgpu_copy_external_image_color_conversion",
+    "viewer_skip_webgpu_copy_external_image_color_space_validation",
+    "viewer_skip_webgpu_copy_external_image_dest_validation",
+    "viewer_skip_webgpu_copy_external_image_source_validation",
+    "viewer_skip_webgpu_copy_external_image_copy_size_validation",
+    "viewer_skip_webgpu_write_texture_layout_validation",
+    "viewer_reject_webgpu_cpu_texture_fallback",
+    "viewer_skip_webgpu_use_counters",
+    "viewer_skip_webgpu_redundant_pipeline_sets",
+    "viewer_skip_webgpu_redundant_bind_group_sets",
+    "viewer_skip_webgpu_redundant_buffer_sets",
+    "viewer_skip_webgpu_redundant_render_state_sets",
+    "viewer_trace_webgpu_queue",
     "requested_angle_backend",
-    "browser_flags"
+    "gpu_timing_enabled",
+    "browser_flags",
+    "browser_extra_flags",
+    "required_browser_flags"
   )) {
   if ($Text -notmatch [regex]::Escape($MetadataField)) {
     throw "Trusted-content flag doc does not list benchmark metadata field $MetadataField."

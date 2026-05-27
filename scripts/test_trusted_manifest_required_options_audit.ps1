@@ -3,6 +3,7 @@ param()
 
 $ErrorActionPreference = "Stop"
 $Root = Resolve-Path (Join-Path $PSScriptRoot "..")
+. (Join-Path $PSScriptRoot "viewer_patch_series.ps1")
 $TempDir = Join-Path $Root "benchmarks\tmp\trusted-manifest-required-options-audit"
 $ManifestPath = Join-Path $TempDir "trusted-experiment-matrix-manifest.json"
 $TempOutput = Join-Path $TempDir "trusted-manifest-required-options-audit.md"
@@ -94,22 +95,69 @@ function Get-ExperimentFlagValues {
     viewer_trusted_content = $true
     viewer_aggressive_gpu = $false
     viewer_relaxed_webgl_validation = $false
+    viewer_zero_copy = $false
     viewer_in_process_gpu = $false
     viewer_single_process = $false
     viewer_force_angle_backend = $null
     requested_angle_backend = $null
     viewer_disable_unneeded_blink_features = $false
     viewer_direct_gpu_presentation = $false
+    viewer_defer_webgpu_pipeline_flush = $false
+    viewer_defer_webgpu_queue_flush = $false
+    viewer_defer_webgpu_submit_flush = $false
+    viewer_skip_webgpu_canvas_texture_validation = $false
+    viewer_skip_webgpu_canvas_memory_accounting = $false
+    viewer_skip_webgpu_copy_external_image_color_conversion = $false
+    viewer_skip_webgpu_copy_external_image_color_space_validation = $false
+    viewer_skip_webgpu_copy_external_image_dest_validation = $false
+    viewer_skip_webgpu_copy_external_image_source_validation = $false
+    viewer_skip_webgpu_copy_external_image_copy_size_validation = $false
+    viewer_skip_webgpu_write_texture_layout_validation = $false
+    viewer_reject_webgpu_cpu_texture_fallback = $false
+    viewer_skip_webgpu_use_counters = $false
+    viewer_skip_webgpu_resource_labels = $false
+    viewer_skip_webgpu_shader_source_null_check = $false
+    viewer_skip_webgpu_shader_memory_accounting = $false
+    viewer_skip_webgpu_redundant_pipeline_sets = $false
+    viewer_skip_webgpu_redundant_bind_group_sets = $false
+    viewer_skip_webgpu_redundant_buffer_sets = $false
+    viewer_skip_webgpu_redundant_render_state_sets = $false
+    viewer_trace_webgpu_queue = $false
+    resource_warmup_enabled = $false
+    resource_warmup_precompile = $false
+    resource_warmup_prerender_frames = 0
   }
 
   for ($Index = 0; $Index -lt $Flags.Count; $Index += 1) {
     switch ($Flags[$Index]) {
       "--viewerAggressiveGpu" { $Values.viewer_aggressive_gpu = $true }
       "--viewerRelaxedWebglValidation" { $Values.viewer_relaxed_webgl_validation = $true }
+      "--viewerZeroCopy" { $Values.viewer_zero_copy = $true }
       "--viewerInProcessGpu" { $Values.viewer_in_process_gpu = $true }
       "--viewerSingleProcess" { $Values.viewer_single_process = $true }
       "--viewerDisableUnneededBlinkFeatures" { $Values.viewer_disable_unneeded_blink_features = $true }
       "--viewerDirectGpuPresentation" { $Values.viewer_direct_gpu_presentation = $true }
+      "--viewerDeferWebgpuPipelineFlush" { $Values.viewer_defer_webgpu_pipeline_flush = $true }
+      "--viewerDeferWebgpuQueueFlush" { $Values.viewer_defer_webgpu_queue_flush = $true }
+      "--viewerDeferWebgpuSubmitFlush" { $Values.viewer_defer_webgpu_submit_flush = $true }
+      "--viewerSkipWebgpuCanvasTextureValidation" { $Values.viewer_skip_webgpu_canvas_texture_validation = $true }
+      "--viewerSkipWebgpuCanvasMemoryAccounting" { $Values.viewer_skip_webgpu_canvas_memory_accounting = $true }
+      "--viewerSkipWebgpuCopyExternalImageColorConversion" { $Values.viewer_skip_webgpu_copy_external_image_color_conversion = $true }
+      "--viewerSkipWebgpuCopyExternalImageColorSpaceValidation" { $Values.viewer_skip_webgpu_copy_external_image_color_space_validation = $true }
+      "--viewerSkipWebgpuCopyExternalImageDestValidation" { $Values.viewer_skip_webgpu_copy_external_image_dest_validation = $true }
+      "--viewerSkipWebgpuCopyExternalImageSourceValidation" { $Values.viewer_skip_webgpu_copy_external_image_source_validation = $true }
+      "--viewerSkipWebgpuCopyExternalImageCopySizeValidation" { $Values.viewer_skip_webgpu_copy_external_image_copy_size_validation = $true }
+      "--viewerSkipWebgpuWriteTextureLayoutValidation" { $Values.viewer_skip_webgpu_write_texture_layout_validation = $true }
+      "--viewerRejectWebgpuCpuTextureFallback" { $Values.viewer_reject_webgpu_cpu_texture_fallback = $true }
+      "--viewerSkipWebgpuUseCounters" { $Values.viewer_skip_webgpu_use_counters = $true }
+      "--viewerSkipWebgpuResourceLabels" { $Values.viewer_skip_webgpu_resource_labels = $true }
+      "--viewerSkipWebgpuShaderSourceNullCheck" { $Values.viewer_skip_webgpu_shader_source_null_check = $true }
+      "--viewerSkipWebgpuShaderMemoryAccounting" { $Values.viewer_skip_webgpu_shader_memory_accounting = $true }
+      "--viewerSkipWebgpuRedundantPipelineSets" { $Values.viewer_skip_webgpu_redundant_pipeline_sets = $true }
+      "--viewerSkipWebgpuRedundantBindGroupSets" { $Values.viewer_skip_webgpu_redundant_bind_group_sets = $true }
+      "--viewerSkipWebgpuRedundantBufferSets" { $Values.viewer_skip_webgpu_redundant_buffer_sets = $true }
+      "--viewerSkipWebgpuRedundantRenderStateSets" { $Values.viewer_skip_webgpu_redundant_render_state_sets = $true }
+      "--viewerTraceWebgpuQueue" { $Values.viewer_trace_webgpu_queue = $true }
       "--viewerForceAngleBackend" {
         $Index += 1
         if ($Index -ge $Flags.Count) {
@@ -237,6 +285,10 @@ function New-Result {
     texture_upload_mb = 0
     buffer_upload_mb = 0
     shader_compile_events = 0
+    webgpu_device_lost = $false
+    webgl_context_currently_lost = $false
+    webgl_context_lost_count = 0
+    render_error_count = 0
     js_heap_mb = 10
     gpu_memory_mb = 20
     process_rss_mb = 100
@@ -252,12 +304,37 @@ function New-Result {
     viewer_trusted_content = $FlagValues.viewer_trusted_content
     viewer_aggressive_gpu = $FlagValues.viewer_aggressive_gpu
     viewer_relaxed_webgl_validation = $FlagValues.viewer_relaxed_webgl_validation
+    viewer_zero_copy = $FlagValues.viewer_zero_copy
     viewer_in_process_gpu = $FlagValues.viewer_in_process_gpu
     viewer_single_process = $FlagValues.viewer_single_process
     viewer_force_angle_backend = $FlagValues.viewer_force_angle_backend
     requested_angle_backend = $FlagValues.requested_angle_backend
     viewer_disable_unneeded_blink_features = $FlagValues.viewer_disable_unneeded_blink_features
     viewer_direct_gpu_presentation = $FlagValues.viewer_direct_gpu_presentation
+    viewer_defer_webgpu_pipeline_flush = $FlagValues.viewer_defer_webgpu_pipeline_flush
+    viewer_defer_webgpu_queue_flush = $FlagValues.viewer_defer_webgpu_queue_flush
+    viewer_defer_webgpu_submit_flush = $FlagValues.viewer_defer_webgpu_submit_flush
+    viewer_skip_webgpu_canvas_texture_validation = $FlagValues.viewer_skip_webgpu_canvas_texture_validation
+    viewer_skip_webgpu_canvas_memory_accounting = $FlagValues.viewer_skip_webgpu_canvas_memory_accounting
+    viewer_skip_webgpu_copy_external_image_color_conversion = $FlagValues.viewer_skip_webgpu_copy_external_image_color_conversion
+    viewer_skip_webgpu_copy_external_image_color_space_validation = $FlagValues.viewer_skip_webgpu_copy_external_image_color_space_validation
+    viewer_skip_webgpu_copy_external_image_dest_validation = $FlagValues.viewer_skip_webgpu_copy_external_image_dest_validation
+    viewer_skip_webgpu_copy_external_image_source_validation = $FlagValues.viewer_skip_webgpu_copy_external_image_source_validation
+    viewer_skip_webgpu_copy_external_image_copy_size_validation = $FlagValues.viewer_skip_webgpu_copy_external_image_copy_size_validation
+    viewer_skip_webgpu_write_texture_layout_validation = $FlagValues.viewer_skip_webgpu_write_texture_layout_validation
+    viewer_reject_webgpu_cpu_texture_fallback = $FlagValues.viewer_reject_webgpu_cpu_texture_fallback
+    viewer_skip_webgpu_use_counters = $FlagValues.viewer_skip_webgpu_use_counters
+    viewer_skip_webgpu_resource_labels = $FlagValues.viewer_skip_webgpu_resource_labels
+    viewer_skip_webgpu_shader_source_null_check = $FlagValues.viewer_skip_webgpu_shader_source_null_check
+    viewer_skip_webgpu_shader_memory_accounting = $FlagValues.viewer_skip_webgpu_shader_memory_accounting
+    viewer_skip_webgpu_redundant_pipeline_sets = $FlagValues.viewer_skip_webgpu_redundant_pipeline_sets
+    viewer_skip_webgpu_redundant_bind_group_sets = $FlagValues.viewer_skip_webgpu_redundant_bind_group_sets
+    viewer_skip_webgpu_redundant_buffer_sets = $FlagValues.viewer_skip_webgpu_redundant_buffer_sets
+    viewer_skip_webgpu_redundant_render_state_sets = $FlagValues.viewer_skip_webgpu_redundant_render_state_sets
+    viewer_trace_webgpu_queue = $FlagValues.viewer_trace_webgpu_queue
+    resource_warmup_enabled = $FlagValues.resource_warmup_enabled
+    resource_warmup_precompile = $FlagValues.resource_warmup_precompile
+    resource_warmup_prerender_frames = $FlagValues.resource_warmup_prerender_frames
     browser_flags = @("--disable-software-rasterizer")
   }
 }
@@ -299,8 +376,7 @@ function New-ValidTrustedManifest {
   param([switch]$WithPackage)
 
   $ChromiumRevision = Get-GitRevision (Join-Path $Root "src")
-  $PatchHash = Get-ShortSha256 (Join-Path $Root "chromium_patches\0001-draft-minimal-three-viewer-entrypoint.patch")
-  $ForkRevision = "$ChromiumRevision+viewerpatch-$PatchHash"
+  $ForkRevision = Get-ViewerForkRevisionForChromiumRevision -ChromiumRevision $ChromiumRevision -Root $Root
   $Browser = Write-TestFile (Join-Path $TempDir "fork.exe") "fork browser"
   $BuildArgs = Write-TestFile (Join-Path $TempDir "args.gn") "is_debug=false"
   $BuildArgsHash = Get-Sha256 $BuildArgs
@@ -312,6 +388,7 @@ function New-ValidTrustedManifest {
   $Experiments = @(
     (New-Experiment "fork-viewer-exp-default" @() $ChromiumRevision $ForkRevision $Browser $BuildArgsHash)
     (New-Experiment "fork-viewer-exp-aggressive-gpu" @("--viewerAggressiveGpu") $ChromiumRevision $ForkRevision $Browser $BuildArgsHash)
+    (New-Experiment "fork-viewer-exp-zero-copy" @("--viewerZeroCopy") $ChromiumRevision $ForkRevision $Browser $BuildArgsHash)
     (New-Experiment "fork-viewer-exp-in-process-gpu" @("--viewerInProcessGpu") $ChromiumRevision $ForkRevision $Browser $BuildArgsHash)
     (New-Experiment "fork-viewer-exp-single-process" @("--viewerSingleProcess") $ChromiumRevision $ForkRevision $Browser $BuildArgsHash)
     (New-Experiment "fork-viewer-exp-angle-d3d11" @("--viewerForceAngleBackend", "d3d11") $ChromiumRevision $ForkRevision $Browser $BuildArgsHash)
@@ -342,6 +419,7 @@ function New-ValidTrustedManifest {
       expected_fork_revision = $ForkRevision
       forbid_smoke = $true
       reject_software_rendering = $true
+      reject_gpu_instability = $true
       require_gpu_metadata = $true
       require_frame_times = $true
       expected_chromium_revision = $ChromiumRevision
@@ -355,6 +433,8 @@ function New-ValidTrustedManifest {
     options = [pscustomobject]@{
       duration = 60
       warmup = 10
+      precompile = $false
+      prerender_frames = 0
     }
     experiments = $Experiments
     result_files = [pscustomobject]@{
@@ -448,8 +528,11 @@ try {
 
   New-ValidTrustedManifest -WithPackage | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $ManifestPath -Encoding UTF8
   $CompleteChecklist = Invoke-AuditAndReadChecklist
-  if ($CompleteChecklist -notmatch "Trusted experiment matrix manifest.*done.*required package metadata") {
+  if ($CompleteChecklist -match "Trusted experiment matrix manifest.*pending.*missing required package_dir") {
     throw "Artifact audit rejected a completed trusted matrix manifest with package_dir and matching package metadata."
+  }
+  if ($CompleteChecklist -notmatch "Trusted experiment matrix manifest.*(done.*required package metadata|pending.*report content validation failed)") {
+    throw "Artifact audit did not progress past package_dir validation for a completed trusted matrix manifest with matching package metadata."
   }
 } finally {
   if (Test-Path -LiteralPath $TempDir) {

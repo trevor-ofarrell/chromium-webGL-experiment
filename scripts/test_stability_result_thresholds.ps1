@@ -164,11 +164,48 @@ $Official.gpu_name = "ANGLE (NVIDIA, NVIDIA GeForce RTX Test Direct3D11, D3D11)"
 $Official.driver_version = "test-driver"
 $Official.angle_backend = "ANGLE (NVIDIA, D3D11)"
 Set-JsonProperty $Official "browser_executable" $ExpectedBaselineStabilityBrowser
+Set-JsonProperty $Official "complexity" 1
 $Official.process_rss_delta_mb = 0
 $Official.package_size_mb = 120
 Set-JsonProperty $Official "viewer_mode" $false
 Set-JsonProperty $Official "viewer_block_external_navigation" $false
 Set-JsonProperty $Official "viewer_trusted_content" $false
+Set-JsonProperty $Official "viewer_aggressive_gpu" $false
+Set-JsonProperty $Official "viewer_relaxed_webgl_validation" $false
+Set-JsonProperty $Official "viewer_zero_copy" $false
+Set-JsonProperty $Official "viewer_in_process_gpu" $false
+Set-JsonProperty $Official "viewer_single_process" $false
+Set-JsonProperty $Official "viewer_force_angle_backend" $null
+Set-JsonProperty $Official "requested_angle_backend" $null
+Set-JsonProperty $Official "viewer_disable_unneeded_blink_features" $false
+Set-JsonProperty $Official "viewer_direct_gpu_presentation" $false
+Set-JsonProperty $Official "viewer_defer_webgpu_pipeline_flush" $false
+Set-JsonProperty $Official "viewer_defer_webgpu_queue_flush" $false
+Set-JsonProperty $Official "viewer_defer_webgpu_submit_flush" $false
+Set-JsonProperty $Official "viewer_skip_webgpu_canvas_texture_validation" $false
+Set-JsonProperty $Official "viewer_skip_webgpu_canvas_memory_accounting" $false
+Set-JsonProperty $Official "viewer_skip_webgpu_copy_external_image_color_conversion" $false
+Set-JsonProperty $Official "viewer_skip_webgpu_copy_external_image_color_space_validation" $false
+Set-JsonProperty $Official "viewer_skip_webgpu_copy_external_image_dest_validation" $false
+Set-JsonProperty $Official "viewer_skip_webgpu_copy_external_image_source_validation" $false
+Set-JsonProperty $Official "viewer_skip_webgpu_copy_external_image_copy_size_validation" $false
+Set-JsonProperty $Official "viewer_skip_webgpu_write_texture_layout_validation" $false
+Set-JsonProperty $Official "viewer_reject_webgpu_cpu_texture_fallback" $false
+Set-JsonProperty $Official "viewer_skip_webgpu_use_counters" $false
+Set-JsonProperty $Official "viewer_cache_webgpu_bind_group_layouts" $false
+Set-JsonProperty $Official "viewer_skip_webgpu_command_labels" $false
+Set-JsonProperty $Official "viewer_skip_webgpu_resource_labels" $false
+Set-JsonProperty $Official "viewer_skip_webgpu_shader_source_null_check" $false
+Set-JsonProperty $Official "viewer_skip_webgpu_shader_memory_accounting" $false
+Set-JsonProperty $Official "viewer_skip_webgpu_redundant_pipeline_sets" $false
+Set-JsonProperty $Official "viewer_skip_webgpu_redundant_bind_group_sets" $false
+Set-JsonProperty $Official "viewer_skip_webgpu_redundant_buffer_sets" $false
+Set-JsonProperty $Official "viewer_skip_webgpu_redundant_render_state_sets" $false
+Set-JsonProperty $Official "viewer_trace_webgpu_queue" $false
+Set-JsonProperty $Official "resource_warmup_enabled" $false
+Set-JsonProperty $Official "resource_warmup_precompile" $false
+Set-JsonProperty $Official "resource_warmup_prerender_frames" 0
+Set-JsonProperty $Official "browser_flags" @("--disable-software-rasterizer")
 Write-StabilityJson $OfficialPath $Official
 $OfficialSuccess = Invoke-StabilityValidation `
   $OfficialPath `
@@ -190,10 +227,32 @@ $OfficialSuccess = Invoke-StabilityValidation `
     "--expectedFlagMetadata", "viewer_mode=false",
     "--expectedFlagMetadata", "viewer_block_external_navigation=false",
     "--expectedFlagMetadata", "viewer_trusted_content=false",
+    "--expectedFlagMetadata", "viewer_defer_webgpu_pipeline_flush=false",
+    "--expectedFlagMetadata", "viewer_defer_webgpu_queue_flush=false",
+    "--expectedFlagMetadata", "viewer_defer_webgpu_submit_flush=false",
+    "--expectedFlagMetadata", "viewer_reject_webgpu_cpu_texture_fallback=false",
+    "--expectedFlagMetadata", "viewer_trace_webgpu_queue=false",
+    "--expectedFlagMetadata", "resource_warmup_enabled=false",
+    "--expectedFlagMetadata", "resource_warmup_precompile=false",
+    "--expectedFlagMetadata", "resource_warmup_prerender_frames=0",
     "--pinRefreshManifest", $PinRefreshPath
   )
 if ($OfficialSuccess.ExitCode -ne 0) {
   throw "Stability validator rejected official one-hour provenance gates. Output: $($OfficialSuccess.Output)"
+}
+
+$DiagnosticOptInPath = Join-Path $TempDir "diagnostic-opt-in-long-stability.json"
+$DiagnosticOptIn = Get-Content $OfficialPath -Raw | ConvertFrom-Json
+Set-JsonProperty $DiagnosticOptIn "allow_software_rendering" $true
+Write-StabilityJson $DiagnosticOptInPath $DiagnosticOptIn
+$DiagnosticOptInFailure = Invoke-StabilityValidation `
+  $DiagnosticOptInPath `
+  -ExtraArgs @("--rejectSoftwareRendering")
+if ($DiagnosticOptInFailure.ExitCode -eq 0) {
+  throw "Stability validator accepted diagnostic software-rendering opt-in metadata under --rejectSoftwareRendering."
+}
+if ($DiagnosticOptInFailure.Output -notmatch "diagnostic software-rendering opt-in") {
+  throw "Stability validator did not explain diagnostic software-rendering opt-in metadata. Output: $($DiagnosticOptInFailure.Output)"
 }
 
 $WrongBuildArgsPath = Join-Path $TempDir "wrong-build-args-long-stability.json"
@@ -298,7 +357,15 @@ $ForkSuccess = Invoke-StabilityValidation `
     "--expectedBrowser", $ExpectedForkStabilityBrowser,
     "--expectedFlagMetadata", "viewer_mode=true",
     "--expectedFlagMetadata", "viewer_block_external_navigation=true",
-    "--expectedFlagMetadata", "viewer_trusted_content=true"
+    "--expectedFlagMetadata", "viewer_trusted_content=true",
+    "--expectedFlagMetadata", "viewer_defer_webgpu_pipeline_flush=false",
+    "--expectedFlagMetadata", "viewer_defer_webgpu_queue_flush=false",
+    "--expectedFlagMetadata", "viewer_defer_webgpu_submit_flush=false",
+    "--expectedFlagMetadata", "viewer_reject_webgpu_cpu_texture_fallback=false",
+    "--expectedFlagMetadata", "viewer_trace_webgpu_queue=false",
+    "--expectedFlagMetadata", "resource_warmup_enabled=false",
+    "--expectedFlagMetadata", "resource_warmup_precompile=false",
+    "--expectedFlagMetadata", "resource_warmup_prerender_frames=0"
   )
 if ($ForkSuccess.ExitCode -ne 0) {
   throw "Stability validator rejected fork revision gates. Output: $($ForkSuccess.Output)"
@@ -359,12 +426,22 @@ if ($AuditText -notmatch '--expectedBrowser' -or
   throw "Artifact audit does not bind final one-hour stability rows to the expected stock/fork browser executables."
 }
 $StabilityOnlyAuditOutput = Join-Path $TempDir "stability-only-audit.md"
+$CanonicalValidAuditPath = Join-Path $Root "benchmarks\raw\baseline-content-shell-long-stability-valid-test.json"
 $CanonicalWrongBrowserAuditPath = Join-Path $Root "benchmarks\raw\baseline-content-shell-long-stability-wrong-browser-test.json"
 try {
   $ActualChromiumRevision = (Get-Content (Join-Path $Root ".chromium_revision") -Raw).Trim()
   $PinRefresh = Get-Content (Join-Path $Root "benchmarks\reports\chromium-pin-refresh.json") -Raw | ConvertFrom-Json
+  $ActualBaselineBuildArgsHash = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $Root "src\out\ReleaseBaseline\args.gn")).Hash.ToLowerInvariant()
+  $ValidAudit = Get-Content $OfficialPath -Raw | ConvertFrom-Json
+  $ValidAudit.chromium_revision = $ActualChromiumRevision
+  $ValidAudit.build_args_hash = $ActualBaselineBuildArgsHash
+  Set-JsonProperty $ValidAudit "generated_at" ([DateTime]::Parse($PinRefresh.selected_at).AddMinutes(1).ToUniversalTime().ToString("o"))
+  Set-JsonProperty $ValidAudit "browser_executable" (Join-Path $Root "src\out\ReleaseBaseline\content_shell.exe")
+  Write-StabilityJson $CanonicalValidAuditPath $ValidAudit
+
   $WrongBrowserAudit = Get-Content $OfficialPath -Raw | ConvertFrom-Json
   $WrongBrowserAudit.chromium_revision = $ActualChromiumRevision
+  $WrongBrowserAudit.build_args_hash = $ActualBaselineBuildArgsHash
   Set-JsonProperty $WrongBrowserAudit "generated_at" ([DateTime]::Parse($PinRefresh.selected_at).AddMinutes(1).ToUniversalTime().ToString("o"))
   Set-JsonProperty $WrongBrowserAudit "browser_executable" (Join-Path $TempDir "not-the-baseline-content_shell.exe")
   Write-StabilityJson $CanonicalWrongBrowserAuditPath $WrongBrowserAudit
@@ -389,11 +466,14 @@ try {
   }
   $StabilityAuditText = Get-Content $StabilityOnlyAuditOutput -Raw
   if ($StabilityAuditText -notmatch "One-hour stock stability result.*done" -or
-      $StabilityAuditText -notmatch "count=2 valid=1" -or
+      $StabilityAuditText -notmatch "valid=1" -or
       $StabilityAuditText -notmatch "browser_executable") {
     throw "Stability-only artifact audit did not reject the wrong-browser long-stability JSON while accepting the valid official artifact. Output: $StabilityAuditText"
   }
 } finally {
+  if (Test-Path $CanonicalValidAuditPath) {
+    Remove-Item -LiteralPath $CanonicalValidAuditPath -Force
+  }
   if (Test-Path $CanonicalWrongBrowserAuditPath) {
     Remove-Item -LiteralPath $CanonicalWrongBrowserAuditPath -Force
   }

@@ -2,6 +2,7 @@
 param(
   [string]$OutDir = "out\ReleaseViewerDefault",
   [string]$ArgsFile = "build\gn_args\fork_safe_content_shell.gn",
+  [string]$Target = "content_shell",
   [int]$Jobs = 0,
   [switch]$ApplyPatch
 )
@@ -9,10 +10,16 @@ param(
 $ErrorActionPreference = "Stop"
 $Root = Resolve-Path (Join-Path $PSScriptRoot "..")
 $Src = Join-Path $Root "src"
-$Patch = Join-Path $Root "chromium_patches\0001-draft-minimal-three-viewer-entrypoint.patch"
+$PatchSeries = @(
+  "chromium_patches\0001-draft-minimal-three-viewer-entrypoint.patch",
+  "chromium_patches\0002-draft-webgpu-queue-trace-attribution.patch"
+)
 
-if (-not (Test-Path $Patch)) {
-  throw "Viewer patch not found: $Patch"
+foreach ($PatchRelativePath in $PatchSeries) {
+  $PatchPath = Join-Path $Root $PatchRelativePath
+  if (-not (Test-Path $PatchPath)) {
+    throw "Viewer patch not found: $PatchPath"
+  }
 }
 
 function Invoke-Checked {
@@ -55,20 +62,24 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 if ($ApplyPatch) {
-  if (Test-GitApply $Src $Patch) {
-    Invoke-Checked "git" @("-C", $Src, "apply", $Patch)
-  } elseif (Test-GitApply $Src $Patch -Reverse) {
-    Write-Host "Viewer patch is already applied."
-  } else {
-    throw "Viewer patch cannot be applied cleanly and is not already applied."
+  foreach ($PatchRelativePath in $PatchSeries) {
+    $PatchPath = Join-Path $Root $PatchRelativePath
+    if (Test-GitApply $Src $PatchPath) {
+      Invoke-Checked "git" @("-C", $Src, "apply", $PatchPath)
+      Write-Host "Applied viewer patch $PatchRelativePath."
+    } elseif (Test-GitApply $Src $PatchPath -Reverse) {
+      Write-Host "Viewer patch is already applied: $PatchRelativePath"
+    } else {
+      throw "Viewer patch cannot be applied cleanly and is not already applied: $PatchRelativePath"
+    }
   }
 }
 
 $BuildScript = Join-Path $Root "scripts\build_chromium.ps1"
 if ($Jobs -gt 0) {
-  & $BuildScript -OutDir $OutDir -Target "content_shell" -ArgsFile $ArgsFile -Jobs $Jobs
+  & $BuildScript -OutDir $OutDir -Target $Target -ArgsFile $ArgsFile -Jobs $Jobs -AllowViewerPatchApplied
 } else {
-  & $BuildScript -OutDir $OutDir -Target "content_shell" -ArgsFile $ArgsFile
+  & $BuildScript -OutDir $OutDir -Target $Target -ArgsFile $ArgsFile -AllowViewerPatchApplied
 }
 if ($LASTEXITCODE -ne 0) {
   throw "$BuildScript exited with code $LASTEXITCODE"

@@ -6,6 +6,7 @@ param(
   [int]$Jobs = 0,
   [switch]$OverwriteArgs,
   [switch]$GenOnly,
+  [switch]$AllowViewerPatchApplied,
   [switch]$SkipPrereqCheck
 )
 
@@ -14,6 +15,10 @@ $Root = Resolve-Path (Join-Path $PSScriptRoot "..")
 $Src = Join-Path $Root "src"
 $DepotTools = Join-Path $Root "tools\depot_tools"
 $SourceArgs = Join-Path $Root $ArgsFile
+$PatchSeries = @(
+  "chromium_patches\0001-draft-minimal-three-viewer-entrypoint.patch",
+  "chromium_patches\0002-draft-webgpu-queue-trace-attribution.patch"
+)
 
 if (-not (Test-Path $Src)) {
   throw "Chromium checkout not found at $Src. Run .\scripts\bootstrap_chromium.ps1 first."
@@ -82,9 +87,11 @@ function Get-GitRevision {
 }
 
 function Test-ViewerPatchApplyState {
-  param([switch]$Reverse)
+  param(
+    [string]$PatchPath = (Join-Path $Root "chromium_patches\0001-draft-minimal-three-viewer-entrypoint.patch"),
+    [switch]$Reverse
+  )
 
-  $PatchPath = Join-Path $Root "chromium_patches\0001-draft-minimal-three-viewer-entrypoint.patch"
   if (-not (Test-Path -LiteralPath $PatchPath)) {
     return $false
   }
@@ -102,6 +109,52 @@ function Test-ViewerPatchApplyState {
   } finally {
     $ErrorActionPreference = $OldErrorActionPreference
   }
+}
+
+function Get-PatchSeriesState {
+  return @($PatchSeries | ForEach-Object {
+    $PatchRelativePath = $_
+    $PatchPath = Join-Path $Root $PatchRelativePath
+    [pscustomobject]@{
+      path = $PatchRelativePath
+      exists = Test-Path -LiteralPath $PatchPath -PathType Leaf
+      sha256 = Get-FileHashString $PatchPath
+      applies_cleanly = [bool](Test-ViewerPatchApplyState -PatchPath $PatchPath)
+      already_applied = [bool](Test-ViewerPatchApplyState -PatchPath $PatchPath -Reverse)
+    }
+  })
+}
+
+function Test-BaselineBuildProfile {
+  $BaselineArgs = [System.IO.Path]::GetFullPath((Join-Path $Root "build\gn_args\baseline_content_shell.gn"))
+  $SourceArgsFullPath = [System.IO.Path]::GetFullPath($SourceArgs)
+  if ($SourceArgsFullPath.Equals($BaselineArgs, [System.StringComparison]::OrdinalIgnoreCase)) {
+    return $true
+  }
+
+  $OutDirNormalized = $OutDir -replace '/', '\'
+  return $OutDirNormalized -match '(^|\\)ReleaseBaseline($|\\)'
+}
+
+function Assert-StockBaselineSourceUnpatched {
+  if ($AllowViewerPatchApplied -or -not (Test-BaselineBuildProfile)) {
+    return
+  }
+
+  $PatchStates = @(Get-PatchSeriesState)
+  $BlockedPatchStates = @($PatchStates | Where-Object { -not $_.exists -or (-not $_.applies_cleanly -and -not $_.already_applied) })
+  if ($BlockedPatchStates.Count -gt 0) {
+    $BlockedPatchList = @($BlockedPatchStates | ForEach-Object { $_.path }) -join ", "
+    throw "Cannot audit viewer patch series state before stock baseline build: $BlockedPatchList. Restore the patch files or fix the patch/source state before collecting baseline evidence."
+  }
+
+  $AppliedPatchStates = @($PatchStates | Where-Object { $_.already_applied })
+  if ($AppliedPatchStates.Count -eq 0) {
+    return
+  }
+
+  $AppliedPatchList = @($AppliedPatchStates | ForEach-Object { $_.path }) -join ", "
+  throw "Cannot build stock baseline while viewer patch series entries are already applied to src: $AppliedPatchList. Revert the viewer patch series before building the baseline, or pass -AllowViewerPatchApplied only for non-evidence diagnostics."
 }
 
 function Write-BuildProvenance {
@@ -127,8 +180,11 @@ function Write-BuildProvenance {
     source_args = $SourceArgs
     source_args_sha256 = Get-FileHashString $SourceArgs
     build_jobs = [int]$Jobs
+    allow_viewer_patch_applied = [bool]$AllowViewerPatchApplied
+    baseline_source_guard_enabled = [bool]((Test-BaselineBuildProfile) -and -not $AllowViewerPatchApplied)
     viewer_patch_applies_cleanly = [bool](Test-ViewerPatchApplyState)
     viewer_patch_already_applied = [bool](Test-ViewerPatchApplyState -Reverse)
+    viewer_patch_series = Get-PatchSeriesState
   }
   $Provenance | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $ProvenancePath -Encoding UTF8
   Write-Host "Wrote build provenance $ProvenancePath"
@@ -149,6 +205,8 @@ if (-not (Test-Path $ArgsDest)) {
     }
   }
 }
+
+Assert-StockBaselineSourceUnpatched
 
 $BuildStartedAt = (Get-Date).ToUniversalTime().ToString("o")
 Push-Location $Src

@@ -58,19 +58,25 @@ Write-Host "Checking host and checkout prerequisites..."
 & (Join-Path $Root "scripts\check_prereqs.ps1")
 $PrereqExit = $LASTEXITCODE
 if ($PrereqExit -ne 0 -and -not $AllowMissingAtl) {
-  throw "Prerequisite check failed. Use -AllowMissingAtl only to continue non-build verification while ATL is blocked."
+  throw "Prerequisite check failed. Review the failing checks above. Use -AllowMissingAtl only when the only failing checks are visual_studio_atl or visual_studio_atl_component."
 }
 
 Write-Host "Checking Chromium viewer patch applicability..."
 $Src = Join-Path $Root "src"
-$Patch = Join-Path $Root "chromium_patches\0001-draft-minimal-three-viewer-entrypoint.patch"
-if (Test-GitApply $Src $Patch) {
-  Write-Host "Viewer patch applies cleanly to the current checkout."
-} else {
-  if (Test-GitApply $Src $Patch -Reverse) {
-    Write-Host "Viewer patch is already applied to the current checkout."
+$PatchSeries = @(
+  "chromium_patches\0001-draft-minimal-three-viewer-entrypoint.patch",
+  "chromium_patches\0002-draft-webgpu-queue-trace-attribution.patch"
+)
+foreach ($PatchRelativePath in $PatchSeries) {
+  $Patch = Join-Path $Root $PatchRelativePath
+  if (Test-GitApply $Src $Patch) {
+    Write-Host "Viewer patch applies cleanly to the current checkout: $PatchRelativePath"
   } else {
-    throw "Draft viewer patch does not apply cleanly and is not already applied."
+    if (Test-GitApply $Src $Patch -Reverse) {
+      Write-Host "Viewer patch is already applied to the current checkout: $PatchRelativePath"
+    } else {
+      throw "Draft viewer patch does not apply cleanly and is not already applied: $PatchRelativePath"
+    }
   }
 }
 
@@ -109,6 +115,21 @@ Write-Host "Checking benchmark flag metadata coverage..."
 
 Write-Host "Checking benchmark metadata enrichment..."
 & (Join-Path $Root "scripts\test_benchmark_metadata_enrichment.ps1")
+
+Write-Host "Checking candidate speed analysis..."
+& (Join-Path $Root "scripts\test_candidate_analysis.ps1")
+
+Write-Host "Checking current candidate-analysis manifest handoff..."
+& (Join-Path $Root "scripts\test_current_candidate_analysis.ps1")
+
+Write-Host "Checking suite-promotion speedup gate inclusion..."
+& (Join-Path $Root "scripts\test_speedup_gate_suite_promotion_inputs.ps1")
+
+Write-Host "Checking blocker experiment planning..."
+& (Join-Path $Root "scripts\test_blocker_experiment_plan.ps1")
+
+Write-Host "Checking trusted matrix label suffix and filters..."
+& (Join-Path $Root "scripts\test_trusted_matrix_label_suffix.ps1")
 
 Write-Host "Checking report metric coverage..."
 & (Join-Path $Root "scripts\test_report_metric_coverage.ps1")
@@ -189,6 +210,7 @@ $PowerShellScripts = @(
   "run_long_stability.ps1",
   "run_official_comparison.ps1",
   "run_post_atl_pipeline.ps1",
+  "run_blocker_experiments.ps1",
   "run_trusted_experiment_matrix.ps1",
   "stage_viewer_package.ps1",
   "test_atl_blocker_audit.ps1",
@@ -197,12 +219,18 @@ $PowerShellScripts = @(
   "test_benchmark_flag_metadata.ps1",
   "test_benchmark_metadata_enrichment.ps1",
   "test_binary_audit_rows.ps1",
+  "test_candidate_analysis.ps1",
+  "test_current_candidate_analysis.ps1",
+  "test_speedup_gate_suite_promotion_inputs.ps1",
   "test_audit_fail_on_incomplete.ps1",
   "test_audit_official_suite_validation_gates.ps1",
   "test_benchmark_suite_duration_validation.ps1",
   "test_benchmark_suite_flag_metadata.ps1",
   "test_benchmark_suite_package_validation.ps1",
   "test_benchmark_suite_rejects_software_rendering.ps1",
+  "test_baseline_source_guard.ps1",
+  "test_blocker_experiment_plan.ps1",
+  "test_trusted_matrix_label_suffix.ps1",
   "test_revision_validation.ps1",
   "test_build_args_guard.ps1",
   "test_chromium_scope_guard.ps1",
@@ -252,6 +280,7 @@ $PowerShellScripts = @(
   "test_trusted_manifest_required_options_audit.ps1",
   "test_trusted_manifest_suite_semantics_audit.ps1",
   "test_trusted_content_flags_doc.ps1",
+  "test_webgpu_experiment_flag_sources.ps1",
   "test_upstream_freshness_audit.ps1",
   "test_verify_prebuild_manifest_gate.ps1",
   "test_viewer_bundle_integrity.ps1",
@@ -270,6 +299,7 @@ foreach ($Script in $PowerShellScripts) {
 
 $NodeScripts = @(
   "compare_results.mjs",
+  "analyze_candidates.mjs",
   "run_file_navigation_lock_tests.mjs",
   "run_benchmark.mjs",
   "run_navigation_lock_tests.mjs",
@@ -304,6 +334,9 @@ Write-Host "Checking prebuild manifest failure gate..."
 
 Write-Host "Checking generated GN args stale-file guard..."
 & (Join-Path $Root "scripts\test_build_args_guard.ps1")
+
+Write-Host "Checking stock baseline source-state guard..."
+& (Join-Path $Root "scripts\test_baseline_source_guard.ps1")
 
 Write-Host "Checking GN args profile policy..."
 & (Join-Path $Root "scripts\test_gn_args_profiles.ps1")
@@ -382,6 +415,9 @@ Write-Host "Checking trusted manifest required-options audit gate..."
 
 Write-Host "Checking trusted manifest exact-suite semantic audit gate..."
 & (Join-Path $Root "scripts\test_trusted_manifest_suite_semantics_audit.ps1")
+
+Write-Host "Checking trusted WebGPU experiment flag source registrations..."
+& (Join-Path $Root "scripts\test_webgpu_experiment_flag_sources.ps1")
 
 Write-Host "Checking strict official software-renderer rejection..."
 & (Join-Path $Root "scripts\test_strict_official_rejects_software_rendering.ps1")

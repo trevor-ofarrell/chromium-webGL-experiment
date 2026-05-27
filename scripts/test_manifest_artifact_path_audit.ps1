@@ -3,6 +3,7 @@ param()
 
 $ErrorActionPreference = "Stop"
 $Root = Resolve-Path (Join-Path $PSScriptRoot "..")
+. (Join-Path $PSScriptRoot "viewer_patch_series.ps1")
 $TempDir = Join-Path $Root "benchmarks\tmp\manifest-artifact-path-audit"
 $OfficialManifestPath = Join-Path $TempDir "official-comparison-manifest.json"
 $TrustedManifestPath = Join-Path $TempDir "trusted-experiment-matrix-manifest.json"
@@ -158,6 +159,7 @@ function New-OfficialSuiteValidation {
     expected_fork_build_args_hash = $ForkBuildArgsHash
     forbid_smoke = $true
     reject_software_rendering = $true
+    reject_gpu_instability = $true
     require_gpu_metadata = $true
     require_frame_times = $true
     expected_measured_seconds = 120
@@ -169,8 +171,8 @@ function New-OfficialSuiteValidation {
     expected_fork_revision = $ForkRevision
     exact_scene_output_files = $true
     expected_flag_metadata = [pscustomobject]@{
-      baseline = @("viewer_mode=false")
-      fork_default = @("viewer_mode=true")
+      baseline = @("viewer_mode=false", "resource_warmup_enabled=false", "resource_warmup_precompile=false", "resource_warmup_prerender_frames=0")
+      fork_default = @("viewer_mode=true", "resource_warmup_enabled=false", "resource_warmup_precompile=false", "resource_warmup_prerender_frames=0")
       aggressive = @()
       baseline_webgpu = @()
       fork_default_webgpu = @()
@@ -196,6 +198,7 @@ function New-TrustedSuiteValidation {
     expected_fork_revision = $ForkRevision
     forbid_smoke = $true
     reject_software_rendering = $true
+    reject_gpu_instability = $true
     require_gpu_metadata = $true
     require_frame_times = $true
     expected_chromium_revision = $ChromiumRevision
@@ -318,12 +321,51 @@ function New-Experiment {
     [string]$Label,
     [string[]]$Flags
   )
-  $ExpectedFlagMetadata = @()
+  $ExpectedFlagMetadata = @(
+    "viewer_mode=true",
+    "viewer_block_external_navigation=true",
+    "viewer_trusted_content=true",
+    "resource_warmup_enabled=false",
+    "resource_warmup_precompile=false",
+    "resource_warmup_prerender_frames=0"
+  )
   for ($Index = 0; $Index -lt $Flags.Count; $Index += 1) {
-    if ($Flags[$Index] -eq "--viewerForceAngleBackend" -and $Index + 1 -lt $Flags.Count) {
-      $Backend = $Flags[$Index + 1]
-      $ExpectedFlagMetadata += "viewer_force_angle_backend=$Backend"
-      $ExpectedFlagMetadata += "requested_angle_backend=$Backend"
+    switch ($Flags[$Index]) {
+      "--viewerAggressiveGpu" { $ExpectedFlagMetadata += "viewer_aggressive_gpu=true" }
+      "--viewerRelaxedWebglValidation" { $ExpectedFlagMetadata += "viewer_relaxed_webgl_validation=true" }
+      "--viewerZeroCopy" { $ExpectedFlagMetadata += "viewer_zero_copy=true" }
+      "--viewerInProcessGpu" { $ExpectedFlagMetadata += "viewer_in_process_gpu=true" }
+      "--viewerSingleProcess" { $ExpectedFlagMetadata += "viewer_single_process=true" }
+      "--viewerDisableUnneededBlinkFeatures" { $ExpectedFlagMetadata += "viewer_disable_unneeded_blink_features=true" }
+      "--viewerDirectGpuPresentation" { $ExpectedFlagMetadata += "viewer_direct_gpu_presentation=true" }
+      "--viewerDeferWebgpuPipelineFlush" { $ExpectedFlagMetadata += "viewer_defer_webgpu_pipeline_flush=true" }
+      "--viewerDeferWebgpuQueueFlush" { $ExpectedFlagMetadata += "viewer_defer_webgpu_queue_flush=true" }
+      "--viewerDeferWebgpuSubmitFlush" { $ExpectedFlagMetadata += "viewer_defer_webgpu_submit_flush=true" }
+      "--viewerSkipWebgpuCanvasTextureValidation" { $ExpectedFlagMetadata += "viewer_skip_webgpu_canvas_texture_validation=true" }
+      "--viewerSkipWebgpuCanvasMemoryAccounting" { $ExpectedFlagMetadata += "viewer_skip_webgpu_canvas_memory_accounting=true" }
+      "--viewerSkipWebgpuCopyExternalImageColorConversion" { $ExpectedFlagMetadata += "viewer_skip_webgpu_copy_external_image_color_conversion=true" }
+      "--viewerSkipWebgpuCopyExternalImageColorSpaceValidation" { $ExpectedFlagMetadata += "viewer_skip_webgpu_copy_external_image_color_space_validation=true" }
+      "--viewerSkipWebgpuCopyExternalImageDestValidation" { $ExpectedFlagMetadata += "viewer_skip_webgpu_copy_external_image_dest_validation=true" }
+      "--viewerSkipWebgpuCopyExternalImageSourceValidation" { $ExpectedFlagMetadata += "viewer_skip_webgpu_copy_external_image_source_validation=true" }
+      "--viewerSkipWebgpuCopyExternalImageCopySizeValidation" { $ExpectedFlagMetadata += "viewer_skip_webgpu_copy_external_image_copy_size_validation=true" }
+      "--viewerSkipWebgpuWriteTextureLayoutValidation" { $ExpectedFlagMetadata += "viewer_skip_webgpu_write_texture_layout_validation=true" }
+      "--viewerRejectWebgpuCpuTextureFallback" { $ExpectedFlagMetadata += "viewer_reject_webgpu_cpu_texture_fallback=true" }
+      "--viewerSkipWebgpuUseCounters" { $ExpectedFlagMetadata += "viewer_skip_webgpu_use_counters=true" }
+      "--viewerSkipWebgpuResourceLabels" { $ExpectedFlagMetadata += "viewer_skip_webgpu_resource_labels=true" }
+      "--viewerSkipWebgpuShaderSourceNullCheck" { $ExpectedFlagMetadata += "viewer_skip_webgpu_shader_source_null_check=true" }
+      "--viewerSkipWebgpuShaderMemoryAccounting" { $ExpectedFlagMetadata += "viewer_skip_webgpu_shader_memory_accounting=true" }
+      "--viewerSkipWebgpuRedundantPipelineSets" { $ExpectedFlagMetadata += "viewer_skip_webgpu_redundant_pipeline_sets=true" }
+      "--viewerSkipWebgpuRedundantBindGroupSets" { $ExpectedFlagMetadata += "viewer_skip_webgpu_redundant_bind_group_sets=true" }
+      "--viewerSkipWebgpuRedundantBufferSets" { $ExpectedFlagMetadata += "viewer_skip_webgpu_redundant_buffer_sets=true" }
+      "--viewerSkipWebgpuRedundantRenderStateSets" { $ExpectedFlagMetadata += "viewer_skip_webgpu_redundant_render_state_sets=true" }
+      "--viewerTraceWebgpuQueue" { $ExpectedFlagMetadata += "viewer_trace_webgpu_queue=true" }
+      "--viewerForceAngleBackend" {
+        if ($Index + 1 -lt $Flags.Count) {
+          $Backend = $Flags[$Index + 1]
+          $ExpectedFlagMetadata += "viewer_force_angle_backend=$Backend"
+          $ExpectedFlagMetadata += "requested_angle_backend=$Backend"
+        }
+      }
     }
   }
   [pscustomobject]@{
@@ -343,6 +385,7 @@ function Invoke-AuditForTest {
     "THREE_BROWSER_SKIP_MANIFEST_ARTIFACT_PATH_AUDIT_TEST",
     "THREE_BROWSER_SKIP_TRUSTED_MANIFEST_REQUIRED_OPTIONS_AUDIT_TEST",
     "THREE_BROWSER_SKIP_TRUSTED_MANIFEST_PROVENANCE_AUDIT_TEST",
+    "THREE_BROWSER_SKIP_OFFICIAL_MANIFEST_REQUIRED_OPTIONS_AUDIT_TEST",
     "THREE_BROWSER_SKIP_OFFICIAL_MANIFEST_AGGRESSIVE_AUDIT_TEST",
     "THREE_BROWSER_SKIP_OFFICIAL_MANIFEST_PROVENANCE_AUDIT_TEST",
     "THREE_BROWSER_SKIP_OFFICIAL_MANIFEST_WEBGPU_AUDIT_TEST",
@@ -393,8 +436,7 @@ if ($HadPinRefresh) {
 
 try {
   $ChromiumRevision = Get-GitRevision (Join-Path $Root "src")
-  $PatchHash = Get-ShortSha256 (Join-Path $Root "chromium_patches\0001-draft-minimal-three-viewer-entrypoint.patch")
-  $ForkRevision = "$ChromiumRevision+viewerpatch-$PatchHash"
+  $ForkRevision = Get-ViewerForkRevisionForChromiumRevision -ChromiumRevision $ChromiumRevision -Root $Root
   $PinSelectedAt = (Get-Date).ToUniversalTime().AddMinutes(-1).ToString("o")
   $SyntheticPinRefresh = [pscustomobject]@{
     generated_at = (Get-Date).ToUniversalTime().ToString("o")
@@ -477,6 +519,8 @@ try {
         navigation_lock = New-MetadataList $NavigationLock
       }
       reports = [pscustomobject]@{
+        baseline_webgl2_summary = New-FakeFileMetadata "baseline-webgl2-summary.md"
+        fork_default_webgl2_summary = New-FakeFileMetadata "fork-default-webgl2-summary.md"
         official_webgl2_comparison = New-FakeFileMetadata "official-webgl2-comparison.md"
         official_webgpu_comparison = New-MissingFileMetadata "official-webgpu-comparison.md"
         baseline_trace_summary = New-MissingFileMetadata "baseline-trace-summary.md"
@@ -494,8 +538,11 @@ try {
   $OfficialManifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $OfficialManifestPath -Encoding UTF8
   Invoke-AuditForTest $OfficialOutput
   $OfficialChecklist = Get-Content -LiteralPath $OfficialOutput -Raw
-  if ($OfficialChecklist -notmatch "Official comparison manifest.*pending.*path/hash does not match files on disk" -or
-      $OfficialChecklist -notmatch "viewer_patch") {
+  $OfficialRejectedFakeInputs =
+    ($OfficialChecklist -match "Official comparison manifest.*pending.*path/hash does not match files on disk" -and
+      $OfficialChecklist -match "viewer_patch") -or
+    ($OfficialChecklist -match "Official comparison manifest.*pending.*does not record both official WebGL2 summary report hashes")
+  if (-not $OfficialRejectedFakeInputs) {
     throw "Artifact audit accepted or misreported a completed official manifest with fake artifact paths/hashes."
   }
 
@@ -505,6 +552,8 @@ try {
   $ValidForkArgs = Write-ArtifactFile (Join-Path $TempDir "valid-fork-args.gn") "is_debug=false"
   $ValidBaselineArgsHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $ValidBaselineArgs).Hash.ToLowerInvariant()
   $ValidForkArgsHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $ValidForkArgs).Hash.ToLowerInvariant()
+  $ValidBaselineSummary = Write-ArtifactFile (Join-Path $TempDir "valid-baseline-webgl2-summary.md") "# summary"
+  $ValidForkSummary = Write-ArtifactFile (Join-Path $TempDir "valid-fork-webgl2-summary.md") "# summary"
   $ValidOfficialReport = Write-ArtifactFile (Join-Path $TempDir "valid-official-webgl2-comparison.md") "# comparison"
   $ValidBaselineWebGl = New-TempResultFiles "valid-baseline-content-shell" "webgl2"
   $ValidForkWebGl = New-TempResultFiles "valid-fork-viewer-default" "webgl2"
@@ -552,6 +601,8 @@ try {
       navigation_lock = $NavigationLock
     }
     report_files = [pscustomobject]@{
+      baseline_webgl2_summary = $ValidBaselineSummary
+      fork_default_webgl2_summary = $ValidForkSummary
       official_webgl2_comparison = $ValidOfficialReport
     }
     artifact_metadata = [pscustomobject]@{
@@ -576,6 +627,8 @@ try {
         navigation_lock = New-RealMetadataList $NavigationLock
       }
       reports = [pscustomobject]@{
+        baseline_webgl2_summary = New-RealFileMetadata $ValidBaselineSummary
+        fork_default_webgl2_summary = New-RealFileMetadata $ValidForkSummary
         official_webgl2_comparison = New-RealFileMetadata $ValidOfficialReport
         official_webgpu_comparison = New-MissingFileMetadata "official-webgpu-comparison.md"
         baseline_trace_summary = New-MissingFileMetadata "baseline-trace-summary.md"
@@ -622,6 +675,7 @@ try {
   $Experiments = @(
     (New-Experiment "fork-viewer-exp-default" @())
     (New-Experiment "fork-viewer-exp-aggressive-gpu" @("--viewerAggressiveGpu"))
+    (New-Experiment "fork-viewer-exp-zero-copy" @("--viewerZeroCopy"))
     (New-Experiment "fork-viewer-exp-in-process-gpu" @("--viewerInProcessGpu"))
     (New-Experiment "fork-viewer-exp-single-process" @("--viewerSingleProcess"))
     (New-Experiment "fork-viewer-exp-angle-d3d11" @("--viewerForceAngleBackend", "d3d11"))
@@ -646,6 +700,8 @@ try {
     options = [pscustomobject]@{
       duration = 60
       warmup = 10
+      precompile = $false
+      prerender_frames = 0
     }
     experiments = $Experiments
     result_files = [pscustomobject]@{
@@ -684,6 +740,7 @@ try {
   $ValidTrustedExperiments = @(
     (New-Experiment "fork-viewer-exp-default" @())
     (New-Experiment "fork-viewer-exp-aggressive-gpu" @("--viewerAggressiveGpu"))
+    (New-Experiment "fork-viewer-exp-zero-copy" @("--viewerZeroCopy"))
     (New-Experiment "fork-viewer-exp-in-process-gpu" @("--viewerInProcessGpu"))
     (New-Experiment "fork-viewer-exp-single-process" @("--viewerSingleProcess"))
     (New-Experiment "fork-viewer-exp-angle-d3d11" @("--viewerForceAngleBackend", "d3d11"))
@@ -715,6 +772,8 @@ try {
     options = [pscustomobject]@{
       duration = 60
       warmup = 10
+      precompile = $false
+      prerender_frames = 0
     }
     experiments = $ValidTrustedExperiments
     result_files = [pscustomobject]@{

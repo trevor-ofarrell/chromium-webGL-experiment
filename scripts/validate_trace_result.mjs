@@ -2,6 +2,24 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+const webGpuStaticBundleScenes = new Set([
+  'many-draw-calls',
+  'texture-streaming',
+  'gltf-loader-stress',
+]);
+
+const webGpuFastPathCoverageFields = [
+  'webgpu_queue_write_texture_common_layout_count',
+  'webgpu_queue_write_texture_common_extent_count',
+  'webgpu_queue_copy_external_image_default_origin_count',
+  'webgpu_queue_copy_external_image_common_origin_count',
+  'webgpu_queue_copy_external_image_explicit_common_origin_count',
+  'webgpu_queue_copy_external_image_srgb_destination_count',
+  'webgpu_queue_copy_external_image_full_source_count',
+  'webgpu_pipeline_descriptor_stack_fast_path_eligible_count',
+  'webgpu_pipeline_descriptor_measured_stack_fast_path_eligible_count',
+];
+
 function parseArgs(argv) {
   const args = {
     files: [],
@@ -13,6 +31,7 @@ function parseArgs(argv) {
     expectedStartDelayMs: null,
     expectedFlagMetadata: [],
     requiredBrowserFlag: [],
+    rejectSoftwareRendering: false,
   };
 
   for (let i = 2; i < argv.length; i += 1) {
@@ -33,6 +52,8 @@ function parseArgs(argv) {
       args.expectedFlagMetadata.push(argv[++i]);
     } else if (token === '--requiredBrowserFlag') {
       args.requiredBrowserFlag.push(argv[++i]);
+    } else if (token === '--rejectSoftwareRendering') {
+      args.rejectSoftwareRendering = true;
     } else if (token.startsWith('--')) {
       throw new Error(`Unknown argument: ${token}`);
     } else {
@@ -132,6 +153,123 @@ function validateRequiredBrowserFlags(errors, data, label, requiredFlags) {
   }
 }
 
+function softwareRendererReason(metadata) {
+  const haystack = [
+    metadata?.gpu_name,
+    metadata?.driver_version,
+    metadata?.angle_backend,
+  ]
+    .filter((value) => typeof value === 'string')
+    .join(' ')
+    .toLowerCase();
+
+  if (!haystack) return '';
+
+  const patterns = [
+    ['swiftshader', 'SwiftShader'],
+    ['llvmpipe', 'llvmpipe'],
+    ['softpipe', 'softpipe'],
+    ['software rasterizer', 'software rasterizer'],
+    ['software renderer', 'software renderer'],
+    ['microsoft basic render driver', 'Microsoft Basic Render Driver'],
+    ['microsoft basic renderer', 'Microsoft Basic Renderer'],
+    ['warp', 'WARP'],
+  ];
+
+  const match = patterns.find(([pattern]) => haystack.includes(pattern));
+  return match ? match[1] : '';
+}
+
+function validateNoSoftwareRenderer(errors, data, benchmark, label, rejectSoftwareRendering) {
+  if (!rejectSoftwareRendering) return;
+
+  if (data.allow_software_rendering === true || data.allowSoftwareRendering === true) {
+    errors.push(`${label}: diagnostic software-rendering opt-in is not allowed in trace evidence`);
+  }
+
+  const sidecarReason = softwareRendererReason(data);
+  if (sidecarReason) {
+    errors.push(`${label}: known software-rendered GPU path is not allowed (${sidecarReason})`);
+  }
+
+  if (benchmark && typeof benchmark === 'object' && !Array.isArray(benchmark)) {
+    if (benchmark.allow_software_rendering === true || benchmark.allowSoftwareRendering === true) {
+      errors.push(`${label}: benchmark_result uses diagnostic software-rendering opt-in`);
+    }
+    const benchmarkReason = softwareRendererReason(benchmark);
+    if (benchmarkReason) {
+      errors.push(`${label}: benchmark_result uses known software-rendered GPU path (${benchmarkReason})`);
+    }
+  }
+}
+
+function normalizeBundleMode(value) {
+  return typeof value === 'string' ? value.trim().toLowerCase() : '';
+}
+
+function validateBundleRecord(errors, record, label, scene, renderer, owner) {
+  if (!record || typeof record !== 'object' || Array.isArray(record)) return;
+  const mode = normalizeBundleMode(record.webgpu_bundle_mode);
+  const groups = record.webgpu_bundle_groups;
+  if (!mode && groups === undefined) return;
+
+  if (mode && !['off', 'static'].includes(mode)) {
+    errors.push(`${label}: ${owner}.webgpu_bundle_mode must be off or static when present`);
+  }
+  if (mode === 'static' && renderer !== 'webgpu') {
+    errors.push(`${label}: ${owner}.webgpu_bundle_mode=static is only valid with renderer=webgpu`);
+  }
+  if (mode !== 'static' && isFiniteNumber(groups) && groups > 0) {
+    errors.push(`${label}: ${owner}.webgpu_bundle_groups must be zero unless webgpu_bundle_mode=static`);
+  }
+  if (renderer === 'webgpu' &&
+      mode === 'static' &&
+      webGpuStaticBundleScenes.has(scene) &&
+      (!Number.isInteger(groups) || groups <= 0)) {
+    errors.push(`${label}: ${owner}.webgpu_bundle_mode=static requires a positive webgpu_bundle_groups count for ${scene}`);
+  }
+}
+
+function validateWebGpuBundleMetadata(errors, data, benchmark, label) {
+  validateBundleRecord(errors, data, label, data.scene, data.renderer, 'sidecar');
+  if (benchmark && typeof benchmark === 'object' && !Array.isArray(benchmark)) {
+    validateBundleRecord(
+      errors,
+      benchmark,
+      label,
+      benchmark.scene_name || data.scene,
+      benchmark.renderer_type || data.renderer,
+      'benchmark_result',
+    );
+
+    const sidecarMode = normalizeBundleMode(data.webgpu_bundle_mode);
+    const benchmarkMode = normalizeBundleMode(benchmark.webgpu_bundle_mode);
+    if (sidecarMode && benchmarkMode && sidecarMode !== benchmarkMode) {
+      errors.push(`${label}: benchmark_result.webgpu_bundle_mode is ${benchmarkMode}, expected sidecar mode ${sidecarMode}`);
+    }
+  }
+}
+
+function validateWebGpuFastPathCoverageMetadata(errors, data, benchmark, label) {
+  for (const field of webGpuFastPathCoverageFields) {
+    if (!Object.prototype.hasOwnProperty.call(data, field)) continue;
+
+    const value = data[field];
+    if (value !== null && (!Number.isFinite(value) || value < 0)) {
+      errors.push(`${label}: ${field} must be null or a non-negative finite number when present`);
+      continue;
+    }
+
+    if (!benchmark || typeof benchmark !== 'object' || Array.isArray(benchmark)) continue;
+    const benchmarkValue = benchmark[field];
+    if (Number.isFinite(benchmarkValue) && !numericEquals(value, benchmarkValue)) {
+      errors.push(`${label}: ${field} is ${formatValue(value)}, expected benchmark_result.${field} ${formatValue(benchmarkValue)}`);
+    } else if (value !== null && benchmarkValue !== undefined && !Number.isFinite(benchmarkValue)) {
+      errors.push(`${label}: benchmark_result.${field} must be finite when sidecar ${field} is recorded`);
+    }
+  }
+}
+
 function validateSidecar(data, file, args) {
   const errors = [];
   const label = path.basename(file);
@@ -173,6 +311,9 @@ function validateSidecar(data, file, args) {
   if (!benchmark || typeof benchmark !== 'object' || Array.isArray(benchmark)) {
     errors.push(`${label}: benchmark_result must be an object`);
   }
+  validateNoSoftwareRenderer(errors, data, benchmark, label, args.rejectSoftwareRendering);
+  validateWebGpuBundleMetadata(errors, data, benchmark, label);
+  validateWebGpuFastPathCoverageMetadata(errors, data, benchmark, label);
 
   if (args.expectedScene && data.scene !== args.expectedScene) {
     errors.push(`${label}: scene is ${data.scene}, expected ${args.expectedScene}`);
@@ -207,6 +348,9 @@ function validateSidecar(data, file, args) {
     }
     if (!numericEquals(benchmark.warmup_seconds, data.warmup_seconds)) {
       errors.push(`${label}: benchmark_result.warmup_seconds is ${benchmark.warmup_seconds}, expected ${data.warmup_seconds}`);
+    }
+    if ('complexity' in data && !numericEquals(benchmark.complexity, data.complexity)) {
+      errors.push(`${label}: benchmark_result.complexity is ${formatValue(benchmark.complexity)}, expected ${data.complexity}`);
     }
     if (!isFiniteNumber(benchmark.avg_fps) || benchmark.avg_fps <= 0) {
       errors.push(`${label}: benchmark_result.avg_fps must be positive`);
