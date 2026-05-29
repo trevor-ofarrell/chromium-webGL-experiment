@@ -16,7 +16,7 @@ foreach ($RequiredPhrase in @(
     'maps the relaxed WebGL validation experiment to Chromium''s pass-through command decoder switch',
     'Each aggressive run must be compared against stock Chromium and the fork default profile from the same Chromium revision',
     'Chromium WebGPU/Dawn launch flags are also treated as trusted experiments',
-    'reject `--use-webgpu-adapter`, `--enable-dawn-features`, `--disable-dawn-features`, `--enable-features`, and `--disable-features` unless both `--viewerMode` and `--viewerTrustedContent` are present',
+    'reject `--use-webgpu-adapter`, `--enable-dawn-features`, `--disable-dawn-features`, `--enable-features`, and experiment `--disable-features` values beyond the shared baseline suppressions (`Translate`, `OptimizationHints`, `AutofillServerCommunication`) unless both `--viewerMode` and `--viewerTrustedContent` are present',
     'Chromium feature probes through `-Renderer webgpu -IncludeWebGpuChromiumFeatureExperiments`',
     'upload/command-buffer probes through `-Renderer webgpu -IncludeWebGpuUploadExperiments`',
     'normal benchmark runs keep this off so source trace instrumentation is not paid on the default performance path',

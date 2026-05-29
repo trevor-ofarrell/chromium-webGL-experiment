@@ -9,8 +9,10 @@ This guide reproduces the stock Chromium baseline and the patched Three.js viewe
 - Stock GN args: `build/gn_args/baseline_content_shell.gn`
 - Fork GN args: `build/gn_args/fork_safe_content_shell.gn`
 - Trusted experiment GN args: `build/gn_args/fork_trusted_aggressive.gn`
+- Common build-support patch: `chromium_patches/0000-draft-win-clang-build-workarounds.patch`
 
 The generated stock and fork `args.gn` files in `src/out/ReleaseBaseline` and `src/out/ReleaseViewerDefault` hash to the checked-in profile template used by the official benchmark evidence.
+All comparable profiles set `dcheck_always_on = false` and `enable_expensive_dchecks = false` so non-official local builds use release-style DCHECK behavior for performance evidence. They also set `enable_ubsan_hardening = false` and `disable_llvm_machine_scheduler = true` through the common build-support patch because this host's Chromium clang revision crashes while compiling Blink WebGL2 with the default array-bounds/return hardening flags and later crashes in LLVM machine scheduling while compiling Protobuf. These are common build/profile controls, not viewer optimizations; they must remain identical for stock and fork evidence.
 
 ## Prerequisites
 
@@ -46,7 +48,7 @@ Output:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build_chromium.ps1 -OutDir out\ReleaseBaseline -ArgsFile build\gn_args\baseline_content_shell.gn -Target content_shell
 ```
 
-`-OutDir` is relative to Chromium `src` for `scripts\build_chromium.ps1`, so `out\ReleaseBaseline` produces `src/out/ReleaseBaseline`. Stock baseline builds must run from an unpatched Chromium source state. The build script refuses baseline-profile builds when any viewer patch series entry is already applied or cannot be audited; `-AllowViewerPatchApplied` is reserved for non-evidence diagnostics and GN-generation regression fixtures.
+`-OutDir` is relative to Chromium `src` for `scripts\build_chromium.ps1`, so `out\ReleaseBaseline` produces `src/out/ReleaseBaseline`. Stock baseline builds must run without the viewer patch series applied; the common build-support patch may be applied by the build script so the identical GN profile can compile on this Windows toolchain. The build script refuses baseline-profile builds when any viewer patch series entry is already applied or cannot be audited; `-AllowViewerPatchApplied` is reserved for non-evidence diagnostics and GN-generation regression fixtures.
 
 Expected outputs:
 
@@ -123,7 +125,7 @@ Add `-DryRun` to inspect the exact comparable baseline, trusted matrix, targeted
 
 Targeted WebGPU trace attribution can also pass `-TraceRenderStateInstrumentation`, which forwards `--renderStateInstrumentation` into `run_trace_capture.mjs` and validates `webgpu_render_state_instrumentation_enabled=true` in the trace sidecar. It can also pass `-TraceImmediateInstrumentation`, which forwards `--immediateInstrumentation` and validates `webgpu_immediate_instrumentation_enabled=true`. Use these with the queue, bind-group, pipeline-state, and buffer-state attribution flags when testing whether source-backed pass-encoding fast paths are exercised by real Three.js command streams.
 
-The analyzer now treats extra shader compile events or measured-window WebGPU pipeline creation time above `--pipelineCreateRegressionMs 1.0` as `blocked-shader-stalls`; those rows are routed through the shader/pipeline WebGPU label set instead of being promoted as clean speed wins. It also treats any per-scene dropped-frame increase above the configured `--droppedFramesRegression` tolerance as `blocked-dropped-frames`, and any per-scene CPU-frame or render-submission regression above `--cpuFrameRegressionMs 0.5` / `--renderSubmissionRegressionMs 0.5` as `blocked-cpu-overhead`, so a higher average-FPS row cannot be retained when frame pacing or CPU-side submission cost gets worse.
+The analyzer now treats extra shader compile events or measured-window WebGPU pipeline creation time above `--pipelineCreateRegressionMs 1.0` as `blocked-shader-stalls`; those rows are routed through the shader/pipeline WebGPU label set instead of being promoted as clean speed wins. It treats low-FPS regressions above `--lowRegressionFps 1.0`, per-scene dropped-frame-rate increases above `--droppedFrameRateRegressionPct 0.5` percentage points while continuing to report raw `dropped_frames`, and any per-scene CPU-frame or render-submission regression above `--cpuFrameRegressionMs 0.5` / `--renderSubmissionRegressionMs 0.5` as blockers, so a higher average-FPS row cannot be retained when material frame pacing or CPU-side submission cost gets worse.
 
 Current viewer metrics feed that gate from runtime evidence when possible: WebGL2 uses renderer program-count growth after warmup, while WebGPU wraps `GPUDevice` pipeline creation methods and maps measured-phase pipeline creations into `shader_compile_events`.
 

@@ -471,6 +471,12 @@ const trustedBrowserExperimentSwitches = [
   '--disable-gpu-vsync',
 ];
 
+const defaultBenchmarkDisabledFeatures = new Set([
+  'translate',
+  'optimizationhints',
+  'autofillservercommunication',
+]);
+
 function hasSwitchValue(result, field) {
   const value = result[field];
   if (typeof value !== 'string') return false;
@@ -478,14 +484,45 @@ function hasSwitchValue(result, field) {
   return normalized.length > 0 && normalized !== 'default' && normalized !== 'null';
 }
 
+function splitFeatureList(value) {
+  return String(value ?? '')
+    .split(',')
+    .map((feature) => feature.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function isDefaultBenchmarkDisableFeaturesValue(value) {
+  const features = splitFeatureList(value);
+  return features.length > 0 && features.every((feature) => defaultBenchmarkDisabledFeatures.has(feature));
+}
+
 function trustedBrowserExperimentFlags(result) {
   if (!Array.isArray(result.browser_flags)) return [];
-  return result.browser_flags.filter((rawFlag) => {
+  const flags = [];
+  for (let index = 0; index < result.browser_flags.length; index += 1) {
+    const rawFlag = result.browser_flags[index];
     const flag = String(rawFlag);
-    return trustedBrowserExperimentSwitches.some((switchName) => (
-      flag === switchName || flag.startsWith(`${switchName}=`)
-    ));
-  });
+    if (flag === '--disable-features') {
+      const value = index + 1 < result.browser_flags.length ? String(result.browser_flags[index + 1]) : '';
+      if (isDefaultBenchmarkDisableFeaturesValue(value)) {
+        index += 1;
+        continue;
+      }
+      flags.push(value ? `${flag}=${value}` : flag);
+      if (value) index += 1;
+      continue;
+    }
+    if (flag.startsWith('--disable-features=')) {
+      if (!isDefaultBenchmarkDisableFeaturesValue(flag.slice('--disable-features='.length))) {
+        flags.push(flag);
+      }
+      continue;
+    }
+    if (trustedBrowserExperimentSwitches.some((switchName) => flag === switchName || flag.startsWith(`${switchName}=`))) {
+      flags.push(flag);
+    }
+  }
+  return flags;
 }
 
 function validateTrustedExperimentMetadata(errors, result) {

@@ -90,7 +90,8 @@ function Assert-Matches {
     [string]$Description
   )
   if ($Text -notmatch $Pattern) {
-    throw "Post-ATL dry-run output did not include $Description. Pattern: $Pattern"
+    $Excerpt = if ($Text.Length -gt 1600) { $Text.Substring(0, 1600) + "..." } else { $Text }
+    throw "Post-ATL dry-run output did not include $Description. Pattern: $Pattern. Output excerpt: $Excerpt"
   }
 }
 
@@ -880,7 +881,7 @@ try {
     "-SkipForkBuild",
     "-SkipOfficialComparison"
   ) "incomplete skipped fork patch-series provenance"
-  Assert-Matches $IncompleteForkProvenanceFailureText "does not show patch-series entry applied:\s+chromium_patches\\0002-draft-webgpu-queue-trace-attribution\.patch" "skip-fork incomplete patch-series runtime guard"
+  Assert-Matches $IncompleteForkProvenanceFailureText "does not show patch-series entry\s+applied:\s+chromium_patches\\0002-draft-webgpu-queue-trace-attribution\.patch" "skip-fork incomplete patch-series runtime guard"
   if ($IncompleteForkProvenanceFailureText -match "Checking host and checkout prerequisites") {
     throw "Skip-fork patch-series provenance guard ran prebuild verification before rejecting the incomplete fork build."
   }
@@ -922,7 +923,7 @@ try {
     "-SkipForkBuild",
     "-SkipPackage"
   ) "mismatched skipped package executable"
-  Assert-Matches $MismatchedPackageFailureText "SkipPackage requires an existing stock baseline package executable does not match expected browser" "skip-package package executable hash runtime guard"
+  Assert-Matches $MismatchedPackageFailureText "SkipPackage requires an existing stock baseline package executable does not match\s+expected browser" "skip-package package executable hash runtime guard"
   if ($MismatchedPackageFailureText -match "Checking host and checkout prerequisites") {
     throw "Skip-package resume guard ran prebuild verification before rejecting the mismatched package executable."
   }

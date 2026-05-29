@@ -1,0 +1,3 @@
+pid=4956
+out=benchmarks\logs\fork-build-release-profile-j12-retry3-20260528-090412.out.log
+err=benchmarks\logs\fork-build-release-profile-j12-retry3-20260528-090412.err.log

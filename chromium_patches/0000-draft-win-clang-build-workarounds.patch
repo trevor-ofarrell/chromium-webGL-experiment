@@ -1,0 +1,55 @@
+diff --git a/build/config/compiler/BUILD.gn b/build/config/compiler/BUILD.gn
+index 7d38caf0fb..f07b1d05a9 100644
+--- a/build/config/compiler/BUILD.gn
++++ b/build/config/compiler/BUILD.gn
+@@ -112,6 +112,11 @@ declare_args() {
+   # Turn this on to have the compiler output extra timing information.
+   compiler_timing = false
+ 
++  # Disable LLVM's machine instruction scheduler. This should normally stay
++  # false; enable only as a documented local compiler-crash workaround where all
++  # compared artifacts use the same build profile.
++  disable_llvm_machine_scheduler = false
++
+   # Turn this on to use ghash feature of lld for faster debug link on Windows.
+   # http://blog.llvm.org/2018/01/improving-link-time-on-windows-with.html
+   use_ghash = true
+@@ -627,6 +632,12 @@ config("compiler") {
+       "-mllvm",
+       "-instcombine-lower-dbg-declare=0",
+     ]
++    if (disable_llvm_machine_scheduler) {
++      cflags += [
++        "-mllvm",
++        "-enable-misched=false",
++      ]
++    }
+     if (!is_debug && use_thin_lto && is_a_target_toolchain) {
+       if (is_win) {
+         ldflags += [ "-mllvm:-instcombine-lower-dbg-declare=0" ]
+diff --git a/build/config/sanitizers/sanitizers.gni b/build/config/sanitizers/sanitizers.gni
+index 329a2fc8b4..42c1fdc311 100644
+--- a/build/config/sanitizers/sanitizers.gni
++++ b/build/config/sanitizers/sanitizers.gni
+@@ -91,6 +91,12 @@ declare_args() {
+   # is_ubsan.
+   is_ubsan_security = false
+ 
++  # Enables lightweight UBSan hardening configs that Chromium applies outside
++  # full UBSan builds, such as array-bounds and return checks. Keep enabled for
++  # upstream-equivalent builds; disable only for documented compiler-crash
++  # workarounds where all compared artifacts use the same build profile.
++  enable_ubsan_hardening = true
++
+   # Helper variable for testing builds with disabled libfuzzer.
+   # Not for client use.
+   disable_libfuzzer = false
+@@ -530,7 +536,7 @@ template("ubsan_hardening") {
+       _condition = invoker.condition
+     }
+ 
+-    if (_condition && !is_ubsan && is_clang) {
++    if (_condition && enable_ubsan_hardening && !is_ubsan && is_clang) {
+       cflags = [
+         "-fsanitize=${invoker.sanitizer}",
+         "-fsanitize-trap=${invoker.sanitizer}",

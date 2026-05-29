@@ -1,5 +1,5 @@
 diff --git a/content/shell/app/shell_main_delegate.cc b/content/shell/app/shell_main_delegate.cc
-index 7d1fad8971..7f27311953 100644
+index 7d1fad8971..63ef55fca6 100644
 --- a/content/shell/app/shell_main_delegate.cc
 +++ b/content/shell/app/shell_main_delegate.cc
 @@ -22,6 +22,7 @@
@@ -19,13 +19,13 @@ index 7d1fad8971..7f27311953 100644
 +#include "third_party/blink/public/common/switches.h"
  #include "ui/base/resource/resource_bundle.h"
 +#include "ui/gl/gl_switches.h"
- 
+
  #if !BUILDFLAG(IS_ANDROID)
  #include "content/web_test/browser/web_test_browser_main_runner.h"  // nogncheck
-@@ -198,6 +201,78 @@ void InitLogging(const base::CommandLine& command_line) {
+@@ -198,6 +202,78 @@ void InitLogging(const base::CommandLine& command_line) {
                         true /* Timestamp */, false /* Tick count */);
  }
- 
+
 +void AppendSwitchIfAbsent(base::CommandLine& command_line,
 +                          const char switch_name[]) {
 +  if (!command_line.HasSwitch(switch_name))
@@ -99,14 +99,14 @@ index 7d1fad8971..7f27311953 100644
 +}
 +
  }  // namespace
- 
+
  namespace content {
-@@ -237,6 +309,7 @@ std::optional<int> ShellMainDelegate::BasicStartupComplete() {
+@@ -237,6 +313,7 @@ std::optional<int> ShellMainDelegate::BasicStartupComplete() {
  #endif  // BUILDFLAG(IS_MAC)
- 
+
    InitLogging(command_line);
 +  ConfigureViewerTrustedContentSwitches(command_line);
- 
+
  #if !BUILDFLAG(IS_ANDROID)
    if (switches::IsRunWebTestsSwitchPresent()) {
 diff --git a/content/shell/browser/shell.cc b/content/shell/browser/shell.cc
@@ -115,14 +115,14 @@ index cee8b0094c..3efae235ab 100644
 +++ b/content/shell/browser/shell.cc
 @@ -5,6 +5,7 @@
  #include "content/shell/browser/shell.h"
- 
+
  #include <stddef.h>
 +#include <stdio.h>
- 
+
  #include <map>
  #include <memory>
 @@ -164,8 +165,9 @@ void Shell::SetShellCreatedCallback(
- 
+
  // static
  bool Shell::ShouldHideToolbar() {
 -  return base::CommandLine::ForCurrentProcess()->HasSwitch(
@@ -131,7 +131,7 @@ index cee8b0094c..3efae235ab 100644
 +  return command_line->HasSwitch(switches::kContentShellHideToolbar) ||
 +         command_line->HasSwitch(switches::kViewerAppUrl);
  }
- 
+
  // static
 @@ -314,6 +316,13 @@ WebContents* Shell::AddNewContents(
      const blink::mojom::WindowFeatures& window_features,
@@ -178,7 +178,7 @@ index cee8b0094c..3efae235ab 100644
 +  }
 +  return handled_by_web_tests;
  }
- 
+
  void Shell::RendererUnresponsive(
 diff --git a/content/shell/browser/shell_browser_main_parts.cc b/content/shell/browser/shell_browser_main_parts.cc
 index 76ba15e7f8..3ab68b8ee1 100644
@@ -216,7 +216,7 @@ index 948a8755c0..fff958e4ca 100644
 @@ -13,12 +13,15 @@
  #include <utility>
  #include <vector>
- 
+
 +#include "base/base_paths.h"
  #include "base/base_switches.h"
  #include "base/command_line.h"
@@ -248,7 +248,7 @@ index 948a8755c0..fff958e4ca 100644
 @@ -246,6 +251,108 @@ base::flat_set<url::Origin> GetIsolatedContextOriginSetFromFlag() {
    return origin_set;
  }
- 
+
 +base::FilePath NormalizeViewerFilePath(base::FilePath path) {
 +  path = path.NormalizePathSeparators();
 +  if (path.empty() || path.ReferencesParent())
@@ -354,8 +354,40 @@ index 948a8755c0..fff958e4ca 100644
  // In content browser tests we allow more than one ShellContentBrowserClient
  // to be created (actually, ContentBrowserTestContentBrowserClient). Any state
  // needed should be added here so that it's shared between the instances.
-@@ -651,6 +758,11 @@ void ShellContentBrowserClient::OpenURL(
- 
+@@ -424,6 +531,31 @@ void ShellContentBrowserClient::AppendExtraCommandLineSwitches(
+       switches::kExposeInternalsForTesting,
+       switches::kRunWebTests,
+       switches::kTestRegisterStandardScheme,
++      switches::kViewerAppUrl,
++      switches::kViewerTrustedContent,
++      switches::kViewerDeferWebGPUPipelineFlush,
++      switches::kViewerDeferWebGPUQueueFlush,
++      switches::kViewerDeferWebGPUSubmitFlush,
++      switches::kViewerSkipWebGPUCanvasTextureValidation,
++      switches::kViewerSkipWebGPUCanvasMemoryAccounting,
++      switches::kViewerSkipWebGPUCopyExternalImageColorConversion,
++      switches::kViewerSkipWebGPUCopyExternalImageColorSpaceValidation,
++      switches::kViewerSkipWebGPUCopyExternalImageDestValidation,
++      switches::kViewerSkipWebGPUCopyExternalImageSourceValidation,
++      switches::kViewerSkipWebGPUCopyExternalImageCopySizeValidation,
++      switches::kViewerSkipWebGPUWriteTextureLayoutValidation,
++      switches::kViewerRejectWebGPUCPUTextureFallback,
++      switches::kViewerSkipWebGPUUseCounters,
++      switches::kViewerCacheWebGPUBindGroupLayouts,
++      switches::kViewerSkipWebGPUCommandLabels,
++      switches::kViewerSkipWebGPUResourceLabels,
++      switches::kViewerSkipWebGPUShaderSourceNullCheck,
++      switches::kViewerSkipWebGPUShaderMemoryAccounting,
++      switches::kViewerSkipWebGPURedundantPipelineSets,
++      switches::kViewerSkipWebGPURedundantBindGroupSets,
++      switches::kViewerSkipWebGPURedundantBufferSets,
++      switches::kViewerSkipWebGPURedundantRenderStateSets,
++      switches::kViewerTraceWebGPUQueue,
+   };
+
+   command_line->CopySwitchesFrom(*base::CommandLine::ForCurrentProcess(),
+@@ -651,6 +783,11 @@ void ShellContentBrowserClient::OpenURL(
+
  void ShellContentBrowserClient::CreateThrottlesForNavigation(
      NavigationThrottleRegistry& registry) {
 +  if (base::CommandLine::ForCurrentProcess()->HasSwitch(
@@ -367,13 +399,13 @@ index 948a8755c0..fff958e4ca 100644
      create_throttles_for_navigation_callback_.Run(registry);
    }
 diff --git a/content/shell/common/shell_switches.h b/content/shell/common/shell_switches.h
-index 8757fa418d..7c7941b90d 100644
+index 8757fa418d..7e2039fb2f 100644
 --- a/content/shell/common/shell_switches.h
 +++ b/content/shell/common/shell_switches.h
-@@ -40,6 +40,52 @@ inline constexpr char kContentShellHostWindowSize[] =
+@@ -40,6 +40,100 @@ inline constexpr char kContentShellHostWindowSize[] =
  // Hides toolbar from content_shell's host window.
  inline constexpr char kContentShellHideToolbar[] = "content-shell-hide-toolbar";
- 
+
 +// Loads the single-purpose Three.js viewer URL or local path at startup.
 +inline constexpr char kViewerAppUrl[] = "viewer-app-url";
 +
@@ -420,14 +452,62 @@ index 8757fa418d..7c7941b90d 100644
 +inline constexpr char kViewerDirectGpuPresentation[] =
 +    "viewer-direct-gpu-presentation";
 +
++// Trusted-content WebGPU source experiments. These switches are also forwarded
++// to renderer child processes so Blink WebGPU code can observe them.
++inline constexpr char kViewerDeferWebGPUPipelineFlush[] =
++    "viewer-defer-webgpu-pipeline-flush";
++inline constexpr char kViewerDeferWebGPUQueueFlush[] =
++    "viewer-defer-webgpu-queue-flush";
++inline constexpr char kViewerDeferWebGPUSubmitFlush[] =
++    "viewer-defer-webgpu-submit-flush";
++inline constexpr char kViewerSkipWebGPUCanvasTextureValidation[] =
++    "viewer-skip-webgpu-canvas-texture-validation";
++inline constexpr char kViewerSkipWebGPUCanvasMemoryAccounting[] =
++    "viewer-skip-webgpu-canvas-memory-accounting";
++inline constexpr char kViewerSkipWebGPUCopyExternalImageColorConversion[] =
++    "viewer-skip-webgpu-copy-external-image-color-conversion";
++inline constexpr char kViewerSkipWebGPUCopyExternalImageColorSpaceValidation[] =
++    "viewer-skip-webgpu-copy-external-image-color-space-validation";
++inline constexpr char kViewerSkipWebGPUCopyExternalImageDestValidation[] =
++    "viewer-skip-webgpu-copy-external-image-dest-validation";
++inline constexpr char kViewerSkipWebGPUCopyExternalImageSourceValidation[] =
++    "viewer-skip-webgpu-copy-external-image-source-validation";
++inline constexpr char kViewerSkipWebGPUCopyExternalImageCopySizeValidation[] =
++    "viewer-skip-webgpu-copy-external-image-copy-size-validation";
++inline constexpr char kViewerSkipWebGPUWriteTextureLayoutValidation[] =
++    "viewer-skip-webgpu-write-texture-layout-validation";
++inline constexpr char kViewerRejectWebGPUCPUTextureFallback[] =
++    "viewer-reject-webgpu-cpu-texture-fallback";
++inline constexpr char kViewerSkipWebGPUUseCounters[] =
++    "viewer-skip-webgpu-use-counters";
++inline constexpr char kViewerCacheWebGPUBindGroupLayouts[] =
++    "viewer-cache-webgpu-bind-group-layouts";
++inline constexpr char kViewerSkipWebGPUCommandLabels[] =
++    "viewer-skip-webgpu-command-labels";
++inline constexpr char kViewerSkipWebGPUResourceLabels[] =
++    "viewer-skip-webgpu-resource-labels";
++inline constexpr char kViewerSkipWebGPUShaderSourceNullCheck[] =
++    "viewer-skip-webgpu-shader-source-null-check";
++inline constexpr char kViewerSkipWebGPUShaderMemoryAccounting[] =
++    "viewer-skip-webgpu-shader-memory-accounting";
++inline constexpr char kViewerSkipWebGPURedundantPipelineSets[] =
++    "viewer-skip-webgpu-redundant-pipeline-sets";
++inline constexpr char kViewerSkipWebGPURedundantBindGroupSets[] =
++    "viewer-skip-webgpu-redundant-bind-group-sets";
++inline constexpr char kViewerSkipWebGPURedundantBufferSets[] =
++    "viewer-skip-webgpu-redundant-buffer-sets";
++inline constexpr char kViewerSkipWebGPURedundantRenderStateSets[] =
++    "viewer-skip-webgpu-redundant-render-state-sets";
++inline constexpr char kViewerTraceWebGPUQueue[] = "viewer-trace-webgpu-queue";
++
  // Enables APIs guarded with the [IsolatedContext] IDL attribute for the given
  // comma-separated list of origins.
  inline constexpr char kIsolatedContextOrigins[] = "isolated-context-origins";
 diff --git a/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc b/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc
-index 172759394d..5215b1fa22 100644
+index 172759394d..37a1bcf9e6 100644
 --- a/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc
 +++ b/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc
-@@ -31,10 +31,12 @@
+@@ -31,6 +31,7 @@
  #include "base/bit_cast.h"
  #include "base/byte_size.h"
  #include "base/compiler_specific.h"
@@ -435,16 +515,10 @@ index 172759394d..5215b1fa22 100644
  #include "base/feature_list.h"
  #include "base/memory/scoped_refptr.h"
  #include "base/metrics/histogram_functions.h"
- #include "base/metrics/histogram_macros.h"
-+#include "base/no_destructor.h"
- #include "base/notimplemented.h"
- #include "base/numerics/checked_math.h"
- #include "base/synchronization/lock.h"
-@@ -242,6 +244,38 @@ enum class WebGLANGLEImplementation {
+@@ -242,6 +243,38 @@ enum class WebGLANGLEImplementation {
    kMaxValue = kWebGL2_D3D11Warp,
  };
--
-+
+
 +constexpr char kViewerAppUrlSwitch[] = "viewer-app-url";
 +constexpr char kViewerTrustedContentSwitch[] = "viewer-trusted-content";
 +constexpr char kViewerRelaxedWebGLValidationSwitch[] =
@@ -472,19 +546,18 @@ index 172759394d..5215b1fa22 100644
 +}
 +
 +const ViewerWebGLExperimentState& GetViewerWebGLExperimentState() {
-+  static const base::NoDestructor<ViewerWebGLExperimentState> state(
-+      BuildViewerWebGLExperimentState());
-+  return *state;
++  static const ViewerWebGLExperimentState state =
++      BuildViewerWebGLExperimentState();
++  return state;
 +}
 +
  bool CopyVideoFrameTexturesToGLTextureViaIntermediateSI(
      viz::RasterContextProvider* raster_context_provider,
      gpu::gles2::GLES2Interface* destination_gl,
-@@ -3298,6 +3332,10 @@ bool WebGLRenderingContextBase::ValidateRenderingState(
+@@ -3298,6 +3331,10 @@ bool WebGLRenderingContextBase::ValidateRenderingState(
    return true;
  }
--
-+
+
 +bool WebGLRenderingContextBase::ShouldRelaxWebGLDrawValidation() const {
 +  return GetViewerWebGLExperimentState().relaxed_draw_validation;
 +}
@@ -492,22 +565,20 @@ index 172759394d..5215b1fa22 100644
  bool WebGLRenderingContextBase::ValidateNullableWebGLObject(
      const char* function_name,
      WebGLObject* object) {
-@@ -8802,6 +8840,9 @@ bool WebGLRenderingContextBase::ValidateDrawArrays(const char* function_name) {
+@@ -8802,6 +8839,9 @@ bool WebGLRenderingContextBase::ValidateDrawArrays(const char* function_name) {
    if (isContextLost())
      return false;
--
-+
+
 +  if (ShouldRelaxWebGLDrawValidation())
 +    return true;
 +
    if (!ValidateRenderingState(function_name)) {
      return false;
    }
-@@ -8822,6 +8863,9 @@ bool WebGLRenderingContextBase::ValidateDrawElements(const char* function_name,
+@@ -8822,6 +8862,9 @@ bool WebGLRenderingContextBase::ValidateDrawElements(const char* function_name,
    if (isContextLost())
      return false;
--
-+
+
 +  if (ShouldRelaxWebGLDrawValidation())
 +    return true;
 +
@@ -529,12 +600,10 @@ index aaee965c67..8473da15ea 100644
                          "no buffer is bound to enabled attribute");
        return;
 @@ -824,6 +825,7 @@ class MODULES_EXPORT WebGLRenderingContextBase
--
-+
+
    // Check if each enabled vertex attribute is bound to a buffer.
    bool ValidateRenderingState(const char*);
 +  bool ShouldRelaxWebGLDrawValidation() const;
--
-+
+
    // Helper function for APIs which can legally receive null objects, including
    // the bind* calls (bindBuffer, bindTexture, etc.) and useProgram. Checks that

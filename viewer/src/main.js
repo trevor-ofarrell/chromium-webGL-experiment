@@ -1189,7 +1189,11 @@ function installWebGpuBindGroupInstrumentation(rendererBundle, enabled) {
     sequenceEmptyDynamicOffsetCount: 0,
     typedArrayEmptyDynamicOffsetCount: 0,
     nonEmptyDynamicOffsetCount: 0,
+    redundantSetCount: 0,
+    redundantNoDynamicOffsetSetCount: 0,
     measuredSetCount: 0,
+    measuredRedundantSetCount: 0,
+    measuredRedundantNoDynamicOffsetSetCount: 0,
     measuredTypedArrayEmptyDynamicOffsetCount: 0,
   };
 
@@ -1206,7 +1210,12 @@ function installWebGpuBindGroupInstrumentation(rendererBundle, enabled) {
     webgpu_bind_group_set_sequence_empty_dynamic_offsets_count: state.sequenceEmptyDynamicOffsetCount,
     webgpu_bind_group_set_typed_array_empty_dynamic_offsets_count: state.typedArrayEmptyDynamicOffsetCount,
     webgpu_bind_group_set_non_empty_dynamic_offsets_count: state.nonEmptyDynamicOffsetCount,
+    webgpu_bind_group_set_redundant_count: state.redundantSetCount,
+    webgpu_bind_group_set_redundant_no_dynamic_offsets_count: state.redundantNoDynamicOffsetSetCount,
     webgpu_bind_group_set_measured_count: state.measuredSetCount,
+    webgpu_bind_group_set_measured_redundant_count: state.measuredRedundantSetCount,
+    webgpu_bind_group_set_measured_redundant_no_dynamic_offsets_count:
+      state.measuredRedundantNoDynamicOffsetSetCount,
     webgpu_bind_group_set_measured_typed_array_empty_dynamic_offsets_count:
       state.measuredTypedArrayEmptyDynamicOffsetCount,
   });
@@ -1223,7 +1232,7 @@ function installWebGpuBindGroupInstrumentation(rendererBundle, enabled) {
 
   const failures = [];
   let installedCount = 0;
-  const lastPipelineByEncoder = new WeakMap();
+  const lastBindGroupsByEncoder = new WeakMap();
   const install = ({ constructorName, encoderKey }) => {
     const constructor = globalThis[constructorName];
     const prototype = constructor?.prototype;
@@ -1240,21 +1249,49 @@ function installWebGpuBindGroupInstrumentation(rendererBundle, enabled) {
     try {
       const wrapper = function instrumentedWebGpuSetBindGroup(...args) {
         const phase = state.phase;
+        const index = Number(args[0]);
+        const bindGroup = args[1] || null;
+        const encoder = (typeof this === 'object' || typeof this === 'function') && this !== null ? this : null;
+        let previous = null;
+        if (encoder && Number.isInteger(index) && index >= 0) {
+          previous = lastBindGroupsByEncoder.get(encoder)?.get(index) || null;
+        }
+        const classification = dynamicOffsetClassification(args);
+        const noDynamicOffsets =
+          classification === 'none' ||
+          classification === 'sequenceEmpty' ||
+          classification === 'typedArrayEmpty';
+        const redundant = bindGroup !== null && previous === bindGroup;
         const start = performance.now();
         try {
           return original.apply(this, args);
         } finally {
+          if (encoder && Number.isInteger(index) && index >= 0) {
+            let lastByIndex = lastBindGroupsByEncoder.get(encoder);
+            if (!lastByIndex) {
+              lastByIndex = new Map();
+              lastBindGroupsByEncoder.set(encoder, lastByIndex);
+            }
+            lastByIndex.set(index, bindGroup);
+          }
           const elapsed = performance.now() - start;
           state.setCount += 1;
           state.setMs += elapsed;
           state[`${encoderKey}Count`] += 1;
-          const classification = dynamicOffsetClassification(args);
           if (classification === 'none') state.noDynamicOffsetCount += 1;
           else if (classification === 'sequenceEmpty') state.sequenceEmptyDynamicOffsetCount += 1;
           else if (classification === 'typedArrayEmpty') state.typedArrayEmptyDynamicOffsetCount += 1;
           else state.nonEmptyDynamicOffsetCount += 1;
+          if (redundant) {
+            state.redundantSetCount += 1;
+            if (noDynamicOffsets) state.redundantNoDynamicOffsetSetCount += 1;
+          }
           if (phase === 'measure') {
             state.measuredSetCount += 1;
+            if (redundant) {
+              state.measuredRedundantSetCount += 1;
+              if (noDynamicOffsets) state.measuredRedundantNoDynamicOffsetSetCount += 1;
+            }
             if (classification === 'typedArrayEmpty') {
               state.measuredTypedArrayEmptyDynamicOffsetCount += 1;
             }
@@ -1320,6 +1357,7 @@ function installWebGpuPipelineStateInstrumentation(rendererBundle, enabled) {
 
   const failures = [];
   let installedCount = 0;
+  const lastPipelineByEncoder = new WeakMap();
   const install = ({ constructorName, encoderKey }) => {
     const constructor = globalThis[constructorName];
     const prototype = constructor?.prototype;

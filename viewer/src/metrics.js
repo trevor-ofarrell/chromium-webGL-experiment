@@ -177,6 +177,10 @@ export class BenchmarkRecorder {
 
   finalize() {
     const avgFrameMs = average(this.frameTimes);
+    const droppedFrames = this.frameTimes.filter((value) => value > 25).length;
+    const droppedFrameRate = this.frameTimes.length
+      ? droppedFrames / this.frameTimes.length
+      : 0;
     const drawCalls = average(this.drawCalls) || this.lastSceneStats?.drawCalls || null;
     const triangles = average(this.triangles) || this.lastSceneStats?.triangles || null;
     const geometryMemory = seriesStats(this.rendererMemory.geometries);
@@ -191,7 +195,7 @@ export class BenchmarkRecorder {
     const shaderCompileEventSource = this.runtimeShaderCompileEvents !== null
       ? 'renderer-program-delta'
       : 'scene-declared';
-    return {
+    const result = {
       chromium_revision: null,
       fork_revision: null,
       build_args_hash: null,
@@ -214,11 +218,20 @@ export class BenchmarkRecorder {
       avg_gpu_frame_ms: average(this.gpuTimes),
       avg_js_frame_ms: average(this.updateTimes),
       avg_render_submission_ms: average(this.renderTimes),
+      p95_cpu_frame_ms: percentile(this.cpuFrameTimes, 0.95),
+      p99_cpu_frame_ms: percentile(this.cpuFrameTimes, 0.99),
+      p95_gpu_frame_ms: percentile(this.gpuTimes, 0.95),
+      p99_gpu_frame_ms: percentile(this.gpuTimes, 0.99),
+      p95_js_frame_ms: percentile(this.updateTimes, 0.95),
+      p99_js_frame_ms: percentile(this.updateTimes, 0.99),
+      p95_render_submission_ms: percentile(this.renderTimes, 0.95),
+      p99_render_submission_ms: percentile(this.renderTimes, 0.99),
       avg_compositor_latency_ms: null,
       avg_presentation_latency_ms: null,
       avg_frame_ms: avgFrameMs,
       max_frame_ms: this.frameTimes.length ? Math.max(...this.frameTimes) : null,
-      dropped_frames: this.frameTimes.filter((value) => value > 25).length,
+      dropped_frames: droppedFrames,
+      dropped_frame_rate: droppedFrameRate,
       draw_calls: drawCalls,
       triangles,
       texture_upload_mb: this.textureUploadBytes / (1024 * 1024),
@@ -268,7 +281,14 @@ export class BenchmarkRecorder {
       renderer_programs_end: programMemory.end,
       renderer_programs_peak: programMemory.peak,
       renderer_programs_delta: programMemory.delta,
-      frame_times_ms: this.frameTimes,
+      frame_times_ms: [...this.frameTimes],
+      cpu_frame_times_ms: [...this.cpuFrameTimes],
+      js_frame_times_ms: [...this.updateTimes],
+      render_submission_times_ms: [...this.renderTimes],
     };
+    if (this.gpuTimes.length) {
+      result.gpu_frame_times_ms = [...this.gpuTimes];
+    }
+    return result;
   }
 }

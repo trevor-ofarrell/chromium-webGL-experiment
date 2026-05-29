@@ -1,11 +1,14 @@
 {
-  "generated_at": "2026-05-21T00:39:11.976Z",
+  "generated_at": "2026-05-28T21:51:51.695Z",
   "platform": "Windows_NT 10.0.26200 x64",
   "browser_executable": "C:\\Users\\trevo\\code\\three-browser\\src\\out\\ReleaseViewerDefault\\content_shell.exe",
   "browser_version": null,
+  "gpu_name": null,
+  "driver_version": null,
+  "angle_backend": null,
   "browser_flags": [
-    "--remote-debugging-port=57349",
-    "--user-data-dir=C:\\Users\\trevo\\code\\three-browser\\benchmarks\\tmp\\smoke-profile-kZGKjA",
+    "--remote-debugging-port=61205",
+    "--user-data-dir=C:\\Users\\trevo\\code\\three-browser\\benchmarks\\tmp\\smoke-profile-k9gFCN",
     "--no-first-run",
     "--disable-default-apps",
     "--disable-background-networking",
@@ -17,21 +20,26 @@
     "--enable-webgpu-developer-features",
     "--disable-renderer-backgrounding",
     "--disable-background-timer-throttling",
-    "--viewer-app-url=http://127.0.0.1:57348/__smoke.html",
+    "--force-high-performance-gpu",
+    "--window-size=640,480",
+    "--window-position=40,40",
+    "--force-device-scale-factor=1",
+    "--viewer-app-url=http://127.0.0.1:61204/__smoke.html",
     "--viewer-block-external-navigation",
     "--viewer-trusted-content"
   ],
   "browser_extra_flags": [],
+  "allow_software_rendering": false,
   "viewer_dir": "C:\\Users\\trevo\\code\\three-browser\\viewer\\dist",
   "viewer_mode": true,
   "viewer_trusted_content": true,
-  "viewer_app_url": "http://127.0.0.1:57348/__smoke.html",
+  "viewer_app_url": "http://127.0.0.1:61204/__smoke.html",
   "ok": true,
   "tests": [
     {
       "name": "viewer_launch",
       "status": "pass",
-      "duration_ms": 601,
+      "duration_ms": 300,
       "details": {
         "canvas": true,
         "hud": true,
@@ -41,7 +49,7 @@
     {
       "name": "webgl2_context",
       "status": "pass",
-      "duration_ms": 52,
+      "duration_ms": 15,
       "details": {
         "version": "WebGL 2.0 (OpenGL ES 3.0 Chromium)",
         "vendor": "Google Inc. (NVIDIA)",
@@ -51,11 +59,11 @@
     {
       "name": "web_platform_basics",
       "status": "pass",
-      "duration_ms": 53,
+      "duration_ms": 18,
       "details": {
         "canvas_2d": true,
-        "raf_timestamp_ms": 917.7,
-        "performance_delta_ms": 2,
+        "raf_timestamp_ms": 505.4,
+        "performance_delta_ms": 9.700000002980232,
         "fetch_content_type": "image/svg+xml",
         "fetch_bytes": 621
       }
@@ -63,7 +71,7 @@
     {
       "name": "basic_input_events",
       "status": "pass",
-      "duration_ms": 8,
+      "duration_ms": 3,
       "details": {
         "events": [
           "pointerdown",
@@ -80,7 +88,7 @@
     {
       "name": "webgl_context_loss_event",
       "status": "pass",
-      "duration_ms": 440,
+      "duration_ms": 432,
       "details": {
         "lost": 1,
         "restored": 1
@@ -89,7 +97,7 @@
     {
       "name": "webgpu_adapter_device",
       "status": "pass",
-      "duration_ms": 259,
+      "duration_ms": 205,
       "details": {
         "features": [
           "bgra8unorm-storage",
@@ -121,7 +129,7 @@
     {
       "name": "webgpu_device_loss_signal",
       "status": "pass",
-      "duration_ms": 67,
+      "duration_ms": 57,
       "details": {
         "reason": "destroyed",
         "message": "Device was destroyed."
@@ -130,11 +138,11 @@
     {
       "name": "three_webgpu_render",
       "status": "pass",
-      "duration_ms": 641,
+      "duration_ms": 339,
       "details": {
         "is_webgpu_renderer": true,
         "backend": "WebGPUBackend",
-        "render_ms": 256.8000000715256,
+        "render_ms": 184.40000000596046,
         "canvas_width": 64,
         "canvas_height": 64
       }
@@ -142,7 +150,7 @@
     {
       "name": "three_cube_render",
       "status": "pass",
-      "duration_ms": 142,
+      "duration_ms": 90,
       "details": {
         "center_pixel_rgba": [
           0,
@@ -155,7 +163,7 @@
     {
       "name": "texture_load",
       "status": "pass",
-      "duration_ms": 85,
+      "duration_ms": 53,
       "details": {
         "image_bitmap_supported": true,
         "sample_pixel_rgba": [
@@ -169,7 +177,7 @@
     {
       "name": "shader_material",
       "status": "pass",
-      "duration_ms": 56,
+      "duration_ms": 44,
       "details": {
         "center_pixel_rgba": [
           129,
@@ -182,13 +190,13 @@
     {
       "name": "benchmark_run",
       "status": "pass",
-      "duration_ms": 3365,
+      "duration_ms": 3085,
       "details": {
         "scene_name": "many-draw-calls",
         "renderer_type": "webgl2",
-        "avg_fps": 25.31360747032683,
-        "frame_count": 45,
-        "startup_ms_to_first_frame": 455.10000002384186
+        "avg_fps": 60.002033967253126,
+        "frame_count": 118,
+        "startup_ms_to_first_frame": 231.59999999403954
       }
     }
   ]

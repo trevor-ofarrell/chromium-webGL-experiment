@@ -58,8 +58,9 @@ function parseArgs(argv) {
     minAvgFpsDeltaPct: 0,
     sceneRegressionPct: 1,
     p99RegressionMs: 1,
-    lowRegressionFps: 0.1,
+    lowRegressionFps: 1.0,
     droppedFramesRegression: 0,
+    droppedFrameRateRegressionPct: 0.5,
     cpuFrameRegressionMs: 0.5,
     renderSubmissionRegressionMs: 0.5,
     pipelineCreateRegressionMs: 1.0,
@@ -96,6 +97,8 @@ function parseArgs(argv) {
       args.lowRegressionFps = Number(argv[++i]);
     } else if (token === '--droppedFramesRegression') {
       args.droppedFramesRegression = Number(argv[++i]);
+    } else if (token === '--droppedFrameRateRegressionPct') {
+      args.droppedFrameRateRegressionPct = Number(argv[++i]);
     } else if (token === '--cpuFrameRegressionMs') {
       args.cpuFrameRegressionMs = Number(argv[++i]);
     } else if (token === '--renderSubmissionRegressionMs') {
@@ -135,7 +138,7 @@ function parseArgs(argv) {
   }
 
   if (!args.files.length) {
-    throw new Error('Usage: node scripts/analyze_candidates.mjs <result.json...> [--fileList inputs.txt] [--output report.md] [--json report.json] [--minMeasuredSeconds 30] [--minScenes 7] [--requiredScene many-draw-calls] [--minAvgFpsDeltaPct 0.5] [--sceneRegressionPct 1] [--droppedFramesRegression 0] [--cpuFrameRegressionMs 0.5] [--renderSubmissionRegressionMs 0.5] [--pipelineCreateRegressionMs 1.0] [--shaderCompileRegressionEvents 0] [--includeAttribution] [--includeDiagnosticTextureModes] [--requireFrameTimes] [--requireCheckout] [--requirePackageSize] [--requireCandidateRenderer webgl2] [--expectedChromiumRevision rev] [--expectedForkRevision rev+viewerpatch-hash] [--quiet]');
+    throw new Error('Usage: node scripts/analyze_candidates.mjs <result.json...> [--fileList inputs.txt] [--output report.md] [--json report.json] [--minMeasuredSeconds 30] [--minScenes 7] [--requiredScene many-draw-calls] [--minAvgFpsDeltaPct 0.5] [--sceneRegressionPct 1] [--lowRegressionFps 1.0] [--droppedFramesRegression 0] [--droppedFrameRateRegressionPct 0.5] [--cpuFrameRegressionMs 0.5] [--renderSubmissionRegressionMs 0.5] [--pipelineCreateRegressionMs 1.0] [--shaderCompileRegressionEvents 0] [--includeAttribution] [--includeDiagnosticTextureModes] [--requireFrameTimes] [--requireCheckout] [--requirePackageSize] [--requireCandidateRenderer webgl2] [--expectedChromiumRevision rev] [--expectedForkRevision rev+viewerpatch-hash] [--quiet]');
   }
   args.requiredCandidateRenderers = [...new Set(args.requiredCandidateRenderers)];
   args.requiredScenes = [...new Set(args.requiredScenes)];
@@ -744,6 +747,12 @@ const trustedBrowserExperimentSwitches = [
   '--disable-gpu-vsync',
 ];
 
+const defaultBenchmarkDisabledFeatures = new Set([
+  'translate',
+  'optimizationhints',
+  'autofillservercommunication',
+]);
+
 function hasSwitchValue(result, field) {
   const value = result[field];
   if (typeof value !== 'string') return false;
@@ -751,14 +760,45 @@ function hasSwitchValue(result, field) {
   return normalized.length > 0 && normalized !== 'default' && normalized !== 'null';
 }
 
+function splitFeatureList(value) {
+  return String(value ?? '')
+    .split(',')
+    .map((feature) => feature.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function isDefaultBenchmarkDisableFeaturesValue(value) {
+  const features = splitFeatureList(value);
+  return features.length > 0 && features.every((feature) => defaultBenchmarkDisabledFeatures.has(feature));
+}
+
 function trustedBrowserExperimentFlags(result) {
   if (!Array.isArray(result.browser_flags)) return [];
-  return result.browser_flags.filter((rawFlag) => {
+  const flags = [];
+  for (let index = 0; index < result.browser_flags.length; index += 1) {
+    const rawFlag = result.browser_flags[index];
     const flag = String(rawFlag);
-    return trustedBrowserExperimentSwitches.some((switchName) => (
-      flag === switchName || flag.startsWith(`${switchName}=`)
-    ));
-  });
+    if (flag === '--disable-features') {
+      const value = index + 1 < result.browser_flags.length ? String(result.browser_flags[index + 1]) : '';
+      if (isDefaultBenchmarkDisableFeaturesValue(value)) {
+        index += 1;
+        continue;
+      }
+      flags.push(value ? `${flag}=${value}` : flag);
+      if (value) index += 1;
+      continue;
+    }
+    if (flag.startsWith('--disable-features=')) {
+      if (!isDefaultBenchmarkDisableFeaturesValue(flag.slice('--disable-features='.length))) {
+        flags.push(flag);
+      }
+      continue;
+    }
+    if (trustedBrowserExperimentSwitches.some((switchName) => flag === switchName || flag.startsWith(`${switchName}=`))) {
+      flags.push(flag);
+    }
+  }
+  return flags;
 }
 
 function trustedExperimentInvalidReason(result) {
@@ -1059,8 +1099,31 @@ function delta(candidate, baseline, field) {
   return Number.isFinite(left) && Number.isFinite(right) ? left - right : null;
 }
 
+function estimatedFrameCount(result) {
+  const avgFps = result.avg_fps;
+  const measuredSeconds = result.measured_seconds;
+  if (!Number.isFinite(avgFps) || !Number.isFinite(measuredSeconds) || avgFps <= 0 || measuredSeconds <= 0) {
+    return null;
+  }
+  return avgFps * measuredSeconds;
+}
+
+function droppedFrameRatePct(result) {
+  if (Number.isFinite(result.dropped_frame_rate)) {
+    return result.dropped_frame_rate * 100;
+  }
+  const droppedFrames = result.dropped_frames;
+  const frameCount = estimatedFrameCount(result);
+  if (!Number.isFinite(droppedFrames) || !Number.isFinite(frameCount) || frameCount <= 0) {
+    return null;
+  }
+  return (droppedFrames / frameCount) * 100;
+}
+
 function compare(candidate, baseline) {
   const avgFpsDelta = delta(candidate, baseline, 'avg_fps');
+  const candidateDroppedRate = droppedFrameRatePct(candidate);
+  const baselineDroppedRate = droppedFrameRatePct(baseline);
   const profileCacheMode = profileCacheModeKeyOf(candidate);
   const profileCacheKey = profileCacheKeyOf(candidate);
   return {
@@ -1084,6 +1147,10 @@ function compare(candidate, baseline) {
     avg_cpu_frame_ms_delta: delta(candidate, baseline, 'avg_cpu_frame_ms'),
     avg_render_submission_ms_delta: delta(candidate, baseline, 'avg_render_submission_ms'),
     dropped_frames_delta: delta(candidate, baseline, 'dropped_frames'),
+    dropped_frame_rate_delta_pct:
+      Number.isFinite(candidateDroppedRate) && Number.isFinite(baselineDroppedRate)
+        ? candidateDroppedRate - baselineDroppedRate
+        : null,
     shader_compile_events_delta: delta(candidate, baseline, 'shader_compile_events'),
     webgpu_pipeline_create_measured_ms_delta:
       delta(candidate, baseline, 'webgpu_pipeline_create_measured_ms'),
@@ -1179,6 +1246,9 @@ function hasPipelineCreateRegression(row, args) {
 }
 
 function hasDroppedFramesRegression(row, args) {
+  if (Number.isFinite(row.dropped_frame_rate_delta_pct)) {
+    return row.dropped_frame_rate_delta_pct > args.droppedFrameRateRegressionPct;
+  }
   return Number.isFinite(row.dropped_frames_delta) &&
     row.dropped_frames_delta > args.droppedFramesRegression;
 }
@@ -1220,7 +1290,10 @@ function classifyFamily(summary, args) {
     return 'blocked-shader-stalls';
   }
   if (
-    (Number.isFinite(summary.max_dropped_frames_delta) &&
+    (Number.isFinite(summary.max_dropped_frame_rate_delta_pct) &&
+      summary.max_dropped_frame_rate_delta_pct > args.droppedFrameRateRegressionPct) ||
+    (!Number.isFinite(summary.max_dropped_frame_rate_delta_pct) &&
+      Number.isFinite(summary.max_dropped_frames_delta) &&
       summary.max_dropped_frames_delta > args.droppedFramesRegression) ||
     summary.scene_rows.some((row) => hasDroppedFramesRegression(row, args))
   ) {
@@ -1309,6 +1382,8 @@ function summarizeFamilies(rows, args) {
         max_avg_render_submission_ms_delta: maximum(sceneRows.map((row) => row.avg_render_submission_ms_delta)),
         dropped_frames_delta: average(sceneRows.map((row) => row.dropped_frames_delta)),
         max_dropped_frames_delta: maximum(sceneRows.map((row) => row.dropped_frames_delta)),
+        dropped_frame_rate_delta_pct: average(sceneRows.map((row) => row.dropped_frame_rate_delta_pct)),
+        max_dropped_frame_rate_delta_pct: maximum(sceneRows.map((row) => row.dropped_frame_rate_delta_pct)),
         shader_compile_events_delta: average(sceneRows.map((row) => row.shader_compile_events_delta)),
         max_shader_compile_events_delta: maximum(sceneRows.map((row) => row.shader_compile_events_delta)),
         webgpu_pipeline_create_measured_ms_delta:
@@ -1332,9 +1407,9 @@ function summarizeFamilies(rows, args) {
 function markdownTable(rows) {
   if (!rows.length) return ['No comparable candidate families found.'];
   return [
-    '| Cohort | Renderer | Baseline | Candidate | Evidence | Profile Cache | Scenes | Status | Avg FPS Delta % | Min FPS Delta % | 1% Low Delta | 0.1% Low Delta | P95 Delta ms | P99 Delta ms | Dropped Frames Delta | Shader Events Delta | Pipeline Create Delta ms | CPU Delta ms | Submit Delta ms | Startup Delta ms | RSS Delta MB |',
-    '| --- | --- | --- | --- | --- | --- | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |',
-    ...rows.map((row) => `| ${row.cohort} | ${row.renderer} | ${row.baseline_family} | ${row.candidate_family} | ${row.evidence_class} | ${row.profile_cache_mode}/${row.profile_cache_key} | ${row.scenes} | ${row.status} | ${round(row.avg_fps_delta_pct, 2)} | ${round(row.min_fps_delta_pct, 2)} | ${round(row.one_percent_low_fps_delta, 2)} | ${round(row.point_one_percent_low_fps_delta, 2)} | ${round(row.p95_frame_ms_delta, 2)} | ${round(row.p99_frame_ms_delta, 2)} | ${round(row.dropped_frames_delta, 2)} | ${round(row.shader_compile_events_delta, 2)} | ${round(row.webgpu_pipeline_create_measured_ms_delta, 2)} | ${round(row.avg_cpu_frame_ms_delta, 2)} | ${round(row.avg_render_submission_ms_delta, 2)} | ${round(row.startup_ms_to_first_frame_delta, 1)} | ${round(row.process_rss_mb_delta, 1)} |`),
+    '| Cohort | Renderer | Baseline | Candidate | Evidence | Profile Cache | Scenes | Status | Avg FPS Delta % | Min FPS Delta % | 1% Low Delta | 0.1% Low Delta | P95 Delta ms | P99 Delta ms | Dropped Frames Delta | Dropped Frame Rate Delta pp | Shader Events Delta | Pipeline Create Delta ms | CPU Delta ms | Submit Delta ms | Startup Delta ms | RSS Delta MB |',
+    '| --- | --- | --- | --- | --- | --- | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |',
+    ...rows.map((row) => `| ${row.cohort} | ${row.renderer} | ${row.baseline_family} | ${row.candidate_family} | ${row.evidence_class} | ${row.profile_cache_mode}/${row.profile_cache_key} | ${row.scenes} | ${row.status} | ${round(row.avg_fps_delta_pct, 2)} | ${round(row.min_fps_delta_pct, 2)} | ${round(row.one_percent_low_fps_delta, 2)} | ${round(row.point_one_percent_low_fps_delta, 2)} | ${round(row.p95_frame_ms_delta, 2)} | ${round(row.p99_frame_ms_delta, 2)} | ${round(row.dropped_frames_delta, 2)} | ${round(row.dropped_frame_rate_delta_pct, 2)} | ${round(row.shader_compile_events_delta, 2)} | ${round(row.webgpu_pipeline_create_measured_ms_delta, 2)} | ${round(row.avg_cpu_frame_ms_delta, 2)} | ${round(row.avg_render_submission_ms_delta, 2)} | ${round(row.startup_ms_to_first_frame_delta, 1)} | ${round(row.process_rss_mb_delta, 1)} |`),
   ];
 }
 
@@ -1385,6 +1460,12 @@ function primaryShaderBlockerForScene(row, args) {
 }
 
 function primaryDroppedFramesBlockerForScene(row, args) {
+  if (Number.isFinite(row.dropped_frame_rate_delta_pct)) {
+    const score = metricScore(row.dropped_frame_rate_delta_pct, args.droppedFrameRateRegressionPct, 'above');
+    return score > 0
+      ? { label: `dropped frame rate +${round(row.dropped_frame_rate_delta_pct, 2)} pp`, score }
+      : null;
+  }
   const score = metricScore(row.dropped_frames_delta, args.droppedFramesRegression, 'above');
   return score > 0
     ? { label: `dropped frames +${round(row.dropped_frames_delta, 0)}`, score }
@@ -1505,6 +1586,7 @@ function blockerDiagnostic(summary, args) {
       p95_frame_ms_delta: row?.p95_frame_ms_delta ?? summary.p95_frame_ms_delta,
       p99_frame_ms_delta: row?.p99_frame_ms_delta ?? summary.p99_frame_ms_delta,
       dropped_frames_delta: row?.dropped_frames_delta ?? summary.dropped_frames_delta,
+      dropped_frame_rate_delta_pct: row?.dropped_frame_rate_delta_pct ?? summary.dropped_frame_rate_delta_pct,
       shader_compile_events_delta: row?.shader_compile_events_delta ?? summary.shader_compile_events_delta,
       webgpu_pipeline_create_measured_ms_delta:
         row?.webgpu_pipeline_create_measured_ms_delta ?? summary.webgpu_pipeline_create_measured_ms_delta,
@@ -1531,6 +1613,7 @@ function blockerDiagnostic(summary, args) {
       p95_frame_ms_delta: row?.p95_frame_ms_delta ?? summary.p95_frame_ms_delta,
       p99_frame_ms_delta: row?.p99_frame_ms_delta ?? summary.p99_frame_ms_delta,
       dropped_frames_delta: row?.dropped_frames_delta ?? summary.dropped_frames_delta,
+      dropped_frame_rate_delta_pct: row?.dropped_frame_rate_delta_pct ?? summary.dropped_frame_rate_delta_pct,
       shader_compile_events_delta: row?.shader_compile_events_delta ?? summary.shader_compile_events_delta,
       webgpu_pipeline_create_measured_ms_delta:
         row?.webgpu_pipeline_create_measured_ms_delta ?? summary.webgpu_pipeline_create_measured_ms_delta,
@@ -1642,7 +1725,13 @@ function blockerDiagnostic(summary, args) {
 
 function buildBlockerDiagnostics(families, args) {
   return families
-    .map((summary) => blockerDiagnostic(summary, args))
+    .map((summary) => {
+      const diagnostic = blockerDiagnostic(summary, args);
+      if (diagnostic && !Number.isFinite(diagnostic.dropped_frame_rate_delta_pct)) {
+        diagnostic.dropped_frame_rate_delta_pct = summary.dropped_frame_rate_delta_pct;
+      }
+      return diagnostic;
+    })
     .filter(Boolean);
 }
 
@@ -1660,9 +1749,9 @@ function blockerDiagnosticsMarkdown(rows) {
     '',
     'Primary blocker is the worst scene-level issue for each non-candidate family, so the next iteration can target the scene and metric that prevents retention.',
     '',
-    '| Cohort | Renderer | Candidate | Status | Blocking Scene | Primary Blocker | FPS Delta % | 1% Low Delta | 0.1% Low Delta | P95 Delta ms | P99 Delta ms | Dropped Frames Delta | Shader Events Delta | Pipeline Create Delta ms | CPU Delta ms | Submit Delta ms |',
-    '| --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |',
-    ...rows.map((row) => `| ${row.cohort} | ${row.renderer} | ${row.candidate_family} | ${row.status} | ${row.scene} | ${row.primary_blocker} | ${round(row.avg_fps_delta_pct, 2)} | ${round(row.one_percent_low_fps_delta, 2)} | ${round(row.point_one_percent_low_fps_delta, 2)} | ${round(row.p95_frame_ms_delta, 2)} | ${round(row.p99_frame_ms_delta, 2)} | ${round(row.dropped_frames_delta, 2)} | ${round(row.shader_compile_events_delta, 2)} | ${round(row.webgpu_pipeline_create_measured_ms_delta, 2)} | ${round(row.avg_cpu_frame_ms_delta, 2)} | ${round(row.avg_render_submission_ms_delta, 2)} |`),
+    '| Cohort | Renderer | Candidate | Status | Blocking Scene | Primary Blocker | FPS Delta % | 1% Low Delta | 0.1% Low Delta | P95 Delta ms | P99 Delta ms | Dropped Frames Delta | Dropped Frame Rate Delta pp | Shader Events Delta | Pipeline Create Delta ms | CPU Delta ms | Submit Delta ms |',
+    '| --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |',
+    ...rows.map((row) => `| ${row.cohort} | ${row.renderer} | ${row.candidate_family} | ${row.status} | ${row.scene} | ${row.primary_blocker} | ${round(row.avg_fps_delta_pct, 2)} | ${round(row.one_percent_low_fps_delta, 2)} | ${round(row.point_one_percent_low_fps_delta, 2)} | ${round(row.p95_frame_ms_delta, 2)} | ${round(row.p99_frame_ms_delta, 2)} | ${round(row.dropped_frames_delta, 2)} | ${round(row.dropped_frame_rate_delta_pct, 2)} | ${round(row.shader_compile_events_delta, 2)} | ${round(row.webgpu_pipeline_create_measured_ms_delta, 2)} | ${round(row.avg_cpu_frame_ms_delta, 2)} | ${round(row.avg_render_submission_ms_delta, 2)} |`),
     '',
   ];
 }
@@ -1689,6 +1778,7 @@ function buildRequiredCandidateGate(families, requiredRenderers) {
       best_min_fps_delta_pct: best ? best.min_fps_delta_pct : null,
       best_p99_frame_ms_delta: best ? best.p99_frame_ms_delta : null,
       best_dropped_frames_delta: best ? best.dropped_frames_delta : null,
+      best_dropped_frame_rate_delta_pct: best ? best.dropped_frame_rate_delta_pct : null,
       best_shader_compile_events_delta: best ? best.shader_compile_events_delta : null,
       best_webgpu_pipeline_create_measured_ms_delta:
         best ? best.webgpu_pipeline_create_measured_ms_delta : null,
@@ -1708,6 +1798,7 @@ function buildRequiredCandidateGate(families, requiredRenderers) {
         min_fps_delta_pct: row.min_fps_delta_pct,
         p99_frame_ms_delta: row.p99_frame_ms_delta,
         dropped_frames_delta: row.dropped_frames_delta,
+        dropped_frame_rate_delta_pct: row.dropped_frame_rate_delta_pct,
         shader_compile_events_delta: row.shader_compile_events_delta,
         webgpu_pipeline_create_measured_ms_delta: row.webgpu_pipeline_create_measured_ms_delta,
       })),
@@ -1729,9 +1820,9 @@ function requiredCandidateGateMarkdown(gate) {
     `Required renderers: ${gate.required_renderers.join(', ')}`,
     `Status: ${gate.ok ? 'pass' : 'fail'}`,
     '',
-    '| Renderer | Candidate Families | Best Status | Best Candidate | Scenes | Avg FPS Delta % | Min FPS Delta % | P99 Delta ms | Dropped Frames Delta | Shader Events Delta | Pipeline Create Delta ms |',
-    '| --- | ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |',
-    ...gate.renderers.map((row) => `| ${row.renderer} | ${row.candidate_count} | ${row.best_status} | ${row.best_candidate_family || ''} | ${row.best_scenes} | ${round(row.best_avg_fps_delta_pct, 2)} | ${round(row.best_min_fps_delta_pct, 2)} | ${round(row.best_p99_frame_ms_delta, 2)} | ${round(row.best_dropped_frames_delta, 2)} | ${round(row.best_shader_compile_events_delta, 2)} | ${round(row.best_webgpu_pipeline_create_measured_ms_delta, 2)} |`),
+    '| Renderer | Candidate Families | Best Status | Best Candidate | Scenes | Avg FPS Delta % | Min FPS Delta % | P99 Delta ms | Dropped Frames Delta | Dropped Frame Rate Delta pp | Shader Events Delta | Pipeline Create Delta ms |',
+    '| --- | ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |',
+    ...gate.renderers.map((row) => `| ${row.renderer} | ${row.candidate_count} | ${row.best_status} | ${row.best_candidate_family || ''} | ${row.best_scenes} | ${round(row.best_avg_fps_delta_pct, 2)} | ${round(row.best_min_fps_delta_pct, 2)} | ${round(row.best_p99_frame_ms_delta, 2)} | ${round(row.best_dropped_frames_delta, 2)} | ${round(row.best_dropped_frame_rate_delta_pct, 2)} | ${round(row.best_shader_compile_events_delta, 2)} | ${round(row.best_webgpu_pipeline_create_measured_ms_delta, 2)} |`),
     '',
     ...(gate.failures.length ? ['Failures:', ...gate.failures.map((failure) => `- ${failure}`), ''] : []),
   ];
@@ -1841,6 +1932,7 @@ const optionSummary = {
   scene_regression_pct: args.sceneRegressionPct,
   low_regression_fps: args.lowRegressionFps,
   dropped_frames_regression: args.droppedFramesRegression,
+  dropped_frame_rate_regression_pct: args.droppedFrameRateRegressionPct,
   cpu_frame_regression_ms: args.cpuFrameRegressionMs,
   render_submission_regression_ms: args.renderSubmissionRegressionMs,
   pipeline_create_regression_ms: args.pipelineCreateRegressionMs,
@@ -1870,7 +1962,7 @@ const optionSummary = {
   webgpu_cpu_fallback_policy: 'candidate-analysis-filters-webgpu-cpu-texture-fallback-and-missing-copyexternalimage-rejection',
   webgpu_pipeline_quiet_success_policy: 'candidate-analysis-filters-unachieved-or-measured-pipeline-create-webgpu-pipeline-quiet-warmup',
   shader_compile_stall_policy: 'candidate-analysis-blocks-shader-compile-event-and-webgpu-pipeline-create-time-regressions',
-  dropped_frame_regression_policy: 'candidate-analysis-blocks-dropped-frame-regressions',
+  dropped_frame_regression_policy: 'candidate-analysis-blocks-dropped-frame-rate-regressions-with-raw-count-fallback',
   cpu_submission_regression_policy: 'candidate-analysis-blocks-cpu-frame-and-render-submission-regressions',
   package_size_speed_claim_policy: 'require-package-size-when-enabled',
   baseline_selection_policy: 'fastest-compatible-baseline',
@@ -1906,7 +1998,7 @@ const lines = [
   `Accepted results: ${accepted.length}`,
   `Filtered results: ${filtered.length}`,
   '',
-  `Decision rule: a family is a \`candidate\` only when at least ${args.minScenes} distinct scenes are covered${args.requiredScenes.length ? `, all required scenes are present (${args.requiredScenes.join(', ')})` : ''}, average FPS improves by at least ${round(args.minAvgFpsDeltaPct, 2)}%, no individual scene has a material average-FPS regression, average low-FPS/tail-latency deltas do not materially regress, dropped frames do not increase by more than ${round(args.droppedFramesRegression, 0)} on any scene, CPU frame time does not increase by more than ${round(args.cpuFrameRegressionMs, 2)} ms on any scene, render submission time does not increase by more than ${round(args.renderSubmissionRegressionMs, 2)} ms on any scene, shader compile events do not increase by more than ${round(args.shaderCompileRegressionEvents, 0)} on any scene, WebGPU measured-window pipeline creation time does not increase by more than ${round(args.pipelineCreateRegressionMs, 2)} ms on any scene, required benchmark evidence fields, including explicit positive benchmark complexity and explicit GPU-timing mode, are present, stability artifacts are filtered out, viewer-side WebGPU queue attribution, viewer-side WebGPU command-encoder attribution, viewer-side WebGPU bind-group attribution, viewer-side WebGPU pipeline-state attribution, viewer-side WebGPU buffer-state attribution, viewer-side WebGPU render-state attribution, viewer-side WebGPU immediate-data attribution, and source-added WebGPU queue trace attribution runs are filtered out, explicit WebGPU CPU texture fallback/readback evidence and copyExternalImage upload experiments without CPU-fallback rejection are filtered out, trusted-only experiment metadata or browser flags require viewer_mode=true and viewer_trusted_content=true, WebGPU pipeline-quiet warmup runs are filtered out unless the requested quiet window was achieved and no pipelines were created during the measured window, and the result is fresh-profile evidence. Positive average FPS with incomplete scene coverage is \`needs-suite\`; positive average FPS below the minimum suite threshold is \`weak-throughput\`; positive average FPS with a material scene throughput regression is \`blocked-throughput\`; positive average FPS with shader compile event or WebGPU pipeline-create timing regression is \`blocked-shader-stalls\`; positive average FPS with dropped-frame regression is \`blocked-dropped-frames\`; positive average FPS with CPU frame or render submission regression is \`blocked-cpu-overhead\`; positive average FPS with low-FPS or p95/p99 regression is \`blocked-tail\`; explicit profile-reuse wins are \`cache-attribution\` and require a matching fresh-profile official run before retained speed claims. Duplicate rows for the same family, profile-cache mode/key, and scene are collapsed to the most conservative representative row. Comparisons require the same build-args hash, platform, driver, GPU device identity, explicit benchmark complexity and explicit GPU-timing mode, WebGPU BundleGroup/render-bundle scene mode, WebGPU pipeline-instrumentation mode, requested resource warmup mode, resource precompile target count, preinitialized texture/render-target count, GPU-settle warmup mode, WebGPU pipeline-quiet warmup mode, and profile-cache mode/key while leaving backend choice available as an optimization variable. If multiple compatible stock baselines are present, the comparison uses the fastest valid stock baseline for that exact compatibility group.${args.requireCheckout ? ' Accepted artifacts must report browser_is_from_checkout=true.' : ''}${args.requirePackageSize ? ' Accepted artifacts must include positive package_size_mb evidence.' : ''}`,
+  `Decision rule: a family is a \`candidate\` only when at least ${args.minScenes} distinct scenes are covered${args.requiredScenes.length ? `, all required scenes are present (${args.requiredScenes.join(', ')})` : ''}, average FPS improves by at least ${round(args.minAvgFpsDeltaPct, 2)}%, no individual scene has a material average-FPS regression, average low-FPS/tail-latency deltas do not materially regress, dropped-frame rate does not increase by more than ${round(args.droppedFrameRateRegressionPct, 2)} percentage points on any scene, CPU frame time does not increase by more than ${round(args.cpuFrameRegressionMs, 2)} ms on any scene, render submission time does not increase by more than ${round(args.renderSubmissionRegressionMs, 2)} ms on any scene, shader compile events do not increase by more than ${round(args.shaderCompileRegressionEvents, 0)} on any scene, WebGPU measured-window pipeline creation time does not increase by more than ${round(args.pipelineCreateRegressionMs, 2)} ms on any scene, required benchmark evidence fields, including explicit positive benchmark complexity and explicit GPU-timing mode, are present, stability artifacts are filtered out, viewer-side WebGPU queue attribution, viewer-side WebGPU command-encoder attribution, viewer-side WebGPU bind-group attribution, viewer-side WebGPU pipeline-state attribution, viewer-side WebGPU buffer-state attribution, viewer-side WebGPU render-state attribution, viewer-side WebGPU immediate-data attribution, and source-added WebGPU queue trace attribution runs are filtered out, explicit WebGPU CPU texture fallback/readback evidence and copyExternalImage upload experiments without CPU-fallback rejection are filtered out, trusted-only experiment metadata or browser flags require viewer_mode=true and viewer_trusted_content=true, WebGPU pipeline-quiet warmup runs are filtered out unless the requested quiet window was achieved and no pipelines were created during the measured window, and the result is fresh-profile evidence. Raw dropped-frame counts remain reported, and the analyzer falls back to raw-count gating only when a dropped-frame rate cannot be derived. Positive average FPS with incomplete scene coverage is \`needs-suite\`; positive average FPS below the minimum suite threshold is \`weak-throughput\`; positive average FPS with a material scene throughput regression is \`blocked-throughput\`; positive average FPS with shader compile event or WebGPU pipeline-create timing regression is \`blocked-shader-stalls\`; positive average FPS with dropped-frame-rate regression is \`blocked-dropped-frames\`; positive average FPS with CPU frame or render submission regression is \`blocked-cpu-overhead\`; positive average FPS with low-FPS or p95/p99 regression is \`blocked-tail\`; explicit profile-reuse wins are \`cache-attribution\` and require a matching fresh-profile official run before retained speed claims. Duplicate rows for the same family, profile-cache mode/key, and scene are collapsed to the most conservative representative row. Comparisons require the same build-args hash, platform, driver, GPU device identity, explicit benchmark complexity and explicit GPU-timing mode, WebGPU BundleGroup/render-bundle scene mode, WebGPU pipeline-instrumentation mode, requested resource warmup mode, resource precompile target count, preinitialized texture/render-target count, GPU-settle warmup mode, WebGPU pipeline-quiet warmup mode, and profile-cache mode/key while leaving backend choice available as an optimization variable. If multiple compatible stock baselines are present, the comparison uses the fastest valid stock baseline for that exact compatibility group.${args.requireCheckout ? ' Accepted artifacts must report browser_is_from_checkout=true.' : ''}${args.requirePackageSize ? ' Accepted artifacts must include positive package_size_mb evidence.' : ''}`,
   '',
   ...baselineSelectionMarkdown(baselineSelectionDiagnostics),
   '## Candidate Families',

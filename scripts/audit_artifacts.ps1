@@ -2416,6 +2416,22 @@ function Add-ReportContentIssueIfMissing {
   }
 }
 
+function Add-ReportContentAnyIssueIfMissing {
+  param(
+    [System.Collections.Generic.List[string]]$Issues,
+    [string]$Content,
+    [string[]]$Needles,
+    [string]$Label
+  )
+
+  foreach ($Needle in @($Needles)) {
+    if ($Content.Contains($Needle)) {
+      return
+    }
+  }
+  $Issues.Add($Label) | Out-Null
+}
+
 function Add-ReportInputDigestIssue {
   param(
     [System.Collections.Generic.List[string]]$Issues,
@@ -2546,7 +2562,10 @@ function Get-OfficialComparisonReportContentIssues {
   Add-ReportContentIssueIfMissing $Issues $WebGlReport "# Benchmark Comparison" "official_webgl2_comparison missing comparison heading"
   Add-ReportInputDigestIssue $Issues $WebGlReport $WebGlComparisonDigest "official_webgl2_comparison"
   Add-ReportContentIssueIfMissing $Issues $WebGlReport "Strict official input validation was enabled" "official_webgl2_comparison missing strict official validation note"
-  Add-ReportContentIssueIfMissing $Issues $WebGlReport "| Scene | Renderer | Variant | Avg FPS" "official_webgl2_comparison missing comparison table header"
+  Add-ReportContentAnyIssueIfMissing $Issues $WebGlReport @(
+    "| Scene | Renderer | Variant | Avg FPS",
+    "| Scene | Renderer | Variant | Evidence | Profile Cache | Avg FPS"
+  ) "official_webgl2_comparison missing comparison table header"
   Add-ComparisonReportMetricColumnIssues $Issues $WebGlReport "official_webgl2_comparison"
   Add-ReportContentIssueIfMissing $Issues $WebGlReport "webgl2" "official_webgl2_comparison missing webgl2 renderer rows"
   Add-ReportContentIssueIfMissing $Issues $WebGlReport $BaselineLabel "official_webgl2_comparison missing baseline label"
@@ -2566,7 +2585,10 @@ function Get-OfficialComparisonReportContentIssues {
     Add-ReportContentIssueIfMissing $Issues $WebGpuReport "# Benchmark Comparison" "official_webgpu_comparison missing comparison heading"
     Add-ReportInputDigestIssue $Issues $WebGpuReport $WebGpuComparisonDigest "official_webgpu_comparison"
     Add-ReportContentIssueIfMissing $Issues $WebGpuReport "Strict official input validation was enabled" "official_webgpu_comparison missing strict official validation note"
-    Add-ReportContentIssueIfMissing $Issues $WebGpuReport "| Scene | Renderer | Variant | Avg FPS" "official_webgpu_comparison missing comparison table header"
+    Add-ReportContentAnyIssueIfMissing $Issues $WebGpuReport @(
+      "| Scene | Renderer | Variant | Avg FPS",
+      "| Scene | Renderer | Variant | Evidence | Profile Cache | Avg FPS"
+    ) "official_webgpu_comparison missing comparison table header"
     Add-ComparisonReportMetricColumnIssues $Issues $WebGpuReport "official_webgpu_comparison"
     Add-ReportContentIssueIfMissing $Issues $WebGpuReport "webgpu" "official_webgpu_comparison missing webgpu renderer rows"
     Add-ReportContentIssueIfMissing $Issues $WebGpuReport "$BaselineLabel-webgpu" "official_webgpu_comparison missing WebGPU baseline label"
@@ -2643,7 +2665,10 @@ function Get-TrustedMatrixReportContentIssues {
   Add-ReportContentIssueIfMissing $Issues $Comparison "# Benchmark Comparison" "trusted comparison missing comparison heading"
   Add-ReportInputDigestIssue $Issues $Comparison $TrustedInputDigest "trusted comparison"
   Add-ReportContentIssueIfMissing $Issues $Comparison "Strict comparison evidence validation was enabled" "trusted comparison missing strict comparison evidence validation note"
-  Add-ReportContentIssueIfMissing $Issues $Comparison "| Scene | Renderer | Variant | Avg FPS" "trusted comparison missing comparison table header"
+  Add-ReportContentAnyIssueIfMissing $Issues $Comparison @(
+    "| Scene | Renderer | Variant | Avg FPS",
+    "| Scene | Renderer | Variant | Evidence | Profile Cache | Avg FPS"
+  ) "trusted comparison missing comparison table header"
   Add-ComparisonReportMetricColumnIssues $Issues $Comparison "trusted comparison"
   Add-ReportContentIssueIfMissing $Issues $Comparison $Renderer "trusted comparison missing renderer rows"
   Add-ReportContentSceneIssues $Issues $Comparison $Scenes "trusted comparison"
@@ -2669,7 +2694,10 @@ function Get-OfficialComparisonReportFileContentIssues {
   $Content = Get-ReportContent $PathValue
   Add-ReportContentIssueIfMissing $Issues $Content "# Benchmark Comparison" "$ReportLabel missing comparison heading"
   Add-ReportContentIssueIfMissing $Issues $Content "Strict official input validation was enabled" "$ReportLabel missing strict official validation note"
-  Add-ReportContentIssueIfMissing $Issues $Content "| Scene | Renderer | Variant | Avg FPS" "$ReportLabel missing comparison table header"
+  Add-ReportContentAnyIssueIfMissing $Issues $Content @(
+    "| Scene | Renderer | Variant | Avg FPS",
+    "| Scene | Renderer | Variant | Evidence | Profile Cache | Avg FPS"
+  ) "$ReportLabel missing comparison table header"
   Add-ComparisonReportMetricColumnIssues $Issues $Content $ReportLabel
   Add-ReportContentIssueIfMissing $Issues $Content $Renderer "$ReportLabel missing $Renderer renderer rows"
   Add-ReportContentSceneIssues $Issues $Content $RequiredScenes $ReportLabel
@@ -3943,7 +3971,7 @@ function Add-SpeedupClaimGateRow {
       -ExpectedForkRevision ([string]$Manifest.fork_revision)
 
     if ($Gate.Ok) {
-      Add-AuditRow "Official performance" "Required WebGL2/WebGPU speedup claim gate" "done" "scripts\analyze_candidates.mjs found retained fresh-profile candidate families for both WebGL2 and WebGPU with minScenes=$($RequiredScenes.Count), requiredScenes=$($RequiredScenes -join ','), minAvgFpsDeltaPct=0.5, sceneRegressionPct=1.0, droppedFramesRegression=0.0, cpuFrameRegressionMs=0.5, renderSubmissionRegressionMs=0.5, pipelineCreateRegressionMs=1.0, checkout-built browser evidence, no software/GPU-instability/stability/CPU-fallback inputs, required benchmark metric evidence, required package-size evidence, required frame-time samples, no material per-scene average-FPS regression, no dropped-frame regression, no CPU/render-submission regression, no WebGPU pipeline-create timing regression, no material low-FPS/p95/p99 regression, and no warm-profile-only cache-attribution wins counted as retained evidence.$TrustedGateDetail$SuitePromotionGateDetail" "Keep final performance claims tied to the official manifest, comparable trusted matrix manifests, completed suite-promotion manifests when used, and exact raw JSON files."
+      Add-AuditRow "Official performance" "Required WebGL2/WebGPU speedup claim gate" "done" "scripts\analyze_candidates.mjs found retained fresh-profile candidate families for both WebGL2 and WebGPU with minScenes=$($RequiredScenes.Count), requiredScenes=$($RequiredScenes -join ','), minAvgFpsDeltaPct=0.5, sceneRegressionPct=1.0, droppedFrameRateRegressionPct=0.5, cpuFrameRegressionMs=0.5, renderSubmissionRegressionMs=0.5, pipelineCreateRegressionMs=1.0, checkout-built browser evidence, no software/GPU-instability/stability/CPU-fallback inputs, required benchmark metric evidence, required package-size evidence, required frame-time samples, no material per-scene average-FPS regression, no dropped-frame-rate regression, no CPU/render-submission regression, no WebGPU pipeline-create timing regression, no material low-FPS/p95/p99 regression, and no warm-profile-only cache-attribution wins counted as retained evidence.$TrustedGateDetail$SuitePromotionGateDetail" "Keep final performance claims tied to the official manifest, comparable trusted matrix manifests, completed suite-promotion manifests when used, and exact raw JSON files."
     } else {
       Add-AuditRow "Official performance" "Required WebGL2/WebGPU speedup claim gate" "pending" "$PathValue speedup claim gate failed: $($Gate.Output)$TrustedGateDetail$SuitePromotionGateDetail" "Iterate on WebGL2/WebGPU optimizations until analyze_candidates.mjs reports at least one retained fresh-profile candidate family for each renderer versus same-revision stock; cache-attribution rows are diagnostic only."
     }
@@ -4037,7 +4065,7 @@ function Add-TargetedBlockerPlanManifestRow {
           [pscustomobject]@{ Name = "webgpu_cpu_fallback_policy"; Expected = "candidate-analysis-filters-webgpu-cpu-texture-fallback-and-missing-copyexternalimage-rejection" },
           [pscustomobject]@{ Name = "webgpu_pipeline_quiet_success_policy"; Expected = "candidate-analysis-filters-unachieved-or-measured-pipeline-create-webgpu-pipeline-quiet-warmup" },
           [pscustomobject]@{ Name = "shader_compile_stall_policy"; Expected = "candidate-analysis-blocks-shader-compile-event-and-webgpu-pipeline-create-time-regressions" },
-          [pscustomobject]@{ Name = "dropped_frame_regression_policy"; Expected = "candidate-analysis-blocks-dropped-frame-regressions" },
+          [pscustomobject]@{ Name = "dropped_frame_regression_policy"; Expected = "candidate-analysis-blocks-dropped-frame-rate-regressions-with-raw-count-fallback" },
           [pscustomobject]@{ Name = "cpu_submission_regression_policy"; Expected = "candidate-analysis-blocks-cpu-frame-and-render-submission-regressions" },
           [pscustomobject]@{ Name = "package_size_speed_claim_policy"; Expected = "require-package-size-when-enabled" },
           [pscustomobject]@{ Name = "baseline_selection_policy"; Expected = "fastest-compatible-baseline" }

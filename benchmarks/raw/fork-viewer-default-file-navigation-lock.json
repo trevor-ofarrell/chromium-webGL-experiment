@@ -1,26 +1,26 @@
 {
-  "generated_at": "2026-05-21T00:39:21.706Z",
+  "generated_at": "2026-05-28T21:52:01.321Z",
   "platform": "Windows_NT 10.0.26200 x64",
   "browser_executable": "C:\\Users\\trevo\\code\\three-browser\\src\\out\\ReleaseViewerDefault\\content_shell.exe",
   "browser_version": null,
-  "viewer_app_path": "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\tmp\\file-nav-DPRLXb\\viewer-app\\index.html",
-  "viewer_app_url": "file:///C:/Users/trevo/code/three-browser/benchmarks/tmp/file-nav-DPRLXb/viewer-app/index.html",
-  "allowed_file_url": "file:///C:/Users/trevo/code/three-browser/benchmarks/tmp/file-nav-DPRLXb/viewer-app/assets/allowed.html",
-  "blocked_file_url": "file:///C:/Users/trevo/code/three-browser/benchmarks/tmp/file-nav-DPRLXb/outside/blocked.html",
+  "viewer_app_path": "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\tmp\\file-nav-FptyOJ\\viewer-app\\index.html",
+  "viewer_app_url": "file:///C:/Users/trevo/code/three-browser/benchmarks/tmp/file-nav-FptyOJ/viewer-app/index.html",
+  "allowed_file_url": "file:///C:/Users/trevo/code/three-browser/benchmarks/tmp/file-nav-FptyOJ/viewer-app/assets/allowed.html",
+  "blocked_file_url": "file:///C:/Users/trevo/code/three-browser/benchmarks/tmp/file-nav-FptyOJ/outside/blocked.html",
   "ok": true,
   "tests": [
     {
       "name": "launches_file_viewer_app_path",
       "status": "pass",
       "details": {
-        "url": "file:///C:/Users/trevo/code/three-browser/benchmarks/tmp/file-nav-DPRLXb/viewer-app/index.html"
+        "url": "file:///C:/Users/trevo/code/three-browser/benchmarks/tmp/file-nav-FptyOJ/viewer-app/index.html"
       }
     },
     {
       "name": "allows_viewer_directory_file_navigation",
       "status": "pass",
       "details": {
-        "url": "file:///C:/Users/trevo/code/three-browser/benchmarks/tmp/file-nav-DPRLXb/viewer-app/assets/allowed.html"
+        "url": "file:///C:/Users/trevo/code/three-browser/benchmarks/tmp/file-nav-FptyOJ/viewer-app/assets/allowed.html"
       }
     },
     {
@@ -28,7 +28,7 @@
       "status": "pass",
       "details": {
         "url": "chrome-error://chromewebdata/",
-        "blocked_url": "file:///C:/Users/trevo/code/three-browser/benchmarks/tmp/file-nav-DPRLXb/outside/blocked.html"
+        "blocked_url": "file:///C:/Users/trevo/code/three-browser/benchmarks/tmp/file-nav-FptyOJ/outside/blocked.html"
       }
     },
     {

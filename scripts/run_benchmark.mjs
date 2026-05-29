@@ -797,6 +797,34 @@ function parseBenchmarkConsoleResult(values) {
   return null;
 }
 
+function formatRuntimeException(exceptionDetails = {}) {
+  const parts = [];
+  if (exceptionDetails.text) parts.push(exceptionDetails.text);
+  const exception = exceptionDetails.exception || {};
+  if (exception.description) {
+    parts.push(exception.description);
+  } else if (exception.value !== undefined) {
+    parts.push(String(exception.value));
+  }
+  const location = [
+    exceptionDetails.url || '',
+    Number.isFinite(exceptionDetails.lineNumber) ? exceptionDetails.lineNumber + 1 : '',
+    Number.isFinite(exceptionDetails.columnNumber) ? exceptionDetails.columnNumber + 1 : '',
+  ].filter((value) => value !== '').join(':');
+  if (location) parts.push(`at ${location}`);
+  const frames = exceptionDetails.stackTrace?.callFrames || [];
+  if (frames.length) {
+    const frame = frames[0];
+    const frameLocation = [
+      frame.url || frame.functionName || '<anonymous>',
+      Number.isFinite(frame.lineNumber) ? frame.lineNumber + 1 : '',
+      Number.isFinite(frame.columnNumber) ? frame.columnNumber + 1 : '',
+    ].filter((value) => value !== '').join(':');
+    if (frameLocation) parts.push(`top frame ${frameLocation}`);
+  }
+  return parts.join('\n') || 'Runtime exception';
+}
+
 function flagValues(flags, switchName) {
   const values = [];
   const prefix = `${switchName}=`;
@@ -1162,7 +1190,7 @@ async function main() {
     });
 
     cdp.on('Runtime.exceptionThrown', (params) => {
-      consoleErrors.push(params.exceptionDetails?.text || 'Runtime exception');
+      consoleErrors.push(formatRuntimeException(params.exceptionDetails));
     });
 
     await cdp.send('Runtime.enable');

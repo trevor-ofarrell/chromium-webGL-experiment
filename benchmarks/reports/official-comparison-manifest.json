@@ -1,45 +1,60 @@
 ﻿{
-    "generated_at":  "2026-05-21T01:14:12.5944462Z",
+    "generated_at":  "2026-05-28T22:18:59.9822313Z",
     "dry_run":  false,
     "phase":  "completed",
     "chromium_revision":  "3a94d90ec3c04556622c56944796dd76753e0581",
-    "fork_revision":  "3a94d90ec3c04556622c56944796dd76753e0581+viewerpatch-cca4b9171b07",
+    "fork_revision":  "3a94d90ec3c04556622c56944796dd76753e0581+viewerpatch-1e2ab6bffef9",
     "browsers":  {
-                     "baseline":  "C:\\Users\\trevo\\code\\three-browser\\.\\src\\out\\ReleaseBaseline\\content_shell.exe",
-                     "fork":  "C:\\Users\\trevo\\code\\three-browser\\.\\src\\out\\ReleaseViewerDefault\\content_shell.exe"
+                     "baseline":  "C:\\Users\\trevo\\code\\three-browser\\src\\out\\ReleaseBaseline\\content_shell.exe",
+                     "fork":  "C:\\Users\\trevo\\code\\three-browser\\src\\out\\ReleaseViewerDefault\\content_shell.exe"
                  },
     "build_args":  {
-                       "baseline":  "C:\\Users\\trevo\\code\\three-browser\\.\\src\\out\\ReleaseBaseline\\args.gn",
-                       "fork":  "C:\\Users\\trevo\\code\\three-browser\\.\\src\\out\\ReleaseViewerDefault\\args.gn"
+                       "baseline":  "C:\\Users\\trevo\\code\\three-browser\\src\\out\\ReleaseBaseline\\args.gn",
+                       "fork":  "C:\\Users\\trevo\\code\\three-browser\\src\\out\\ReleaseViewerDefault\\args.gn"
                    },
     "package_dirs":  {
-                         "baseline":  "C:\\Users\\trevo\\code\\three-browser\\.\\benchmarks\\packages\\baseline-content-shell",
-                         "fork":  "C:\\Users\\trevo\\code\\three-browser\\.\\benchmarks\\packages\\viewer-default"
+                         "baseline":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\packages\\baseline-content-shell",
+                         "fork":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\packages\\viewer-default"
                      },
     "options":  {
-                    "duration":  120,
-                    "warmup":  20,
+                    "duration":  30,
+                    "warmup":  5,
+                    "complexity":  2,
                     "include_webgpu":  true,
                     "include_aggressive_gpu":  true,
                     "aggressive_angle_backend":  "d3d11",
-                    "capture_trace":  true,
+                    "aggressive_webgl2_relaxed_validation":  true,
+                    "aggressive_webgl2_zero_copy":  false,
+                    "aggressive_webgpu_source_fast_path":  true,
+                    "aggressive_webgpu_upload_fast_path":  true,
+                    "capture_trace":  false,
                     "trace_scene":  "many-draw-calls",
                     "trace_renderer":  "webgl2",
                     "trace_duration":  10,
                     "trace_warmup":  2,
                     "trace_start_delay_ms":  2000,
+                    "reject_webgpu_cpu_fallback_trace":  false,
                     "precompile":  false,
                     "disable_webgpu_timing":  true,
                     "disable_fork_webgpu_timing":  true,
-                    "reuse_valid_results":  true,
+                    "reuse_valid_results":  false,
                     "prerender_frames":  0,
+                    "settle_gpu_after_warmup":  false,
+                    "webgpu_pipeline_quiet_frames":  0,
+                    "webgpu_pipeline_quiet_max_frames":  0,
+                    "webgpu_bundle_mode":  "off",
+                    "webgpu_profile_cache_key":  null,
+                    "webgpu_profile_cache_mode":  "fresh-temp",
+                    "profile_cache_root":  null,
+                    "prime_webgpu_profile_cache":  false,
                     "skip_smoke":  false,
                     "skip_navigation_lock":  false
                 },
     "labels":  {
                    "baseline":  "baseline-content-shell",
                    "fork_default":  "fork-viewer-default",
-                   "aggressive":  "fork-viewer-aggressive-gpu-d3d11"
+                   "aggressive":  "fork-viewer-aggressive-gpu-d3d11-relaxed",
+                   "aggressive_webgpu":  "fork-viewer-aggressive-gpu-webgpu"
                },
     "scenes":  [
                    "many-draw-calls",
@@ -70,13 +85,13 @@
                                                      "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-default-gltf-loader-stress-webgl2.json"
                                                  ],
                          "aggressive_webgl2":  [
-                                                   "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-d3d11-many-draw-calls-webgl2.json",
-                                                   "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-d3d11-instancing-webgl2.json",
-                                                   "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-d3d11-shader-heavy-webgl2.json",
-                                                   "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-d3d11-texture-streaming-webgl2.json",
-                                                   "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-d3d11-postprocessing-webgl2.json",
-                                                   "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-d3d11-large-static-webgl2.json",
-                                                   "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-d3d11-gltf-loader-stress-webgl2.json"
+                                                   "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-d3d11-relaxed-many-draw-calls-webgl2.json",
+                                                   "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-d3d11-relaxed-instancing-webgl2.json",
+                                                   "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-d3d11-relaxed-shader-heavy-webgl2.json",
+                                                   "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-d3d11-relaxed-texture-streaming-webgl2.json",
+                                                   "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-d3d11-relaxed-postprocessing-webgl2.json",
+                                                   "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-d3d11-relaxed-large-static-webgl2.json",
+                                                   "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-d3d11-relaxed-gltf-loader-stress-webgl2.json"
                                                ],
                          "baseline_webgpu":  [
                                                  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\baseline-content-shell-webgpu-many-draw-calls-webgpu.json",
@@ -97,13 +112,13 @@
                                                      "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-default-webgpu-gltf-loader-stress-webgpu.json"
                                                  ],
                          "aggressive_webgpu":  [
-                                                   "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-d3d11-webgpu-many-draw-calls-webgpu.json",
-                                                   "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-d3d11-webgpu-instancing-webgpu.json",
-                                                   "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-d3d11-webgpu-shader-heavy-webgpu.json",
-                                                   "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-d3d11-webgpu-texture-streaming-webgpu.json",
-                                                   "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-d3d11-webgpu-postprocessing-webgpu.json",
-                                                   "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-d3d11-webgpu-large-static-webgpu.json",
-                                                   "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-d3d11-webgpu-gltf-loader-stress-webgpu.json"
+                                                   "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-webgpu-many-draw-calls-webgpu.json",
+                                                   "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-webgpu-instancing-webgpu.json",
+                                                   "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-webgpu-shader-heavy-webgpu.json",
+                                                   "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-webgpu-texture-streaming-webgpu.json",
+                                                   "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-webgpu-postprocessing-webgpu.json",
+                                                   "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-webgpu-large-static-webgpu.json",
+                                                   "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-webgpu-gltf-loader-stress-webgpu.json"
                                                ],
                          "runtime_smoke":  [
                                                "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\baseline-content-shell-runtime-smoke.json",
@@ -119,60 +134,74 @@
                          "fork_default_webgl2_summary":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\reports\\fork-viewer-default-webgl2-summary.md",
                          "official_webgl2_comparison":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\reports\\official-webgl2-comparison.md",
                          "official_webgpu_comparison":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\reports\\official-webgpu-comparison.md",
-                         "baseline_trace_summary":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\reports\\baseline-content-shell-many-draw-calls-webgl2-trace-summary.md",
-                         "fork_trace_summary":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\reports\\fork-viewer-default-many-draw-calls-webgl2-trace-summary.md"
+                         "baseline_trace_summary":  null,
+                         "fork_trace_summary":  null
                      },
     "trace_files":  {
-                        "baseline":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\traces\\baseline-content-shell-many-draw-calls-webgl2-trace.json",
-                        "fork":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\traces\\fork-viewer-default-many-draw-calls-webgl2-trace.json"
+                        "baseline":  null,
+                        "fork":  null
                     },
     "trace_result_files":  {
-                               "baseline":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\traces\\baseline-content-shell-many-draw-calls-webgl2-trace.result.json",
-                               "fork":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\traces\\fork-viewer-default-many-draw-calls-webgl2-trace.result.json"
+                               "baseline":  null,
+                               "fork":  null
                            },
     "artifact_metadata":  {
                               "inputs":  {
                                              "baseline_browser":  {
-                                                                      "path":  "C:\\Users\\trevo\\code\\three-browser\\.\\src\\out\\ReleaseBaseline\\content_shell.exe",
+                                                                      "path":  "C:\\Users\\trevo\\code\\three-browser\\src\\out\\ReleaseBaseline\\content_shell.exe",
                                                                       "exists":  true,
-                                                                      "size_bytes":  302406144,
-                                                                      "sha256":  "fdc5e92e07b8c9359765b0ecadab1ecf448fca119d446b73a383fb9b76400b5c"
+                                                                      "size_bytes":  211198976,
+                                                                      "sha256":  "3145ae01a936b8cd964de7a7e6fdaa2ad4c8a2153c840664723e437cff603d8e"
                                                                   },
                                              "fork_browser":  {
-                                                                  "path":  "C:\\Users\\trevo\\code\\three-browser\\.\\src\\out\\ReleaseViewerDefault\\content_shell.exe",
+                                                                  "path":  "C:\\Users\\trevo\\code\\three-browser\\src\\out\\ReleaseViewerDefault\\content_shell.exe",
                                                                   "exists":  true,
-                                                                  "size_bytes":  302410752,
-                                                                  "sha256":  "676477c8071382f7740a42286c931e3bfbb823f7ef9e588d36688abbeebb06a3"
+                                                                  "size_bytes":  211247104,
+                                                                  "sha256":  "507b761aeca40037137af150f99391b12a73072ab2815a68d58d1fe5b8806101"
                                                               },
                                              "baseline_build_args":  {
-                                                                         "path":  "C:\\Users\\trevo\\code\\three-browser\\.\\src\\out\\ReleaseBaseline\\args.gn",
+                                                                         "path":  "C:\\Users\\trevo\\code\\three-browser\\src\\out\\ReleaseBaseline\\args.gn",
                                                                          "exists":  true,
-                                                                         "size_bytes":  163,
-                                                                         "sha256":  "bd7a13954054220923cb41d0f2ad96f3d4ed46cef6007654f477d785340887bf"
+                                                                         "size_bytes":  596,
+                                                                         "sha256":  "55c64c990be11ff9e4469152fb3b4c87cf55a9df4a110f83a51684100fbb0e02"
                                                                      },
                                              "fork_build_args":  {
-                                                                     "path":  "C:\\Users\\trevo\\code\\three-browser\\.\\src\\out\\ReleaseViewerDefault\\args.gn",
+                                                                     "path":  "C:\\Users\\trevo\\code\\three-browser\\src\\out\\ReleaseViewerDefault\\args.gn",
                                                                      "exists":  true,
-                                                                     "size_bytes":  163,
-                                                                     "sha256":  "bd7a13954054220923cb41d0f2ad96f3d4ed46cef6007654f477d785340887bf"
+                                                                     "size_bytes":  596,
+                                                                     "sha256":  "55c64c990be11ff9e4469152fb3b4c87cf55a9df4a110f83a51684100fbb0e02"
                                                                  },
                                              "viewer_patch":  {
                                                                   "path":  "C:\\Users\\trevo\\code\\three-browser\\chromium_patches\\0001-draft-minimal-three-viewer-entrypoint.patch",
                                                                   "exists":  true,
-                                                                  "size_bytes":  16664,
-                                                                  "sha256":  "cca4b9171b07765d0d479ddeb5204217541f039dfeebc4ed5fed53d8164c6e81"
+                                                                  "size_bytes":  21412,
+                                                                  "sha256":  "1b25f718ae0d8f0f0037f35064da03da9fb28a9e4096f192b6ba11bf3054c84f"
                                                               },
+                                             "viewer_patch_series":  [
+                                                                         {
+                                                                             "path":  "C:\\Users\\trevo\\code\\three-browser\\chromium_patches\\0001-draft-minimal-three-viewer-entrypoint.patch",
+                                                                             "exists":  true,
+                                                                             "size_bytes":  21412,
+                                                                             "sha256":  "1b25f718ae0d8f0f0037f35064da03da9fb28a9e4096f192b6ba11bf3054c84f"
+                                                                         },
+                                                                         {
+                                                                             "path":  "C:\\Users\\trevo\\code\\three-browser\\chromium_patches\\0002-draft-webgpu-queue-trace-attribution.patch",
+                                                                             "exists":  true,
+                                                                             "size_bytes":  200967,
+                                                                             "sha256":  "954621a72a797093ab628ab31790cd2588155457894ee4cb42d78b7b3262f8f0"
+                                                                         }
+                                                                     ],
                                              "baseline_package":  {
-                                                                      "path":  "C:\\Users\\trevo\\code\\three-browser\\.\\benchmarks\\packages\\baseline-content-shell",
+                                                                      "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\packages\\baseline-content-shell",
                                                                       "exists":  true,
-                                                                      "file_count":  74,
-                                                                      "size_bytes":  716529950
+                                                                      "file_count":  533,
+                                                                      "size_bytes":  675245868
                                                                   },
                                              "fork_package":  {
-                                                                  "path":  "C:\\Users\\trevo\\code\\three-browser\\.\\benchmarks\\packages\\viewer-default",
+                                                                  "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\packages\\viewer-default",
                                                                   "exists":  true,
-                                                                  "file_count":  69,
-                                                                  "size_bytes":  579860218
+                                                                  "file_count":  75,
+                                                                  "size_bytes":  473930501
                                                               }
                                          },
                               "results":  {
@@ -180,264 +209,264 @@
                                                                       {
                                                                           "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\baseline-content-shell-many-draw-calls-webgl2.json",
                                                                           "exists":  true,
-                                                                          "size_bytes":  60096,
-                                                                          "sha256":  "10909e4ef4aff90b0fb6ba031b1fccc9307d431a44d892f0c28a1fccda6fe120"
+                                                                          "size_bytes":  56618,
+                                                                          "sha256":  "69e4a90b9bbd39cc2bf568e1eda89e935b7612f9cacf8179699b9427d38f842b"
                                                                       },
                                                                       {
                                                                           "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\baseline-content-shell-instancing-webgl2.json",
                                                                           "exists":  true,
-                                                                          "size_bytes":  60160,
-                                                                          "sha256":  "ebc76893e0f8bbd25e33621389f7952c040d46b02ee5f8fa1320ffd05d6c548d"
+                                                                          "size_bytes":  56923,
+                                                                          "sha256":  "18ce49f2de074ccd3ab79812f457b4ef882a935edd0492420d176280037adc6e"
                                                                       },
                                                                       {
                                                                           "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\baseline-content-shell-shader-heavy-webgl2.json",
                                                                           "exists":  true,
-                                                                          "size_bytes":  61200,
-                                                                          "sha256":  "2b6d8f9b998619509f3c88d6c29cc0becc45837efbf144ab91e90ad11b0b3860"
+                                                                          "size_bytes":  56455,
+                                                                          "sha256":  "ae7b3f939137cf3e5b2ceee900e0edf5b21c34f39991043a4801b2eda355ff6c"
                                                                       },
                                                                       {
                                                                           "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\baseline-content-shell-texture-streaming-webgl2.json",
                                                                           "exists":  true,
-                                                                          "size_bytes":  27560,
-                                                                          "sha256":  "78019d3bd75616ce91e47d725d36e8d4f5d649755dc660c66e22f3690a7821ba"
+                                                                          "size_bytes":  22802,
+                                                                          "sha256":  "5c0ba7bd80b0697e4faa4091baaf39a0180593176cce92e716d78a0cd5e22d2c"
                                                                       },
                                                                       {
                                                                           "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\baseline-content-shell-postprocessing-webgl2.json",
                                                                           "exists":  true,
-                                                                          "size_bytes":  61151,
-                                                                          "sha256":  "367813ee4a3669491ccd2dcf2bc92648729938f86ceaa473faf9ee61022d5d00"
+                                                                          "size_bytes":  57102,
+                                                                          "sha256":  "aa8c2b47f6ae2f6dfcfa54c76af9703b6a23729fe4b502d9dda18ff41c15ead4"
                                                                       },
                                                                       {
                                                                           "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\baseline-content-shell-large-static-webgl2.json",
                                                                           "exists":  true,
-                                                                          "size_bytes":  60059,
-                                                                          "sha256":  "b49a9bc6fcca37a1096bf5201cc7ee214ee98f6890d30491f0dab7cee3626dc2"
+                                                                          "size_bytes":  56877,
+                                                                          "sha256":  "99462a1e3db099ae23576361af9fdb743258e246b2b4c08c9008450245accccd"
                                                                       },
                                                                       {
                                                                           "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\baseline-content-shell-gltf-loader-stress-webgl2.json",
                                                                           "exists":  true,
-                                                                          "size_bytes":  61015,
-                                                                          "sha256":  "64eacdea26efb9cd1a5529708d54f8cf6ff845643b753be4f51821c8e84f5b78"
+                                                                          "size_bytes":  57098,
+                                                                          "sha256":  "482e95e29cc37e1f66a3b4f7f117cf71ee0d0b465c3d4e0532a3e8fed615b7a1"
                                                                       }
                                                                   ],
                                               "fork_default_webgl2":  [
                                                                           {
                                                                               "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-default-many-draw-calls-webgl2.json",
                                                                               "exists":  true,
-                                                                              "size_bytes":  59705,
-                                                                              "sha256":  "a69e115e2bb99345c311d46b2013b35aae2d8c90ac09602ef0fb723385b6e7ea"
+                                                                              "size_bytes":  57178,
+                                                                              "sha256":  "2c6ce225076641970b4681a17b8520f53933a2b82c2a7c4eb8fb8ce40dc6ada4"
                                                                           },
                                                                           {
                                                                               "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-default-instancing-webgl2.json",
                                                                               "exists":  true,
-                                                                              "size_bytes":  60032,
-                                                                              "sha256":  "962930e2f87389d781be74eb0a6266cfbf311bdf234f962d7c1e145eadea4cdc"
+                                                                              "size_bytes":  57259,
+                                                                              "sha256":  "3e0736cc67f6f917a8e5cccf0c58909477bdb20bc456446ca4ade017ec7ad7a6"
                                                                           },
                                                                           {
                                                                               "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-default-shader-heavy-webgl2.json",
                                                                               "exists":  true,
-                                                                              "size_bytes":  60489,
-                                                                              "sha256":  "598d2ce08ed5e098e7c8d0295233e04389597cedc31c3321c8b8e3427b814a83"
+                                                                              "size_bytes":  56867,
+                                                                              "sha256":  "cfde338d3912bfbfedf216d934f311655b9237d6bdc93f6caed7c8c86fdc474f"
                                                                           },
                                                                           {
                                                                               "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-default-texture-streaming-webgl2.json",
                                                                               "exists":  true,
-                                                                              "size_bytes":  27775,
-                                                                              "sha256":  "a812a229392da2e942cb4cff946ad1ca362aa7dcc929497e76be259feb3be89a"
+                                                                              "size_bytes":  23924,
+                                                                              "sha256":  "64030bae20238ffcb8afd225f58e496a44fb8e121b945d048d3ecc851be907be"
                                                                           },
                                                                           {
                                                                               "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-default-postprocessing-webgl2.json",
                                                                               "exists":  true,
-                                                                              "size_bytes":  58274,
-                                                                              "sha256":  "73ab3f4629a4e883885ea63d5a5c755a39415b642c3f504f27322a1ef77c3067"
+                                                                              "size_bytes":  57946,
+                                                                              "sha256":  "1e9d739d8628ed7eda3d3f76338f13e4c0e4a692ac98e433e88acb78faf1932f"
                                                                           },
                                                                           {
                                                                               "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-default-large-static-webgl2.json",
                                                                               "exists":  true,
-                                                                              "size_bytes":  59696,
-                                                                              "sha256":  "b11a3753bfaf2acdc17ccb47c4654c21e04ac253e8090ced25191af982a0479b"
+                                                                              "size_bytes":  57218,
+                                                                              "sha256":  "32d963c8f1915fe8985a437f8cbc9ad3fab742c378b25249be1db24bce4d4390"
                                                                           },
                                                                           {
                                                                               "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-default-gltf-loader-stress-webgl2.json",
                                                                               "exists":  true,
-                                                                              "size_bytes":  60271,
-                                                                              "sha256":  "195431e177ea6ca45c1d4d05a968f407b3921c98906215c82c8d84202fabfc9e"
+                                                                              "size_bytes":  57184,
+                                                                              "sha256":  "d2d1873892771bc09994f601ab36aa07597f64250d18af94e552386019a71265"
                                                                           }
                                                                       ],
                                               "aggressive_webgl2":  [
                                                                         {
-                                                                            "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-d3d11-many-draw-calls-webgl2.json",
+                                                                            "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-d3d11-relaxed-many-draw-calls-webgl2.json",
                                                                             "exists":  true,
-                                                                            "size_bytes":  59290,
-                                                                            "sha256":  "74966bed25e0bab6f1bc8f071f08fd50a73603577f5bbc3b96c6bc870ed9f890"
+                                                                            "size_bytes":  57365,
+                                                                            "sha256":  "5afa55964216f7b29da3786fb641b373093ee02f7da234f896952c2cb6e41820"
                                                                         },
                                                                         {
-                                                                            "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-d3d11-instancing-webgl2.json",
+                                                                            "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-d3d11-relaxed-instancing-webgl2.json",
                                                                             "exists":  true,
-                                                                            "size_bytes":  60275,
-                                                                            "sha256":  "7e5b17415978cafd3ee27cd7278789f6ce077df39ae1d3ce01b0ae6d5cf5fcd9"
+                                                                            "size_bytes":  57321,
+                                                                            "sha256":  "fa804b6fbcaf55d8bb1ce4f47d5a985dfb597abb997cd6f642fc7d00d6c7988b"
                                                                         },
                                                                         {
-                                                                            "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-d3d11-shader-heavy-webgl2.json",
+                                                                            "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-d3d11-relaxed-shader-heavy-webgl2.json",
                                                                             "exists":  true,
-                                                                            "size_bytes":  60890,
-                                                                            "sha256":  "002948e95263c82944c4242282223c7298cff3e1e733bd35db0e8d86e34183cc"
+                                                                            "size_bytes":  56993,
+                                                                            "sha256":  "dddf489888b38ffc06f58a8593f75147887fa6e9c011f2861b8c502a174c9fca"
                                                                         },
                                                                         {
-                                                                            "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-d3d11-texture-streaming-webgl2.json",
+                                                                            "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-d3d11-relaxed-texture-streaming-webgl2.json",
                                                                             "exists":  true,
-                                                                            "size_bytes":  27260,
-                                                                            "sha256":  "5ef55503b59ada7f109dbcb26c55288ce9a883c1ef0b033b9a50d5f3a7d4c5e0"
+                                                                            "size_bytes":  23534,
+                                                                            "sha256":  "3b41898adf1734e0323eab6f1efb568a22f37d10d275f85e42e585d15a2bea84"
                                                                         },
                                                                         {
-                                                                            "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-d3d11-postprocessing-webgl2.json",
+                                                                            "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-d3d11-relaxed-postprocessing-webgl2.json",
                                                                             "exists":  true,
-                                                                            "size_bytes":  59643,
-                                                                            "sha256":  "1a19409372696f8215ef27c1b57eac6a76e13d04894d762e52afac5c993da0c0"
+                                                                            "size_bytes":  57185,
+                                                                            "sha256":  "8723252d465010b37136292633fb01c4af429d5a90548e5d88147071d76b7963"
                                                                         },
                                                                         {
-                                                                            "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-d3d11-large-static-webgl2.json",
+                                                                            "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-d3d11-relaxed-large-static-webgl2.json",
                                                                             "exists":  true,
-                                                                            "size_bytes":  60106,
-                                                                            "sha256":  "5eea8143ad278a9776203ea47d07a50f658520adae5b5c4353e8c2fb0a310188"
+                                                                            "size_bytes":  57262,
+                                                                            "sha256":  "5df093aa818a9b968e874f618df05710c797310fb58411ae924f022110d130f1"
                                                                         },
                                                                         {
-                                                                            "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-d3d11-gltf-loader-stress-webgl2.json",
+                                                                            "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-d3d11-relaxed-gltf-loader-stress-webgl2.json",
                                                                             "exists":  true,
-                                                                            "size_bytes":  59682,
-                                                                            "sha256":  "a620269edf20780023300a470adeee6201012c4e78e8b02d3a23cf6b5a2f315f"
+                                                                            "size_bytes":  57358,
+                                                                            "sha256":  "d191641353ec26ac60adb56b30cb029f8ef151d5c0b46bcd852a782c44ec0538"
                                                                         }
                                                                     ],
                                               "baseline_webgpu":  [
                                                                       {
                                                                           "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\baseline-content-shell-webgpu-many-draw-calls-webgpu.json",
                                                                           "exists":  true,
-                                                                          "size_bytes":  57762,
-                                                                          "sha256":  "2a67671814595ba8a84eb326d3de561b1fb6ec6e6f38b86d1a987913df8e36c0"
+                                                                          "size_bytes":  50946,
+                                                                          "sha256":  "95f7a47decc7ccdf4e1ce49013c049c4bd0803cbc3e40d29d3f3e3251734646a"
                                                                       },
                                                                       {
                                                                           "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\baseline-content-shell-webgpu-instancing-webgpu.json",
                                                                           "exists":  true,
-                                                                          "size_bytes":  45464,
-                                                                          "sha256":  "20ad4f3456bd2fba67fe503f7e04b83ada62f7488b401e404b9d67146c6d5dc4"
+                                                                          "size_bytes":  54251,
+                                                                          "sha256":  "69eb615f437951efde5646f2a450a14663b84020afbe166c4ee16d6bd59de953"
                                                                       },
                                                                       {
                                                                           "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\baseline-content-shell-webgpu-shader-heavy-webgpu.json",
                                                                           "exists":  true,
-                                                                          "size_bytes":  38255,
-                                                                          "sha256":  "e33d2431ec3e3a5c46501abfdf964d3e98981129c8e5f59b6818221eb0d35bc8"
+                                                                          "size_bytes":  56920,
+                                                                          "sha256":  "93991976d7c6dce909fb0d6915791020aec38e2d9edb468071cf0a1a25588671"
                                                                       },
                                                                       {
                                                                           "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\baseline-content-shell-webgpu-texture-streaming-webgpu.json",
                                                                           "exists":  true,
-                                                                          "size_bytes":  28090,
-                                                                          "sha256":  "fd554838edc8f77705dee537451b001f046899cc820570e1d07c66f4a9c82ae7"
+                                                                          "size_bytes":  21962,
+                                                                          "sha256":  "cd1bfc202dee7f37d033333193448fda1bd975145fad1bd27b2b785df99315d5"
                                                                       },
                                                                       {
                                                                           "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\baseline-content-shell-webgpu-postprocessing-webgpu.json",
                                                                           "exists":  true,
-                                                                          "size_bytes":  43473,
-                                                                          "sha256":  "a2e258b98eec6d619b644658fbf6c0ef1c1a4a0339700a90e5eb53cefc14a771"
+                                                                          "size_bytes":  56580,
+                                                                          "sha256":  "ea0b445e1062100ba640fb297fbfc075fee3f4c64a4063f94fd7041d61c3d9ed"
                                                                       },
                                                                       {
                                                                           "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\baseline-content-shell-webgpu-large-static-webgpu.json",
                                                                           "exists":  true,
-                                                                          "size_bytes":  48340,
-                                                                          "sha256":  "f04776c8461e5e51c773c09a6cb7091f54529010bab776fdfc9187b192ed285d"
+                                                                          "size_bytes":  56752,
+                                                                          "sha256":  "029684f1097989808f6265716f9ffa09b3be10a02d9549751da7f4bc7ade5c75"
                                                                       },
                                                                       {
                                                                           "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\baseline-content-shell-webgpu-gltf-loader-stress-webgpu.json",
                                                                           "exists":  true,
-                                                                          "size_bytes":  38447,
-                                                                          "sha256":  "68d8b9b2263cdfc0f44ebb393cc573c434acde078f9fa5ecebc7e9c152074d20"
+                                                                          "size_bytes":  56681,
+                                                                          "sha256":  "d6a335180ee63dccd7550fdb8838297b5d8ec8b6bd44ddbb001736ecabecca85"
                                                                       }
                                                                   ],
                                               "fork_default_webgpu":  [
                                                                           {
                                                                               "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-default-webgpu-many-draw-calls-webgpu.json",
                                                                               "exists":  true,
-                                                                              "size_bytes":  44877,
-                                                                              "sha256":  "82e86aa1e714b3ab2bfe8f07f17b711603bc4cf49b23755e032e710477ec4c81"
+                                                                              "size_bytes":  50465,
+                                                                              "sha256":  "247c03d4c17199515567b64a02c593debb0bb2e17a00617edd53c1478bc85a75"
                                                                           },
                                                                           {
                                                                               "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-default-webgpu-instancing-webgpu.json",
                                                                               "exists":  true,
-                                                                              "size_bytes":  43389,
-                                                                              "sha256":  "4d135a7a5423b90791fa35c20f10b5962f57580d600273853cf2edbee7aceb21"
+                                                                              "size_bytes":  57179,
+                                                                              "sha256":  "ae3fa31dedcd4dd09673fd2c100ab5ca552dcafe50c83e851774d1935c5efa20"
                                                                           },
                                                                           {
                                                                               "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-default-webgpu-shader-heavy-webgpu.json",
                                                                               "exists":  true,
-                                                                              "size_bytes":  29188,
-                                                                              "sha256":  "2ade4263346b4ccc19b6dac3fd2548bfd74d97cb04fc6e9033a427bbc8c86edb"
+                                                                              "size_bytes":  57636,
+                                                                              "sha256":  "37f52a69c50cf8789307de194412b0ce772bb539ade550190b506d2e1fba7c48"
                                                                           },
                                                                           {
                                                                               "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-default-webgpu-texture-streaming-webgpu.json",
                                                                               "exists":  true,
-                                                                              "size_bytes":  25737,
-                                                                              "sha256":  "c0b730a6518d64dc25a92855e8b3d2705ffdbf1f583cd0c138b00fd07585de0c"
+                                                                              "size_bytes":  22117,
+                                                                              "sha256":  "72bafc5c63840bcdfee8bc2340580b01a11045e1db3901b11fa8d9c8b48f255f"
                                                                           },
                                                                           {
                                                                               "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-default-webgpu-postprocessing-webgpu.json",
                                                                               "exists":  true,
-                                                                              "size_bytes":  27453,
-                                                                              "sha256":  "ab0e5e92d7657992fcd580c08172d02165678bf3371eded92c9b57a5a888ed14"
+                                                                              "size_bytes":  57844,
+                                                                              "sha256":  "1a2bd82e0d48fbeb1bead0871727c402c7b7f651516fb7515a68d9debf3957f1"
                                                                           },
                                                                           {
                                                                               "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-default-webgpu-large-static-webgpu.json",
                                                                               "exists":  true,
-                                                                              "size_bytes":  22057,
-                                                                              "sha256":  "83f5e3d53f1561c0c6c53607835325b959219eb147466d008fc0e87b804f8e23"
+                                                                              "size_bytes":  38474,
+                                                                              "sha256":  "36d1980f8cdd3e7c014589adf805b23001ac896ff7d6ffb64054ed350c336f05"
                                                                           },
                                                                           {
                                                                               "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-default-webgpu-gltf-loader-stress-webgpu.json",
                                                                               "exists":  true,
-                                                                              "size_bytes":  30891,
-                                                                              "sha256":  "b89938f799ad1e107cc17a414d0258235d6a786a26ac767c2b4fdee0f7e3aea1"
+                                                                              "size_bytes":  55328,
+                                                                              "sha256":  "0e72f5d9d7e5dd33c0d6c0250f949bc51a221ea5aa8f22cd7ee2dd822db28ab2"
                                                                           }
                                                                       ],
                                               "aggressive_webgpu":  [
                                                                         {
-                                                                            "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-d3d11-webgpu-many-draw-calls-webgpu.json",
+                                                                            "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-webgpu-many-draw-calls-webgpu.json",
                                                                             "exists":  true,
-                                                                            "size_bytes":  41363,
-                                                                            "sha256":  "cf80d38a88df93faf59a4aaf921adcb96fa769e14432292fbcfb3194e5316a3a"
+                                                                            "size_bytes":  44659,
+                                                                            "sha256":  "d956ce3d92ba248e264af14ec56b9da08e515495dc689ae4cc8e5dfa4b901116"
                                                                         },
                                                                         {
-                                                                            "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-d3d11-webgpu-instancing-webgpu.json",
+                                                                            "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-webgpu-instancing-webgpu.json",
                                                                             "exists":  true,
-                                                                            "size_bytes":  38257,
-                                                                            "sha256":  "68abc4384a7eb761d93d4fc3b0f779284dca03012a020794f8b132d4efa18082"
+                                                                            "size_bytes":  58588,
+                                                                            "sha256":  "d724f82a9c3373a986b54ac286df91340932d3e16ac0a6e9ee50f9be4148297d"
                                                                         },
                                                                         {
-                                                                            "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-d3d11-webgpu-shader-heavy-webgpu.json",
+                                                                            "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-webgpu-shader-heavy-webgpu.json",
                                                                             "exists":  true,
-                                                                            "size_bytes":  107531,
-                                                                            "sha256":  "28f20302d82955b06ce991c19fde9e704a81c301cae3fda71a81ab3825e91f00"
+                                                                            "size_bytes":  58302,
+                                                                            "sha256":  "9fbf487dc2b28a9f2324933d1588ca290b64e724604be2d86b767648d2cda350"
                                                                         },
                                                                         {
-                                                                            "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-d3d11-webgpu-texture-streaming-webgpu.json",
+                                                                            "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-webgpu-texture-streaming-webgpu.json",
                                                                             "exists":  true,
-                                                                            "size_bytes":  27524,
-                                                                            "sha256":  "555e425ff3e0a53fa2820f1896121c77aef62063ee856827307cf220751e5a7b"
+                                                                            "size_bytes":  24237,
+                                                                            "sha256":  "3da102c77a62ad8ac0b59bdc9c1e4ef625f6f67aba5cf7c5f2dad42051a83d13"
                                                                         },
                                                                         {
-                                                                            "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-d3d11-webgpu-postprocessing-webgpu.json",
+                                                                            "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-webgpu-postprocessing-webgpu.json",
                                                                             "exists":  true,
-                                                                            "size_bytes":  28214,
-                                                                            "sha256":  "83f63c8f42543ed984f5d71d815a188fd35e4937b6e8406b05db4f44d9054a01"
+                                                                            "size_bytes":  59182,
+                                                                            "sha256":  "0b4698604216edede5a91469c479738227a97c44232bc49b73808145ac2323e4"
                                                                         },
                                                                         {
-                                                                            "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-d3d11-webgpu-large-static-webgpu.json",
+                                                                            "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-webgpu-large-static-webgpu.json",
                                                                             "exists":  true,
-                                                                            "size_bytes":  28019,
-                                                                            "sha256":  "5ded07eff17702839c158e89de59ed5fccf18fa3480a4128a5f63c83101cef8d"
+                                                                            "size_bytes":  58209,
+                                                                            "sha256":  "7595fcf70b28dbdfdba2b9b7023fb4d6284f6d0b9897d69db6bdab5a0fd34424"
                                                                         },
                                                                         {
-                                                                            "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-d3d11-webgpu-gltf-loader-stress-webgpu.json",
+                                                                            "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-aggressive-gpu-webgpu-gltf-loader-stress-webgpu.json",
                                                                             "exists":  true,
-                                                                            "size_bytes":  41399,
-                                                                            "sha256":  "dc90ce42ada74001c74c22e3b629d66c417af9e2579813e688cfceba50f45e9a"
+                                                                            "size_bytes":  57668,
+                                                                            "sha256":  "8cae5c3eaf1b99acc46536932b521392139edb4da354985559e8805941c31b1f"
                                                                         }
                                                                     ]
                                           },
@@ -446,14 +475,14 @@
                                                                   {
                                                                       "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\baseline-content-shell-runtime-smoke.json",
                                                                       "exists":  true,
-                                                                      "size_bytes":  4880,
-                                                                      "sha256":  "95c3d2f2cc828cd61a47cb05ff2926e3e66017329eeedefb3c9aaf86c2e688e1"
+                                                                      "size_bytes":  5135,
+                                                                      "sha256":  "16dae5a5d3c205be9b0158114b1d0a3adf8151463c729a751d5644802c02560b"
                                                                   },
                                                                   {
                                                                       "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-default-runtime-smoke.json",
                                                                       "exists":  true,
-                                                                      "size_bytes":  5016,
-                                                                      "sha256":  "80f71c5a82a7e3d9cd1bb3a95640852bc52d4ee3f1e960c54f8b0e7daa44c3fb"
+                                                                      "size_bytes":  5275,
+                                                                      "sha256":  "828760ee13ab64968a2e5fed6482e975af7e0d52fdaa8c182d816f37d779eae3"
                                                                   }
                                                               ],
                                                     "navigation_lock":  [
@@ -461,13 +490,13 @@
                                                                                 "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-default-navigation-lock.json",
                                                                                 "exists":  true,
                                                                                 "size_bytes":  1406,
-                                                                                "sha256":  "a60ac9b072860ac4770474f33aa802aee9bc2fec6bc91b4146897d89a85daa3c"
+                                                                                "sha256":  "7dbc2079fb684be2bb9f59aba7c804f17c44b6db7592a9a153b6671dc807770a"
                                                                             },
                                                                             {
                                                                                 "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-default-file-navigation-lock.json",
                                                                                 "exists":  true,
                                                                                 "size_bytes":  1695,
-                                                                                "sha256":  "f35383ad471bb93799bb265fa157363859c3d08cb236a9fb69ee526b96c0bf7d"
+                                                                                "sha256":  "45f9cdf9a452101db6e8b407083d9a5138e7942d4259af3e3d0373696ee18d84"
                                                                             }
                                                                         ]
                                                 },
@@ -475,64 +504,64 @@
                                               "baseline_webgl2_summary":  {
                                                                               "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\reports\\baseline-content-shell-webgl2-summary.md",
                                                                               "exists":  true,
-                                                                              "size_bytes":  2228,
-                                                                              "sha256":  "78526668357cadbcd3acf4781e827e79e78e9547ab1be82503ca7cf715c808da"
+                                                                              "size_bytes":  3849,
+                                                                              "sha256":  "a86bdc1ad9169847b343eb4e05254f7d1b5c7c357a6d2ecad5995eab3baab9a4"
                                                                           },
                                               "fork_default_webgl2_summary":  {
                                                                                   "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\reports\\fork-viewer-default-webgl2-summary.md",
                                                                                   "exists":  true,
-                                                                                  "size_bytes":  2205,
-                                                                                  "sha256":  "b29402e57bf9e57c06a872c520df0a2ca8929c59b3411632abfc8b426e3e5fb2"
+                                                                                  "size_bytes":  3800,
+                                                                                  "sha256":  "ef176c37d6e62c7d365a6943e41f5845cbd3836aba1bb30714faa58ce02aa652"
                                                                               },
                                               "official_webgl2_comparison":  {
                                                                                  "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\reports\\official-webgl2-comparison.md",
                                                                                  "exists":  true,
-                                                                                 "size_bytes":  9928,
-                                                                                 "sha256":  "23470bc7164f5d6213c3db253b40e575b83cb8d08aca710d86169c0f21daf848"
+                                                                                 "size_bytes":  12685,
+                                                                                 "sha256":  "4dd598a09751e7c4131ab07986e89690bb2b5e1fece5130eff0bd53aec618c34"
                                                                              },
                                               "official_webgpu_comparison":  {
                                                                                  "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\reports\\official-webgpu-comparison.md",
                                                                                  "exists":  true,
-                                                                                 "size_bytes":  10009,
-                                                                                 "sha256":  "901ae75192388c89d5e188037758e16d5cb77869faa29e5f4d8268707d635212"
+                                                                                 "size_bytes":  12667,
+                                                                                 "sha256":  "52289b2264deff6af6a24a5f4ed2ebebd3139c6cdc2bada57e921d83bf112567"
                                                                              },
                                               "baseline_trace_summary":  {
-                                                                             "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\reports\\baseline-content-shell-many-draw-calls-webgl2-trace-summary.md",
-                                                                             "exists":  true,
-                                                                             "size_bytes":  2357,
-                                                                             "sha256":  "e716b2e2cac87fab25c887e188c700314fbcc53896e4887986f531e5a3b73143"
+                                                                             "path":  null,
+                                                                             "exists":  false,
+                                                                             "size_bytes":  null,
+                                                                             "sha256":  null
                                                                          },
                                               "fork_trace_summary":  {
-                                                                         "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\reports\\fork-viewer-default-many-draw-calls-webgl2-trace-summary.md",
-                                                                         "exists":  true,
-                                                                         "size_bytes":  2310,
-                                                                         "sha256":  "1ee5cdf7df8b4497a59a67e22bc7f60d4e395ac748ac371b936791431ab545ca"
+                                                                         "path":  null,
+                                                                         "exists":  false,
+                                                                         "size_bytes":  null,
+                                                                         "sha256":  null
                                                                      }
                                           },
                               "traces":  {
                                              "baseline":  {
-                                                              "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\traces\\baseline-content-shell-many-draw-calls-webgl2-trace.json",
-                                                              "exists":  true,
-                                                              "size_bytes":  44324940,
-                                                              "sha256":  "08e207e2174b2de6aee9ed8c9ae4ca263a70d1447efb3a78fc07a8a094ef152e"
+                                                              "path":  null,
+                                                              "exists":  false,
+                                                              "size_bytes":  null,
+                                                              "sha256":  null
                                                           },
                                              "fork":  {
-                                                          "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\traces\\fork-viewer-default-many-draw-calls-webgl2-trace.json",
-                                                          "exists":  true,
-                                                          "size_bytes":  44121390,
-                                                          "sha256":  "74108a2355ef5e0768533c1c19cffbd9694179deeeafcee4476c9e9630405ef9"
+                                                          "path":  null,
+                                                          "exists":  false,
+                                                          "size_bytes":  null,
+                                                          "sha256":  null
                                                       },
                                              "baseline_result":  {
-                                                                     "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\traces\\baseline-content-shell-many-draw-calls-webgl2-trace.result.json",
-                                                                     "exists":  true,
-                                                                     "size_bytes":  9151,
-                                                                     "sha256":  "605f900d121858d9ffbb746b6a183f8be3d644859a62971ff5e665d236351939"
+                                                                     "path":  null,
+                                                                     "exists":  false,
+                                                                     "size_bytes":  null,
+                                                                     "sha256":  null
                                                                  },
                                              "fork_result":  {
-                                                                 "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\traces\\fork-viewer-default-many-draw-calls-webgl2-trace.result.json",
-                                                                 "exists":  true,
-                                                                 "size_bytes":  9652,
-                                                                 "sha256":  "08285b2e39276b111c9b07168901d540b5e1cc367e5a9948ee781cc4b8981cde"
+                                                                 "path":  null,
+                                                                 "exists":  false,
+                                                                 "size_bytes":  null,
+                                                                 "sha256":  null
                                                              }
                                          }
                           },
@@ -541,22 +570,27 @@
                              "require_build_args":  true,
                              "forbid_smoke":  true,
                              "reject_software_rendering":  true,
+                             "reject_gpu_instability":  true,
                              "require_gpu_metadata":  true,
                              "require_frame_times":  true,
-                             "expected_baseline_build_args_hash":  "bd7a13954054220923cb41d0f2ad96f3d4ed46cef6007654f477d785340887bf",
-                             "expected_fork_build_args_hash":  "bd7a13954054220923cb41d0f2ad96f3d4ed46cef6007654f477d785340887bf",
+                             "expected_baseline_build_args_hash":  "55c64c990be11ff9e4469152fb3b4c87cf55a9df4a110f83a51684100fbb0e02",
+                             "expected_fork_build_args_hash":  "55c64c990be11ff9e4469152fb3b4c87cf55a9df4a110f83a51684100fbb0e02",
                              "require_webgpu_runtime_smoke":  true,
-                             "expected_measured_seconds":  120,
-                             "expected_warmup_seconds":  20,
+                             "expected_measured_seconds":  30,
+                             "expected_warmup_seconds":  5,
+                             "expected_complexity":  2,
                              "expected_chromium_revision":  "3a94d90ec3c04556622c56944796dd76753e0581",
-                             "expected_baseline_browser":  "C:\\Users\\trevo\\code\\three-browser\\.\\src\\out\\ReleaseBaseline\\content_shell.exe",
-                             "expected_fork_browser":  "C:\\Users\\trevo\\code\\three-browser\\.\\src\\out\\ReleaseViewerDefault\\content_shell.exe",
+                             "expected_baseline_browser":  "C:\\Users\\trevo\\code\\three-browser\\src\\out\\ReleaseBaseline\\content_shell.exe",
+                             "expected_fork_browser":  "C:\\Users\\trevo\\code\\three-browser\\src\\out\\ReleaseViewerDefault\\content_shell.exe",
                              "require_fork_revision_for_fork_suites":  true,
-                             "expected_fork_revision":  "3a94d90ec3c04556622c56944796dd76753e0581+viewerpatch-cca4b9171b07",
+                             "expected_fork_revision":  "3a94d90ec3c04556622c56944796dd76753e0581+viewerpatch-1e2ab6bffef9",
                              "exact_scene_output_files":  true,
                              "required_browser_flags":  [
                                                             "--disable-software-rasterizer"
                                                         ],
+                             "profile_cache_policy":  "same-profile-cache-mode-and-key",
+                             "profile_cache_prime_policy":  "none",
+                             "webgpu_bundle_mode_policy":  "same-webgpu-bundle-mode",
                              "expected_flag_metadata":  {
                                                             "baseline":  [
                                                                              "viewer_mode=false",
@@ -564,12 +598,46 @@
                                                                              "viewer_trusted_content=false",
                                                                              "viewer_aggressive_gpu=false",
                                                                              "viewer_relaxed_webgl_validation=false",
+                                                                             "viewer_zero_copy=false",
                                                                              "viewer_in_process_gpu=false",
                                                                              "viewer_single_process=false",
                                                                              "viewer_force_angle_backend=null",
                                                                              "requested_angle_backend=null",
                                                                              "viewer_disable_unneeded_blink_features=false",
-                                                                             "viewer_direct_gpu_presentation=false"
+                                                                             "viewer_direct_gpu_presentation=false",
+                                                                             "viewer_defer_webgpu_pipeline_flush=false",
+                                                                             "viewer_defer_webgpu_queue_flush=false",
+                                                                             "viewer_defer_webgpu_submit_flush=false",
+                                                                             "viewer_skip_webgpu_canvas_texture_validation=false",
+                                                                             "viewer_skip_webgpu_canvas_memory_accounting=false",
+                                                                             "viewer_skip_webgpu_copy_external_image_color_conversion=false",
+                                                                             "viewer_skip_webgpu_copy_external_image_color_space_validation=false",
+                                                                             "viewer_skip_webgpu_copy_external_image_dest_validation=false",
+                                                                             "viewer_skip_webgpu_copy_external_image_source_validation=false",
+                                                                             "viewer_skip_webgpu_copy_external_image_copy_size_validation=false",
+                                                                             "viewer_skip_webgpu_write_texture_layout_validation=false",
+                                                                             "viewer_reject_webgpu_cpu_texture_fallback=false",
+                                                                             "viewer_skip_webgpu_use_counters=false",
+                                                                             "viewer_cache_webgpu_bind_group_layouts=false",
+                                                                             "viewer_skip_webgpu_command_labels=false",
+                                                                             "viewer_skip_webgpu_resource_labels=false",
+                                                                             "viewer_skip_webgpu_shader_source_null_check=false",
+                                                                             "viewer_skip_webgpu_shader_memory_accounting=false",
+                                                                             "viewer_skip_webgpu_redundant_pipeline_sets=false",
+                                                                             "viewer_skip_webgpu_redundant_bind_group_sets=false",
+                                                                             "viewer_skip_webgpu_redundant_buffer_sets=false",
+                                                                             "viewer_skip_webgpu_redundant_render_state_sets=false",
+                                                                             "viewer_trace_webgpu_queue=false",
+                                                                             "benchmark_hud_enabled=false",
+                                                                             "resource_warmup_enabled=false",
+                                                                             "resource_warmup_precompile=false",
+                                                                             "resource_warmup_prerender_frames=0",
+                                                                             "resource_warmup_settle_gpu=false",
+                                                                             "resource_warmup_pipeline_quiet_frames=0",
+                                                                             "resource_warmup_pipeline_quiet_max_frames=0",
+                                                                             "profile_cache_mode=fresh-temp",
+                                                                             "profile_cache_key=null",
+                                                                             "profile_reuse_enabled=false"
                                                                          ],
                                                             "fork_default":  [
                                                                                  "viewer_mode=true",
@@ -577,25 +645,93 @@
                                                                                  "viewer_trusted_content=true",
                                                                                  "viewer_aggressive_gpu=false",
                                                                                  "viewer_relaxed_webgl_validation=false",
+                                                                                 "viewer_zero_copy=false",
                                                                                  "viewer_in_process_gpu=false",
                                                                                  "viewer_single_process=false",
                                                                                  "viewer_force_angle_backend=null",
                                                                                  "requested_angle_backend=null",
                                                                                  "viewer_disable_unneeded_blink_features=false",
-                                                                                 "viewer_direct_gpu_presentation=false"
+                                                                                 "viewer_direct_gpu_presentation=false",
+                                                                                 "viewer_defer_webgpu_pipeline_flush=false",
+                                                                                 "viewer_defer_webgpu_queue_flush=false",
+                                                                                 "viewer_defer_webgpu_submit_flush=false",
+                                                                                 "viewer_skip_webgpu_canvas_texture_validation=false",
+                                                                                 "viewer_skip_webgpu_canvas_memory_accounting=false",
+                                                                                 "viewer_skip_webgpu_copy_external_image_color_conversion=false",
+                                                                                 "viewer_skip_webgpu_copy_external_image_color_space_validation=false",
+                                                                                 "viewer_skip_webgpu_copy_external_image_dest_validation=false",
+                                                                                 "viewer_skip_webgpu_copy_external_image_source_validation=false",
+                                                                                 "viewer_skip_webgpu_copy_external_image_copy_size_validation=false",
+                                                                                 "viewer_skip_webgpu_write_texture_layout_validation=false",
+                                                                                 "viewer_reject_webgpu_cpu_texture_fallback=false",
+                                                                                 "viewer_skip_webgpu_use_counters=false",
+                                                                                 "viewer_cache_webgpu_bind_group_layouts=false",
+                                                                                 "viewer_skip_webgpu_command_labels=false",
+                                                                                 "viewer_skip_webgpu_resource_labels=false",
+                                                                                 "viewer_skip_webgpu_shader_source_null_check=false",
+                                                                                 "viewer_skip_webgpu_shader_memory_accounting=false",
+                                                                                 "viewer_skip_webgpu_redundant_pipeline_sets=false",
+                                                                                 "viewer_skip_webgpu_redundant_bind_group_sets=false",
+                                                                                 "viewer_skip_webgpu_redundant_buffer_sets=false",
+                                                                                 "viewer_skip_webgpu_redundant_render_state_sets=false",
+                                                                                 "viewer_trace_webgpu_queue=false",
+                                                                                 "benchmark_hud_enabled=false",
+                                                                                 "resource_warmup_enabled=false",
+                                                                                 "resource_warmup_precompile=false",
+                                                                                 "resource_warmup_prerender_frames=0",
+                                                                                 "resource_warmup_settle_gpu=false",
+                                                                                 "resource_warmup_pipeline_quiet_frames=0",
+                                                                                 "resource_warmup_pipeline_quiet_max_frames=0",
+                                                                                 "profile_cache_mode=fresh-temp",
+                                                                                 "profile_cache_key=null",
+                                                                                 "profile_reuse_enabled=false"
                                                                              ],
                                                             "aggressive":  [
                                                                                "viewer_mode=true",
                                                                                "viewer_block_external_navigation=true",
                                                                                "viewer_trusted_content=true",
                                                                                "viewer_aggressive_gpu=true",
-                                                                               "viewer_relaxed_webgl_validation=false",
+                                                                               "viewer_relaxed_webgl_validation=true",
+                                                                               "viewer_zero_copy=false",
                                                                                "viewer_in_process_gpu=false",
                                                                                "viewer_single_process=false",
                                                                                "viewer_force_angle_backend=d3d11",
                                                                                "requested_angle_backend=d3d11",
                                                                                "viewer_disable_unneeded_blink_features=false",
-                                                                               "viewer_direct_gpu_presentation=false"
+                                                                               "viewer_direct_gpu_presentation=false",
+                                                                               "viewer_defer_webgpu_pipeline_flush=false",
+                                                                               "viewer_defer_webgpu_queue_flush=false",
+                                                                               "viewer_defer_webgpu_submit_flush=false",
+                                                                               "viewer_skip_webgpu_canvas_texture_validation=false",
+                                                                               "viewer_skip_webgpu_canvas_memory_accounting=false",
+                                                                               "viewer_skip_webgpu_copy_external_image_color_conversion=false",
+                                                                               "viewer_skip_webgpu_copy_external_image_color_space_validation=false",
+                                                                               "viewer_skip_webgpu_copy_external_image_dest_validation=false",
+                                                                               "viewer_skip_webgpu_copy_external_image_source_validation=false",
+                                                                               "viewer_skip_webgpu_copy_external_image_copy_size_validation=false",
+                                                                               "viewer_skip_webgpu_write_texture_layout_validation=false",
+                                                                               "viewer_reject_webgpu_cpu_texture_fallback=false",
+                                                                               "viewer_skip_webgpu_use_counters=false",
+                                                                               "viewer_cache_webgpu_bind_group_layouts=false",
+                                                                               "viewer_skip_webgpu_command_labels=false",
+                                                                               "viewer_skip_webgpu_resource_labels=false",
+                                                                               "viewer_skip_webgpu_shader_source_null_check=false",
+                                                                               "viewer_skip_webgpu_shader_memory_accounting=false",
+                                                                               "viewer_skip_webgpu_redundant_pipeline_sets=false",
+                                                                               "viewer_skip_webgpu_redundant_bind_group_sets=false",
+                                                                               "viewer_skip_webgpu_redundant_buffer_sets=false",
+                                                                               "viewer_skip_webgpu_redundant_render_state_sets=false",
+                                                                               "viewer_trace_webgpu_queue=false",
+                                                                               "benchmark_hud_enabled=false",
+                                                                               "resource_warmup_enabled=false",
+                                                                               "resource_warmup_precompile=false",
+                                                                               "resource_warmup_prerender_frames=0",
+                                                                               "resource_warmup_settle_gpu=false",
+                                                                               "resource_warmup_pipeline_quiet_frames=0",
+                                                                               "resource_warmup_pipeline_quiet_max_frames=0",
+                                                                               "profile_cache_mode=fresh-temp",
+                                                                               "profile_cache_key=null",
+                                                                               "profile_reuse_enabled=false"
                                                                            ],
                                                             "baseline_webgpu":  [
                                                                                     "viewer_mode=false",
@@ -603,12 +739,47 @@
                                                                                     "viewer_trusted_content=false",
                                                                                     "viewer_aggressive_gpu=false",
                                                                                     "viewer_relaxed_webgl_validation=false",
+                                                                                    "viewer_zero_copy=false",
                                                                                     "viewer_in_process_gpu=false",
                                                                                     "viewer_single_process=false",
                                                                                     "viewer_force_angle_backend=null",
                                                                                     "requested_angle_backend=null",
                                                                                     "viewer_disable_unneeded_blink_features=false",
-                                                                                    "viewer_direct_gpu_presentation=false"
+                                                                                    "viewer_direct_gpu_presentation=false",
+                                                                                    "viewer_defer_webgpu_pipeline_flush=false",
+                                                                                    "viewer_defer_webgpu_queue_flush=false",
+                                                                                    "viewer_defer_webgpu_submit_flush=false",
+                                                                                    "viewer_skip_webgpu_canvas_texture_validation=false",
+                                                                                    "viewer_skip_webgpu_canvas_memory_accounting=false",
+                                                                                    "viewer_skip_webgpu_copy_external_image_color_conversion=false",
+                                                                                    "viewer_skip_webgpu_copy_external_image_color_space_validation=false",
+                                                                                    "viewer_skip_webgpu_copy_external_image_dest_validation=false",
+                                                                                    "viewer_skip_webgpu_copy_external_image_source_validation=false",
+                                                                                    "viewer_skip_webgpu_copy_external_image_copy_size_validation=false",
+                                                                                    "viewer_skip_webgpu_write_texture_layout_validation=false",
+                                                                                    "viewer_reject_webgpu_cpu_texture_fallback=false",
+                                                                                    "viewer_skip_webgpu_use_counters=false",
+                                                                                    "viewer_cache_webgpu_bind_group_layouts=false",
+                                                                                    "viewer_skip_webgpu_command_labels=false",
+                                                                                    "viewer_skip_webgpu_resource_labels=false",
+                                                                                    "viewer_skip_webgpu_shader_source_null_check=false",
+                                                                                    "viewer_skip_webgpu_shader_memory_accounting=false",
+                                                                                    "viewer_skip_webgpu_redundant_pipeline_sets=false",
+                                                                                    "viewer_skip_webgpu_redundant_bind_group_sets=false",
+                                                                                    "viewer_skip_webgpu_redundant_buffer_sets=false",
+                                                                                    "viewer_skip_webgpu_redundant_render_state_sets=false",
+                                                                                    "viewer_trace_webgpu_queue=false",
+                                                                                    "benchmark_hud_enabled=false",
+                                                                                    "resource_warmup_enabled=false",
+                                                                                    "resource_warmup_precompile=false",
+                                                                                    "resource_warmup_prerender_frames=0",
+                                                                                    "resource_warmup_settle_gpu=false",
+                                                                                    "resource_warmup_pipeline_quiet_frames=0",
+                                                                                    "resource_warmup_pipeline_quiet_max_frames=0",
+                                                                                    "webgpu_bundle_mode=off",
+                                                                                    "profile_cache_mode=fresh-temp",
+                                                                                    "profile_cache_key=null",
+                                                                                    "profile_reuse_enabled=false"
                                                                                 ],
                                                             "fork_default_webgpu":  [
                                                                                         "viewer_mode=true",
@@ -616,12 +787,47 @@
                                                                                         "viewer_trusted_content=true",
                                                                                         "viewer_aggressive_gpu=false",
                                                                                         "viewer_relaxed_webgl_validation=false",
+                                                                                        "viewer_zero_copy=false",
                                                                                         "viewer_in_process_gpu=false",
                                                                                         "viewer_single_process=false",
                                                                                         "viewer_force_angle_backend=null",
                                                                                         "requested_angle_backend=null",
                                                                                         "viewer_disable_unneeded_blink_features=false",
-                                                                                        "viewer_direct_gpu_presentation=false"
+                                                                                        "viewer_direct_gpu_presentation=false",
+                                                                                        "viewer_defer_webgpu_pipeline_flush=false",
+                                                                                        "viewer_defer_webgpu_queue_flush=false",
+                                                                                        "viewer_defer_webgpu_submit_flush=false",
+                                                                                        "viewer_skip_webgpu_canvas_texture_validation=false",
+                                                                                        "viewer_skip_webgpu_canvas_memory_accounting=false",
+                                                                                        "viewer_skip_webgpu_copy_external_image_color_conversion=false",
+                                                                                        "viewer_skip_webgpu_copy_external_image_color_space_validation=false",
+                                                                                        "viewer_skip_webgpu_copy_external_image_dest_validation=false",
+                                                                                        "viewer_skip_webgpu_copy_external_image_source_validation=false",
+                                                                                        "viewer_skip_webgpu_copy_external_image_copy_size_validation=false",
+                                                                                        "viewer_skip_webgpu_write_texture_layout_validation=false",
+                                                                                        "viewer_reject_webgpu_cpu_texture_fallback=false",
+                                                                                        "viewer_skip_webgpu_use_counters=false",
+                                                                                        "viewer_cache_webgpu_bind_group_layouts=false",
+                                                                                        "viewer_skip_webgpu_command_labels=false",
+                                                                                        "viewer_skip_webgpu_resource_labels=false",
+                                                                                        "viewer_skip_webgpu_shader_source_null_check=false",
+                                                                                        "viewer_skip_webgpu_shader_memory_accounting=false",
+                                                                                        "viewer_skip_webgpu_redundant_pipeline_sets=false",
+                                                                                        "viewer_skip_webgpu_redundant_bind_group_sets=false",
+                                                                                        "viewer_skip_webgpu_redundant_buffer_sets=false",
+                                                                                        "viewer_skip_webgpu_redundant_render_state_sets=false",
+                                                                                        "viewer_trace_webgpu_queue=false",
+                                                                                        "benchmark_hud_enabled=false",
+                                                                                        "resource_warmup_enabled=false",
+                                                                                        "resource_warmup_precompile=false",
+                                                                                        "resource_warmup_prerender_frames=0",
+                                                                                        "resource_warmup_settle_gpu=false",
+                                                                                        "resource_warmup_pipeline_quiet_frames=0",
+                                                                                        "resource_warmup_pipeline_quiet_max_frames=0",
+                                                                                        "webgpu_bundle_mode=off",
+                                                                                        "profile_cache_mode=fresh-temp",
+                                                                                        "profile_cache_key=null",
+                                                                                        "profile_reuse_enabled=false"
                                                                                     ],
                                                             "aggressive_webgpu":  [
                                                                                       "viewer_mode=true",
@@ -629,12 +835,47 @@
                                                                                       "viewer_trusted_content=true",
                                                                                       "viewer_aggressive_gpu=true",
                                                                                       "viewer_relaxed_webgl_validation=false",
+                                                                                      "viewer_zero_copy=false",
                                                                                       "viewer_in_process_gpu=false",
                                                                                       "viewer_single_process=false",
-                                                                                      "viewer_force_angle_backend=d3d11",
-                                                                                      "requested_angle_backend=d3d11",
+                                                                                      "viewer_force_angle_backend=null",
+                                                                                      "requested_angle_backend=null",
                                                                                       "viewer_disable_unneeded_blink_features=false",
-                                                                                      "viewer_direct_gpu_presentation=false"
+                                                                                      "viewer_direct_gpu_presentation=false",
+                                                                                      "viewer_defer_webgpu_pipeline_flush=true",
+                                                                                      "viewer_defer_webgpu_queue_flush=true",
+                                                                                      "viewer_defer_webgpu_submit_flush=true",
+                                                                                      "viewer_skip_webgpu_canvas_texture_validation=true",
+                                                                                      "viewer_skip_webgpu_canvas_memory_accounting=true",
+                                                                                      "viewer_skip_webgpu_copy_external_image_color_conversion=true",
+                                                                                      "viewer_skip_webgpu_copy_external_image_color_space_validation=true",
+                                                                                      "viewer_skip_webgpu_copy_external_image_dest_validation=true",
+                                                                                      "viewer_skip_webgpu_copy_external_image_source_validation=true",
+                                                                                      "viewer_skip_webgpu_copy_external_image_copy_size_validation=true",
+                                                                                      "viewer_skip_webgpu_write_texture_layout_validation=true",
+                                                                                      "viewer_reject_webgpu_cpu_texture_fallback=true",
+                                                                                      "viewer_skip_webgpu_use_counters=true",
+                                                                                      "viewer_cache_webgpu_bind_group_layouts=true",
+                                                                                      "viewer_skip_webgpu_command_labels=true",
+                                                                                      "viewer_skip_webgpu_resource_labels=true",
+                                                                                      "viewer_skip_webgpu_shader_source_null_check=true",
+                                                                                      "viewer_skip_webgpu_shader_memory_accounting=true",
+                                                                                      "viewer_skip_webgpu_redundant_pipeline_sets=true",
+                                                                                      "viewer_skip_webgpu_redundant_bind_group_sets=true",
+                                                                                      "viewer_skip_webgpu_redundant_buffer_sets=true",
+                                                                                      "viewer_skip_webgpu_redundant_render_state_sets=true",
+                                                                                      "viewer_trace_webgpu_queue=false",
+                                                                                      "benchmark_hud_enabled=false",
+                                                                                      "resource_warmup_enabled=false",
+                                                                                      "resource_warmup_precompile=false",
+                                                                                      "resource_warmup_prerender_frames=0",
+                                                                                      "resource_warmup_settle_gpu=false",
+                                                                                      "resource_warmup_pipeline_quiet_frames=0",
+                                                                                      "resource_warmup_pipeline_quiet_max_frames=0",
+                                                                                      "webgpu_bundle_mode=off",
+                                                                                      "profile_cache_mode=fresh-temp",
+                                                                                      "profile_cache_key=null",
+                                                                                      "profile_reuse_enabled=false"
                                                                                   ]
                                                         }
                          }

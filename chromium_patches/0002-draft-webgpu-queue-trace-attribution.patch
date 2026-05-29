@@ -436,20 +436,20 @@ index cdd7141d3f..b1f307f190 100644
    }
  
 diff --git a/third_party/blink/renderer/modules/webgpu/gpu_canvas_context.cc b/third_party/blink/renderer/modules/webgpu/gpu_canvas_context.cc
-index ec0c33c989..9e2d9b3685 100644
+index ec0c33c989..3c438acac5 100644
 --- a/third_party/blink/renderer/modules/webgpu/gpu_canvas_context.cc
 +++ b/third_party/blink/renderer/modules/webgpu/gpu_canvas_context.cc
-@@ -4,7 +4,9 @@
+@@ -4,6 +4,9 @@
  
  #include "third_party/blink/renderer/modules/webgpu/gpu_canvas_context.h"
  
++#include <string_view>
++
 +#include "base/command_line.h"
  #include "base/metrics/histogram_functions.h"
-+#include "base/no_destructor.h"
  #include "components/viz/common/resources/shared_image_format_utils.h"
  #include "gpu/command_buffer/client/raster_interface.h"
- #include "gpu/config/gpu_finch_features.h"
-@@ -26,6 +28,7 @@
+@@ -26,6 +29,7 @@
  #include "third_party/blink/renderer/modules/webgpu/gpu_queue.h"
  #include "third_party/blink/renderer/modules/webgpu/gpu_supported_features.h"
  #include "third_party/blink/renderer/modules/webgpu/gpu_texture.h"
@@ -457,7 +457,7 @@ index ec0c33c989..9e2d9b3685 100644
  #include "third_party/blink/renderer/platform/bindings/exception_state.h"
  #include "third_party/blink/renderer/platform/bindings/script_state.h"
  #include "third_party/blink/renderer/platform/graphics/accelerated_static_bitmap_image.h"
-@@ -44,6 +47,51 @@ namespace blink {
+@@ -44,6 +48,51 @@ namespace blink {
  
  namespace {
  
@@ -501,30 +501,33 @@ index ec0c33c989..9e2d9b3685 100644
 +
 +const ViewerWebGPUCanvasExperimentState&
 +GetViewerWebGPUCanvasExperimentState() {
-+  static const base::NoDestructor<ViewerWebGPUCanvasExperimentState> state(
-+      BuildViewerWebGPUCanvasExperimentState());
-+  return *state;
++  static const ViewerWebGPUCanvasExperimentState state =
++      BuildViewerWebGPUCanvasExperimentState();
++  return state;
 +}
 +
  bool IsContextFormatSupported(V8GPUTextureFormat::Enum format) {
    switch (format) {
      case V8GPUTextureFormat::Enum::kBgra8Unorm:
-@@ -55,6 +103,14 @@ bool IsContextFormatSupported(V8GPUTextureFormat::Enum format) {
+@@ -55,6 +104,17 @@ bool IsContextFormatSupported(V8GPUTextureFormat::Enum format) {
    }
  }
  
-+String StringFromNullableUtf8Label(const char* label) {
-+  if (!label || !label[0] ||
++String StringFromNullableWGPUStringViewLabel(wgpu::StringView label) {
++  if (!label.data || label.length == 0 ||
 +      webgpu_viewer_experiments::ShouldSkipResourceLabels()) {
 +    return String();
 +  }
-+  return String::FromUtf8(label);
++  if (label.length == WGPU_STRLEN) {
++    return String::FromUtf8(label.data);
++  }
++  return String::FromUtf8(std::string_view(label.data, label.length));
 +}
 +
  }  // namespace
  
  GPUCanvasContext::Factory::~Factory() = default;
-@@ -688,11 +744,15 @@ GPUTexture* GPUCanvasContext::getCurrentTexture(
+@@ -688,11 +748,15 @@ GPUTexture* GPUCanvasContext::getCurrentTexture(
      return nullptr;
    }
    DCHECK(device_);
@@ -541,7 +544,7 @@ index ec0c33c989..9e2d9b3685 100644
  
    // Calling getCurrentTexture returns a texture that is valid until the
    // animation frame it gets presented. If getCurrentTexture is called multiple
-@@ -718,7 +778,9 @@ GPUTexture* GPUCanvasContext::getCurrentTexture(
+@@ -718,7 +782,9 @@ GPUTexture* GPUCanvasContext::getCurrentTexture(
    SkAlphaType alpha_type = GetAlphaType();
    scoped_refptr<WebGPUMailboxTexture> mailbox_texture =
        swap_buffers_->GetNewTexture(swap_texture_descriptor_, alpha_type);
@@ -552,12 +555,12 @@ index ec0c33c989..9e2d9b3685 100644
    if (!mailbox_texture) {
      // Try to give a helpful message for the most common cause for mailbox
      // texture creation failure.
-@@ -742,12 +804,10 @@ GPUTexture* GPUCanvasContext::getCurrentTexture(
+@@ -742,12 +808,10 @@ GPUTexture* GPUCanvasContext::getCurrentTexture(
        device_, swap_texture_descriptor_.format,
        static_cast<wgpu::TextureUsage>(swap_texture_descriptor_.usage),
        std::move(mailbox_texture),
 -      String::FromUtf8(swap_texture_descriptor_.label));
-+      StringFromNullableUtf8Label(swap_texture_descriptor_.label));
++      StringFromNullableWGPUStringViewLabel(swap_texture_descriptor_.label));
  
    if (copy_to_swap_texture_required_) {
 -    texture_ = MakeGarbageCollected<GPUTexture>(
@@ -567,7 +570,7 @@ index ec0c33c989..9e2d9b3685 100644
      // If the user manually destroys the texture before yielding control back
      // to the browser, do the copy just prior to the texture destruction.
      texture_->SetBeforeDestroyCallback(blink::BindOnce(
-@@ -760,9 +820,11 @@ GPUTexture* GPUCanvasContext::getCurrentTexture(
+@@ -760,9 +824,11 @@ GPUTexture* GPUCanvasContext::getCurrentTexture(
      texture_ = swap_texture_;
    }
  
@@ -1301,19 +1304,18 @@ index 48745365f1..b4cb657c5d 100644
  
  }  // namespace blink
 diff --git a/third_party/blink/renderer/modules/webgpu/gpu_compute_pipeline.cc b/third_party/blink/renderer/modules/webgpu/gpu_compute_pipeline.cc
-index f49005fca5..7de1f372ec 100644
+index f49005fca5..a81a26c1b7 100644
 --- a/third_party/blink/renderer/modules/webgpu/gpu_compute_pipeline.cc
 +++ b/third_party/blink/renderer/modules/webgpu/gpu_compute_pipeline.cc
-@@ -4,6 +4,8 @@
+@@ -4,6 +4,7 @@
  
  #include "third_party/blink/renderer/modules/webgpu/gpu_compute_pipeline.h"
  
 +#include "base/command_line.h"
-+#include "base/no_destructor.h"
  #include "third_party/blink/renderer/bindings/modules/v8/v8_gpu_compute_pipeline_descriptor.h"
  #include "third_party/blink/renderer/bindings/modules/v8/v8_gpu_programmable_stage.h"
  #include "third_party/blink/renderer/modules/webgpu/gpu_bind_group_layout.h"
-@@ -11,9 +13,48 @@
+@@ -11,9 +12,48 @@
  #include "third_party/blink/renderer/modules/webgpu/gpu_pipeline_layout.h"
  #include "third_party/blink/renderer/modules/webgpu/gpu_programmable_stage.h"
  #include "third_party/blink/renderer/modules/webgpu/gpu_shader_module.h"
@@ -1352,9 +1354,9 @@ index f49005fca5..7de1f372ec 100644
 +
 +const ViewerWebGPUComputePipelineExperimentState&
 +GetViewerWebGPUComputePipelineExperimentState() {
-+  static const base::NoDestructor<ViewerWebGPUComputePipelineExperimentState>
-+      state(BuildViewerWebGPUComputePipelineExperimentState());
-+  return *state;
++  static const ViewerWebGPUComputePipelineExperimentState state =
++      BuildViewerWebGPUComputePipelineExperimentState();
++  return state;
 +}
 +
 +}  // namespace
@@ -1362,7 +1364,7 @@ index f49005fca5..7de1f372ec 100644
  wgpu::ComputePipelineDescriptor AsDawnType(
      GPUDevice* device,
      const GPUComputePipelineDescriptor* webgpu_desc,
-@@ -26,8 +67,9 @@ wgpu::ComputePipelineDescriptor AsDawnType(
+@@ -26,8 +66,9 @@ wgpu::ComputePipelineDescriptor AsDawnType(
    wgpu::ComputePipelineDescriptor dawn_desc = {
        .layout = AsDawnType(webgpu_desc->layout()),
    };
@@ -1374,7 +1376,7 @@ index f49005fca5..7de1f372ec 100644
      dawn_desc.label = label->c_str();
    }
  
-@@ -35,7 +77,7 @@ wgpu::ComputePipelineDescriptor AsDawnType(
+@@ -35,7 +76,7 @@ wgpu::ComputePipelineDescriptor AsDawnType(
    GPUProgrammableStageAsWGPUProgrammableStage(programmable_stage_desc,
                                                computeStage);
    dawn_desc.compute.constantCount = computeStage->constantCount;
@@ -1383,7 +1385,7 @@ index f49005fca5..7de1f372ec 100644
    dawn_desc.compute.module = programmable_stage_desc->module()->GetHandle();
    dawn_desc.compute.entryPoint =
        computeStage->entry_point ? computeStage->entry_point->c_str() : nullptr;
-@@ -69,8 +111,26 @@ GPUComputePipeline::GPUComputePipeline(GPUDevice* device,
+@@ -69,8 +110,26 @@ GPUComputePipeline::GPUComputePipeline(GPUDevice* device,
                                          label) {}
  
  GPUBindGroupLayout* GPUComputePipeline::getBindGroupLayout(uint32_t index) {
@@ -1441,19 +1443,18 @@ index 354b25f231..75422a103f 100644
  
  }  // namespace blink
 diff --git a/third_party/blink/renderer/modules/webgpu/gpu_device.cc b/third_party/blink/renderer/modules/webgpu/gpu_device.cc
-index f97c3a1f3d..c8b893b8a9 100644
+index f97c3a1f3d..7e90c19bb4 100644
 --- a/third_party/blink/renderer/modules/webgpu/gpu_device.cc
 +++ b/third_party/blink/renderer/modules/webgpu/gpu_device.cc
-@@ -4,6 +4,8 @@
+@@ -4,6 +4,7 @@
  
  #include "third_party/blink/renderer/modules/webgpu/gpu_device.h"
  
 +#include "base/command_line.h"
-+#include "base/no_destructor.h"
  #include "base/task/bind_post_task.h"
  #include "gpu/command_buffer/client/webgpu_interface.h"
  #include "third_party/blink/public/platform/platform.h"
-@@ -46,6 +48,7 @@
+@@ -46,6 +47,7 @@
  #include "third_party/blink/renderer/modules/webgpu/gpu_uncaptured_error_event.h"
  #include "third_party/blink/renderer/modules/webgpu/gpu_validation_error.h"
  #include "third_party/blink/renderer/modules/webgpu/string_utils.h"
@@ -1461,7 +1462,7 @@ index f97c3a1f3d..c8b893b8a9 100644
  #include "third_party/blink/renderer/platform/heap/thread_state.h"
  #include "third_party/blink/renderer/platform/wtf/cross_thread_functional.h"
  #include "third_party/blink/renderer/platform/wtf/text/strcat.h"
-@@ -54,6 +57,39 @@ namespace blink {
+@@ -54,6 +56,39 @@ namespace blink {
  
  namespace {
  
@@ -1493,15 +1494,15 @@ index f97c3a1f3d..c8b893b8a9 100644
 +
 +const ViewerWebGPUDeviceExperimentState&
 +GetViewerWebGPUDeviceExperimentState() {
-+  static const base::NoDestructor<ViewerWebGPUDeviceExperimentState> state(
-+      BuildViewerWebGPUDeviceExperimentState());
-+  return *state;
++  static const ViewerWebGPUDeviceExperimentState state =
++      BuildViewerWebGPUDeviceExperimentState();
++  return state;
 +}
 +
  std::optional<V8GPUFeatureName::Enum> RequiredFeatureForTextureFormat(
      V8GPUTextureFormat::Enum format) {
    switch (format) {
-@@ -190,14 +226,19 @@ void GPUDevice::Initialize(wgpu::Device handle,
+@@ -190,14 +225,19 @@ void GPUDevice::Initialize(wgpu::Device handle,
    GetHandle().GetFeatures(&features);
    features_ = MakeGarbageCollected<GPUSupportedFeatures>(features);
  
@@ -1523,7 +1524,7 @@ index f97c3a1f3d..c8b893b8a9 100644
  
    GetHandle().SetLoggingCallback(logging_callback_->UnboundCallback(),
                                   logging_callback_->AsUserdata());
-@@ -609,16 +650,23 @@ ScriptPromise<GPURenderPipeline> GPUDevice::createRenderPipelineAsync(
+@@ -609,16 +649,23 @@ ScriptPromise<GPURenderPipeline> GPUDevice::createRenderPipelineAsync(
        MakeGarbageCollected<ScriptPromiseResolver<GPURenderPipeline>>(
            script_state, exception_state.GetContext());
    auto promise = resolver->Promise();
@@ -1550,7 +1551,7 @@ index f97c3a1f3d..c8b893b8a9 100644
    return promise;
  }
  
-@@ -634,16 +682,23 @@ ScriptPromise<GPUComputePipeline> GPUDevice::createComputePipelineAsync(
+@@ -634,16 +681,23 @@ ScriptPromise<GPUComputePipeline> GPUDevice::createComputePipelineAsync(
        MakeGarbageCollected<ScriptPromiseResolver<GPUComputePipeline>>(
            script_state);
    auto promise = resolver->Promise();
@@ -1719,10 +1720,10 @@ index 3786436791..0feec441ef 100644
  
  }  // namespace blink
 diff --git a/third_party/blink/renderer/modules/webgpu/gpu_programmable_stage.h b/third_party/blink/renderer/modules/webgpu/gpu_programmable_stage.h
-index 82f1fa2acc..bbc14a3245 100644
+index 82f1fa2acc..369c2bec91 100644
 --- a/third_party/blink/renderer/modules/webgpu/gpu_programmable_stage.h
 +++ b/third_party/blink/renderer/modules/webgpu/gpu_programmable_stage.h
-@@ -5,6 +5,7 @@
+@@ -5,10 +5,12 @@
  #ifndef THIRD_PARTY_BLINK_RENDERER_MODULES_WEBGPU_GPU_PROGRAMMABLE_STAGE_H_
  #define THIRD_PARTY_BLINK_RENDERER_MODULES_WEBGPU_GPU_PROGRAMMABLE_STAGE_H_
  
@@ -1730,7 +1731,12 @@ index 82f1fa2acc..bbc14a3245 100644
  #include <memory>
  #include <optional>
  #include <string>
-@@ -26,9 +27,15 @@ struct OwnedProgrammableStage {
+ 
++#include "base/memory/raw_ptr.h"
+ #include "third_party/blink/renderer/platform/graphics/gpu/webgpu_cpp.h"
+ 
+ namespace blink {
+@@ -26,9 +28,15 @@ struct OwnedProgrammableStage {
        delete;
    OwnedProgrammableStage& operator=(OwnedProgrammableStage&& desc) = delete;
  
@@ -1742,7 +1748,7 @@ index 82f1fa2acc..bbc14a3245 100644
 +  std::array<wgpu::ConstantEntry, kStackConstantLimit> stack_constants;
    std::unique_ptr<std::string[]> constantKeys;
    std::unique_ptr<wgpu::ConstantEntry[]> constants;
-+  const wgpu::ConstantEntry* constants_data = nullptr;
++  raw_ptr<const wgpu::ConstantEntry> constants_data = nullptr;
    uint32_t constantCount = 0;
  };
  
@@ -1772,10 +1778,10 @@ index df411c0b85..66bbfddc38 100644
    }
  
 diff --git a/third_party/blink/renderer/modules/webgpu/gpu_queue.cc b/third_party/blink/renderer/modules/webgpu/gpu_queue.cc
-index a588a0003b..95990bad19 100644
+index a588a0003b..ba024b9e34 100644
 --- a/third_party/blink/renderer/modules/webgpu/gpu_queue.cc
 +++ b/third_party/blink/renderer/modules/webgpu/gpu_queue.cc
-@@ -4,6 +4,13 @@
+@@ -4,6 +4,12 @@
  
  #include "third_party/blink/renderer/modules/webgpu/gpu_queue.h"
  
@@ -1783,13 +1789,12 @@ index a588a0003b..95990bad19 100644
 +#include <optional>
 +
 +#include "base/command_line.h"
-+#include "base/no_destructor.h"
 +#include "base/numerics/checked_math.h"
 +#include "base/trace_event/trace_event.h"
  #include "build/build_config.h"
  #include "gpu/command_buffer/client/shared_image_interface.h"
  #include "gpu/command_buffer/client/webgpu_interface.h"
-@@ -12,10 +19,14 @@
+@@ -12,10 +18,15 @@
  #include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
  #include "third_party/blink/renderer/bindings/core/v8/v8_union_element_elementimage.h"
  #include "third_party/blink/renderer/bindings/modules/v8/v8_gpu_command_buffer_descriptor.h"
@@ -1798,6 +1803,7 @@ index a588a0003b..95990bad19 100644
  #include "third_party/blink/renderer/bindings/modules/v8/v8_gpu_image_copy_image_bitmap.h"
  #include "third_party/blink/renderer/bindings/modules/v8/v8_gpu_image_copy_texture_tagged.h"
 +#include "third_party/blink/renderer/bindings/modules/v8/v8_gpu_origin_2d_dict.h"
++#include "third_party/blink/renderer/bindings/modules/v8/v8_gpu_texel_copy_buffer_layout.h"
  #include "third_party/blink/renderer/bindings/modules/v8/v8_gpu_texel_copy_texture_info.h"
 +#include "third_party/blink/renderer/bindings/modules/v8/v8_union_gpuextent3ddict_unsignedlongenforcerangesequence.h"
 +#include "third_party/blink/renderer/bindings/modules/v8/v8_union_gpuorigin2ddict_unsignedlongenforcerangesequence.h"
@@ -1898,9 +1904,9 @@ index a588a0003b..95990bad19 100644
 +}
 +
 +const ViewerWebGPUExperimentState& GetViewerWebGPUExperimentState() {
-+  static const base::NoDestructor<ViewerWebGPUExperimentState> state(
-+      BuildViewerWebGPUExperimentState());
-+  return *state;
++  static const ViewerWebGPUExperimentState state =
++      BuildViewerWebGPUExperimentState();
++  return state;
 +}
 +
 +void TraceViewerWebGPUQueueFlushDeferred(const char* operation) {
@@ -4061,19 +4067,18 @@ index 9b787d38f4..e6ac5300e6 100644
  
  }  // namespace blink
 diff --git a/third_party/blink/renderer/modules/webgpu/gpu_render_pipeline.cc b/third_party/blink/renderer/modules/webgpu/gpu_render_pipeline.cc
-index 158589e1d3..a475a35ea8 100644
+index 158589e1d3..aa9163f625 100644
 --- a/third_party/blink/renderer/modules/webgpu/gpu_render_pipeline.cc
 +++ b/third_party/blink/renderer/modules/webgpu/gpu_render_pipeline.cc
-@@ -4,6 +4,8 @@
+@@ -4,6 +4,7 @@
  
  #include "third_party/blink/renderer/modules/webgpu/gpu_render_pipeline.h"
  
 +#include "base/command_line.h"
-+#include "base/no_destructor.h"
  #include "base/compiler_specific.h"
  #include "third_party/blink/renderer/bindings/core/v8/native_value_traits_impl.h"
  #include "third_party/blink/renderer/bindings/modules/v8/v8_gpu_blend_component.h"
-@@ -24,6 +26,7 @@
+@@ -24,6 +25,7 @@
  #include "third_party/blink/renderer/modules/webgpu/gpu_device.h"
  #include "third_party/blink/renderer/modules/webgpu/gpu_pipeline_layout.h"
  #include "third_party/blink/renderer/modules/webgpu/gpu_shader_module.h"
@@ -4081,7 +4086,7 @@ index 158589e1d3..a475a35ea8 100644
  #include "third_party/blink/renderer/platform/bindings/exception_state.h"
  #include "third_party/blink/renderer/platform/bindings/script_state.h"
  
-@@ -31,6 +34,40 @@ namespace blink {
+@@ -31,6 +33,40 @@ namespace blink {
  
  namespace {
  
@@ -4114,15 +4119,15 @@ index 158589e1d3..a475a35ea8 100644
 +
 +const ViewerWebGPUPipelineExperimentState&
 +GetViewerWebGPUPipelineExperimentState() {
-+  static const base::NoDestructor<ViewerWebGPUPipelineExperimentState> state(
-+      BuildViewerWebGPUPipelineExperimentState());
-+  return *state;
++  static const ViewerWebGPUPipelineExperimentState state =
++      BuildViewerWebGPUPipelineExperimentState();
++  return state;
 +}
 +
  const char kGPUBlendComponentPartiallySpecifiedMessage[] =
      "fragment.targets[%u].blend.%s has a mix of explicit and defaulted "
      "members, which is unusual. Did you mean to specify other members?";
-@@ -207,10 +244,55 @@ void AsDawnVertexBufferLayouts(GPUDevice* device,
+@@ -207,10 +243,55 @@ void AsDawnVertexBufferLayouts(GPUDevice* device,
      return;
    }
  
@@ -4179,7 +4184,7 @@ index 158589e1d3..a475a35ea8 100644
    dawn_vertex->buffers = dawn_desc_info->buffers.get();
  
    // Handle wgpu::VertexBufferLayout::attributes separately to guarantee the
-@@ -240,7 +322,7 @@ void GPUVertexStateAsWGPUVertexState(GPUDevice* device,
+@@ -240,7 +321,7 @@ void GPUVertexStateAsWGPUVertexState(GPUDevice* device,
  
    GPUProgrammableStageAsWGPUProgrammableStage(descriptor, dawn_vertex);
    dawn_vertex->dawn_desc->constantCount = dawn_vertex->constantCount;
@@ -4188,7 +4193,7 @@ index 158589e1d3..a475a35ea8 100644
    dawn_vertex->dawn_desc->module = descriptor->module()->GetHandle();
    dawn_vertex->dawn_desc->entryPoint =
        dawn_vertex->entry_point ? dawn_vertex->entry_point->c_str() : nullptr;
-@@ -273,7 +355,7 @@ void GPUFragmentStateAsWGPUFragmentState(GPUDevice* device,
+@@ -273,7 +354,7 @@ void GPUFragmentStateAsWGPUFragmentState(GPUDevice* device,
  
    GPUProgrammableStageAsWGPUProgrammableStage(descriptor, dawn_fragment);
    dawn_fragment->dawn_desc.constantCount = dawn_fragment->constantCount;
@@ -4197,7 +4202,7 @@ index 158589e1d3..a475a35ea8 100644
    dawn_fragment->dawn_desc.module = descriptor->module()->GetHandle();
    dawn_fragment->dawn_desc.entryPoint =
        dawn_fragment->entry_point ? dawn_fragment->entry_point->c_str()
-@@ -281,18 +363,36 @@ void GPUFragmentStateAsWGPUFragmentState(GPUDevice* device,
+@@ -281,18 +362,36 @@ void GPUFragmentStateAsWGPUFragmentState(GPUDevice* device,
  
    dawn_fragment->dawn_desc.targets = nullptr;
    dawn_fragment->dawn_desc.targetCount = descriptor->targets().size();
@@ -4239,7 +4244,7 @@ index 158589e1d3..a475a35ea8 100644
      if (!maybe_color_target) {
        continue;
      }
-@@ -319,9 +419,15 @@ void GPUFragmentStateAsWGPUFragmentState(GPUDevice* device,
+@@ -319,9 +418,15 @@ void GPUFragmentStateAsWGPUFragmentState(GPUDevice* device,
          return;
        }
  
@@ -4258,7 +4263,7 @@ index 158589e1d3..a475a35ea8 100644
      }
    }
  }
-@@ -338,7 +444,8 @@ void ConvertToDawnType(v8::Isolate* isolate,
+@@ -338,7 +443,8 @@ void ConvertToDawnType(v8::Isolate* isolate,
    DCHECK(dawn_desc_info);
  
    // Label
@@ -4268,7 +4273,7 @@ index 158589e1d3..a475a35ea8 100644
      dawn_desc_info->label = webgpu_desc->label().Utf8();
      dawn_desc_info->dawn_desc.label = dawn_desc_info->label.c_str();
    }
-@@ -408,8 +515,24 @@ GPURenderPipeline::GPURenderPipeline(GPUDevice* device,
+@@ -408,8 +514,24 @@ GPURenderPipeline::GPURenderPipeline(GPUDevice* device,
                                         label) {}
  
  GPUBindGroupLayout* GPURenderPipeline::getBindGroupLayout(uint32_t index) {
@@ -4469,14 +4474,15 @@ index c8f132194b..9a99f4f2af 100644
    return shader;
  }
 diff --git a/third_party/blink/renderer/modules/webgpu/gpu_texture.cc b/third_party/blink/renderer/modules/webgpu/gpu_texture.cc
-index c3faae4b92..14190e2943 100644
+index c3faae4b92..b17dfb93de 100644
 --- a/third_party/blink/renderer/modules/webgpu/gpu_texture.cc
 +++ b/third_party/blink/renderer/modules/webgpu/gpu_texture.cc
-@@ -4,12 +4,16 @@
+@@ -4,12 +4,17 @@
  
  #include "third_party/blink/renderer/modules/webgpu/gpu_texture.h"
  
 +#include <array>
++#include <string_view>
 +
  #include "base/containers/heap_array.h"
  #include "gpu/command_buffer/client/webgpu_interface.h"
@@ -4489,7 +4495,7 @@ index c3faae4b92..14190e2943 100644
  #include "third_party/blink/renderer/bindings/modules/v8/v8_union_gputextureviewdimension_undefined.h"
  #include "third_party/blink/renderer/core/html/canvas/canvas_rendering_context.h"
  #include "third_party/blink/renderer/core/html/canvas/html_canvas_element.h"
-@@ -18,6 +22,7 @@
+@@ -18,6 +23,7 @@
  #include "third_party/blink/renderer/modules/webgpu/gpu_supported_features.h"
  #include "third_party/blink/renderer/modules/webgpu/gpu_texture_usage.h"
  #include "third_party/blink/renderer/modules/webgpu/gpu_texture_view.h"
@@ -4497,18 +4503,21 @@ index c3faae4b92..14190e2943 100644
  #include "third_party/blink/renderer/platform/graphics/accelerated_static_bitmap_image.h"
  #include "third_party/blink/renderer/platform/graphics/canvas_resource_provider.h"
  #include "third_party/blink/renderer/platform/graphics/gpu/shared_gpu_context.h"
-@@ -28,12 +33,98 @@ namespace blink {
+@@ -28,12 +34,101 @@ namespace blink {
  
  namespace {
  
 +constexpr size_t kViewerStackTextureViewFormatLimit = 4;
 +
-+String StringFromNullableUtf8Label(const char* label) {
-+  if (!label || !label[0] ||
++String StringFromNullableWGPUStringViewLabel(wgpu::StringView label) {
++  if (!label.data || label.length == 0 ||
 +      webgpu_viewer_experiments::ShouldSkipResourceLabels()) {
 +    return String();
 +  }
-+  return String::FromUtf8(label);
++  if (label.length == WGPU_STRLEN) {
++    return String::FromUtf8(label.data);
++  }
++  return String::FromUtf8(std::string_view(label.data, label.length));
 +}
 +
 +bool ConvertCommonExtent3D(const V8GPUExtent3D* in, wgpu::Extent3D* out) {
@@ -4596,7 +4605,7 @@ index c3faae4b92..14190e2943 100644
      GPUDevice* device,
      ExceptionState& exception_state) {
    DCHECK(in);
-@@ -41,6 +132,7 @@ bool ConvertToDawn(
+@@ -41,6 +136,7 @@ bool ConvertToDawn(
    DCHECK(out_texture_binding_view_dimension);
    DCHECK(label);
    DCHECK(view_formats);
@@ -4604,7 +4613,7 @@ index c3faae4b92..14190e2943 100644
    DCHECK(device);
  
    *out = {};
-@@ -62,15 +154,30 @@ bool ConvertToDawn(
+@@ -62,15 +158,30 @@ bool ConvertToDawn(
      }
    }
  
@@ -4640,7 +4649,7 @@ index c3faae4b92..14190e2943 100644
    return ConvertToDawn(in->size(), &out->size, device, exception_state);
  }
  
-@@ -94,7 +201,8 @@ void ConvertToDawnType(const GPUTextureViewDescriptor* webgpu_desc,
+@@ -94,7 +205,8 @@ void ConvertToDawnType(const GPUTextureViewDescriptor* webgpu_desc,
      dawn_desc_info->dawn_desc.arrayLayerCount = webgpu_desc->arrayLayerCount();
    }
    dawn_desc_info->dawn_desc.aspect = AsDawnEnum(webgpu_desc->aspect());
@@ -4650,7 +4659,7 @@ index c3faae4b92..14190e2943 100644
      dawn_desc_info->label = webgpu_desc->label().Utf8();
      dawn_desc_info->dawn_desc.label = dawn_desc_info->label.c_str();
    }
-@@ -117,9 +225,30 @@ void ConvertToDawnType(const GPUTextureViewDescriptor* webgpu_desc,
+@@ -117,9 +229,30 @@ void ConvertToDawnType(const GPUTextureViewDescriptor* webgpu_desc,
    }
  }
  
@@ -4681,7 +4690,7 @@ index c3faae4b92..14190e2943 100644
    if (swizzle.length() != 4) {
      exception_state.ThrowTypeError(
          StrCat({"Swizzle ('", swizzle,
-@@ -190,9 +319,12 @@ GPUTexture* GPUTexture::Create(GPUDevice* device,
+@@ -190,9 +323,12 @@ GPUTexture* GPUTexture::Create(GPUDevice* device,
  
    std::string label;
    base::HeapArray<wgpu::TextureFormat> view_formats;
@@ -4695,7 +4704,7 @@ index c3faae4b92..14190e2943 100644
      return nullptr;
    }
  
-@@ -207,8 +339,16 @@ GPUTexture* GPUTexture::Create(GPUDevice* device,
+@@ -207,8 +343,16 @@ GPUTexture* GPUTexture::Create(GPUDevice* device,
      }
    }
  
@@ -4712,7 +4721,7 @@ index c3faae4b92..14190e2943 100644
        webgpu_desc->label());
    return texture;
  }
-@@ -218,9 +358,15 @@ GPUTexture* GPUTexture::Create(GPUDevice* device,
+@@ -218,9 +362,15 @@ GPUTexture* GPUTexture::Create(GPUDevice* device,
    DCHECK(device);
    DCHECK(desc);
  
@@ -4725,20 +4734,20 @@ index c3faae4b92..14190e2943 100644
 -      String::FromUtf8(desc->label));
 +      desc->dimension, texture_binding_view_dimension, desc->format,
 +      desc->usage,
-+      StringFromNullableUtf8Label(desc->label));
++      StringFromNullableWGPUStringViewLabel(desc->label));
  }
  
  // static
-@@ -230,7 +376,7 @@ GPUTexture* GPUTexture::CreateError(GPUDevice* device,
+@@ -230,7 +380,7 @@ GPUTexture* GPUTexture::CreateError(GPUDevice* device,
    DCHECK(desc);
    return MakeGarbageCollected<GPUTexture>(
        device, device->GetHandle().CreateErrorTexture(desc),
 -      String::FromUtf8(desc->label));
-+      StringFromNullableUtf8Label(desc->label));
++      StringFromNullableWGPUStringViewLabel(desc->label));
  }
  
  GPUTexture::GPUTexture(GPUDevice* device,
-@@ -243,6 +389,20 @@ GPUTexture::GPUTexture(GPUDevice* device,
+@@ -243,6 +393,20 @@ GPUTexture::GPUTexture(GPUDevice* device,
        format_(GetHandle().GetFormat()),
        usage_(GetHandle().GetUsage()) {}
  
@@ -4759,7 +4768,7 @@ index c3faae4b92..14190e2943 100644
  GPUTexture::GPUTexture(GPUDevice* device,
                         wgpu::TextureFormat format,
                         wgpu::TextureUsage usage,
-@@ -269,6 +429,11 @@ GPUTextureView* GPUTexture::createView(
+@@ -269,6 +433,11 @@ GPUTextureView* GPUTexture::createView(
      ExceptionState& exception_state) {
    DCHECK(webgpu_desc);
  
@@ -4791,10 +4800,10 @@ index 0da75276c7..115cb0c389 100644
               wgpu::TextureUsage usage,
 diff --git a/third_party/blink/renderer/modules/webgpu/viewer_webgpu_experiment_switches.h b/third_party/blink/renderer/modules/webgpu/viewer_webgpu_experiment_switches.h
 new file mode 100644
-index 0000000000..9ccc9450fd
+index 0000000000..7140a54e56
 --- /dev/null
 +++ b/third_party/blink/renderer/modules/webgpu/viewer_webgpu_experiment_switches.h
-@@ -0,0 +1,130 @@
+@@ -0,0 +1,129 @@
 +// Copyright 2026 The Chromium Authors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -4803,7 +4812,6 @@ index 0000000000..9ccc9450fd
 +#define THIRD_PARTY_BLINK_RENDERER_MODULES_WEBGPU_VIEWER_WEBGPU_EXPERIMENT_SWITCHES_H_
 +
 +#include "base/command_line.h"
-+#include "base/no_destructor.h"
 +
 +namespace blink::webgpu_viewer_experiments {
 +
@@ -4876,9 +4884,9 @@ index 0000000000..9ccc9450fd
 +
 +inline const ViewerWebGPUResourceExperimentState&
 +GetViewerWebGPUResourceExperimentState() {
-+  static const base::NoDestructor<ViewerWebGPUResourceExperimentState> state(
-+      BuildViewerWebGPUResourceExperimentState());
-+  return *state;
++  static const ViewerWebGPUResourceExperimentState state =
++      BuildViewerWebGPUResourceExperimentState();
++  return state;
 +}
 +
 +inline bool ShouldSkipResourceLabels() {

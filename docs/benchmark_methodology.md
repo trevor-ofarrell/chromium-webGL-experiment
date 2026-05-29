@@ -2,12 +2,12 @@
 
 Date: 2026-05-24
 
-The benchmark system compares stock Chromium `content_shell`, the default viewer fork, and trusted viewer experiments built from the same Chromium revision. Fork benchmark results must identify the exact patch content through the fork revision stamp.
+The benchmark system compares stock Chromium `content_shell`, the default viewer fork, and trusted viewer experiments built from the same Chromium revision. Fork benchmark results must identify the actual fork patch-series content through the fork revision stamp.
 
 Current source revision:
 
 - Chromium revision: `3a94d90ec3c04556622c56944796dd76753e0581`
-- Fork revision stamp: `3a94d90ec3c04556622c56944796dd76753e0581+viewerpatch-43dbf0b6871e`
+- Fork revision stamp: `3a94d90ec3c04556622c56944796dd76753e0581+viewerpatch-1e2ab6bffef9`
 
 ## Required Scene Suite
 
@@ -95,7 +95,11 @@ Each JSON result must include:
 
 Unavailable metrics are recorded as `null` rather than omitted. Every benchmark JSON is validated by `scripts/validate_metrics.mjs`.
 
+Newer viewer builds also emit optional diagnostic fields that are not part of the required schema: `dropped_frame_rate`; `p95_cpu_frame_ms`, `p99_cpu_frame_ms`, `p95_js_frame_ms`, `p99_js_frame_ms`, `p95_render_submission_ms`, `p99_render_submission_ms`, `p95_gpu_frame_ms`, and `p99_gpu_frame_ms`; and per-frame timing series `cpu_frame_times_ms`, `js_frame_times_ms`, `render_submission_times_ms`, and `gpu_frame_times_ms` when available. Use `scripts/analyze_tail_breakdown.mjs` on matched baseline/fork JSON pairs to attribute p95/p99 regressions to frame pacing, JS/update, render submission, or GPU timing.
+
 The harness enriches viewer-emitted metrics with checkout provenance, browser executable metadata, build args hash, package metadata, creates the output directory, and writes the final machine-readable JSON file.
+
+Compatibility metadata includes GPU-settle warmup mode, WebGPU pipeline-quiet warmup settings, WebGPU BundleGroup mode, and profile-cache mode/key so cached, warmed, and bundle-mode runs are not mixed with fresh default evidence.
 
 WebGPU GPU timestamp timing is disabled in the official WebGPU suite because timestamp queries caused device loss in stress runs. WebGPU adapter/device metadata and CPU-side frame metrics remain valid.
 
@@ -144,6 +148,36 @@ Official reports:
 
 Human-readable official comparison reports summarize FPS, low-FPS, frame-time, CPU/GPU/JS/submission, memory, startup, draw/triangle/upload, shader-event, binary, viewer, and package metrics. Summary reports also include an optional WebGPU fast-path coverage section when queue or pipeline descriptor-shape attribution fields are present. Summary and comparison reports include an `Input file digest` so raw JSON inputs can be tied back to the rendered report.
 
+## Alternating Paired Runs
+
+When WebGPU results show run-order or thermal/state drift, use `scripts\run_alternating_pair_suite.ps1` before promoting a WebGPU speed claim. The runner executes stock and fork results scene-by-scene, alternating which side launches first, and writes a manifest plus analyzer input list. This avoids comparing an all-stock block against a later all-fork block when GPU driver state changes during the suite.
+
+Example color-space-validation probe:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\run_alternating_pair_suite.ps1 `
+  -BaselineBrowser .\src\out\ReleaseBaseline\content_shell.exe `
+  -ForkBrowser .\src\out\ReleaseViewerDefault\content_shell.exe `
+  -BaselineBuildArgs .\src\out\ReleaseBaseline\args.gn `
+  -ForkBuildArgs .\src\out\ReleaseViewerDefault\args.gn `
+  -BaselinePackageDir .\benchmarks\packages\baseline-content-shell `
+  -ForkPackageDir .\benchmarks\packages\viewer-default `
+  -Renderer webgpu -Duration 30 -Warmup 5 -Complexity 2 `
+  -BaselineLabel baseline-content-shell-webgpu-alt-colorspace `
+  -ForkLabel fork-viewer-exp-webgpu-colorspace-alt `
+  -ForkRevision 3a94d90ec3c04556622c56944796dd76753e0581+viewerpatch-1e2ab6bffef9 `
+  -ForkBenchmarkArg @("--viewerMode", "--viewerTrustedContent", "--viewerSkipWebgpuCopyExternalImageColorSpaceValidation", "--viewerRejectWebgpuCpuTextureFallback") `
+  -DisableGpuTiming -RequireCheckout -RequireBuildArgs -RequireGpuMetadata -RequirePackageSize -RequireFrameTimes -RejectSoftwareRendering -RejectGpuInstability
+```
+
+For `-Repeats 1`, the output labels are directly compatible with `scripts\analyze_candidates.mjs`. For multiple repeats, treat each repeat label as a separate paired sample until an aggregate paired-analysis gate is used; do not collapse repeated runs by hand into retained evidence.
+
+Post-policy WebGPU paired controls are recorded in `benchmarks/reports/alt-default-webgpu-manifest.json` and `benchmarks/reports/alt-warmup-webgpu-manifest.json`. The default paired run is useful triage evidence but not retained: it averaged +2.37% FPS and lower CPU/submission versus stock, then failed the strict gate on instancing 0.1% low FPS. The matched resource-warmup run is also not retained because glTF-loader-stress regressed in FPS, dropped-frame rate, and CPU/submission time.
+
+Full-duration WebGPU color-conversion confirmations are recorded in `benchmarks/reports/alt-colorconv-webgpu-120-manifest.json` and `benchmarks/reports/alt-colorconv-webgpu-120b-manifest.json`. Both improved suite average FPS and p99 frame time, but neither is retained because glTF-loader-stress still tripped the CPU/render-submission overhead gate.
+
+The later canvas-memory plus color-conversion pass is recorded in `benchmarks/reports/canvasmem-colorconv-120-webgpu-manifest.json`. Its focused glTF/texture probe passed, but the full seven-scene confirmation is not retained because average FPS regressed and glTF-loader-stress again tripped the full-suite blocker.
+
 ## Trusted Experiment Matrix
 
 Trusted experiments are fork-only runs behind `--viewer-trusted-content`. The current matrix includes:
@@ -174,12 +208,14 @@ The texture-streaming scene supports:
 
 The DataTexture mode increases absolute texture-streaming throughput and exercises WebGPU queue/write paths differently from the canvas path. It is part of the comparison compatibility key and must not be mixed with canvas-mode results for retained claims.
 
+DataTexture mode is diagnostic for upload-path attribution. Candidate analysis filters it from retained evidence by default; use `--includeDiagnosticTextureModes` only when explicitly investigating upload-mode behavior.
+
 ## Stability
 
 One-hour stability uses:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\run_long_stability.ps1 -Browser .\src\out\ReleaseViewerDefault\content_shell.exe -Renderer webgl2 -Scene instancing -Duration 3600 -Warmup 30 -Label fork-viewer-default-long-stability -BuildArgs .\src\out\ReleaseViewerDefault\args.gn -PackageDir .\benchmarks\packages\viewer-default -ExpectedChromiumRevision 3a94d90ec3c04556622c56944796dd76753e0581 -ForkRevision 3a94d90ec3c04556622c56944796dd76753e0581+viewerpatch-43dbf0b6871e -ViewerMode -ViewerTrustedContent -MaxRssDeltaMb 128 -MaxRendererResourceDelta 0 -FriendlyWindow
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\run_long_stability.ps1 -Browser .\src\out\ReleaseViewerDefault\content_shell.exe -Renderer webgl2 -Scene instancing -Duration 3600 -Warmup 30 -Label fork-viewer-default-long-stability -BuildArgs .\src\out\ReleaseViewerDefault\args.gn -PackageDir .\benchmarks\packages\viewer-default -ExpectedChromiumRevision 3a94d90ec3c04556622c56944796dd76753e0581 -ForkRevision 3a94d90ec3c04556622c56944796dd76753e0581+viewerpatch-1e2ab6bffef9 -ViewerMode -ViewerTrustedContent -MaxRssDeltaMb 128 -MaxRendererResourceDelta 0 -FriendlyWindow
 ```
 
 Stability acceptance:

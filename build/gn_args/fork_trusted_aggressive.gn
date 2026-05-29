@@ -5,5 +5,13 @@ symbol_level = 1
 blink_symbol_level = 0
 v8_symbol_level = 0
 treat_warnings_as_errors = false
+dcheck_always_on = false
+enable_expensive_dchecks = false
+# Host toolchain workaround: Chromium clang llvmorg-23-init-10931-g20b6ec66-11
+# crashes compiling Blink WebGL2 with default array-bounds/return hardening and
+# later crashes in LLVM's machine scheduler compiling Protobuf on this Windows
+# build host. This is applied identically to stock and fork builds.
+enable_ubsan_hardening = false
+disable_llvm_machine_scheduler = true
 
 # Experimental profile only. Runtime flags still control unsafe behavior.

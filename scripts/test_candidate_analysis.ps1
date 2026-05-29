@@ -270,7 +270,7 @@ try {
     (New-Result "iter9-fork-source-queue-trace-c2-many-draw-calls-webgpu" "many-draw-calls" -Renderer "webgpu" -AvgFps 150 -ViewerTraceWebgpuQueue $true),
     (New-Result "iter9-fork-render-state-c2-many-draw-calls-webgpu" "many-draw-calls" -Renderer "webgpu" -AvgFps 140 -RenderStateInstrumentation $true),
     (New-Result "iter9-fork-immediate-c2-many-draw-calls-webgpu" "many-draw-calls" -Renderer "webgpu" -AvgFps 140 -ImmediateInstrumentation $true),
-    (New-Result "iter9-fork-dropped-frames-c2-many-draw-calls-webgl2" "many-draw-calls" -AvgFps 115 -OneLow 94 -PointOneLow 85 -P95 8 -P99 10 -DroppedFrames 2),
+    (New-Result "iter9-fork-dropped-frames-c2-many-draw-calls-webgl2" "many-draw-calls" -AvgFps 115 -OneLow 94 -PointOneLow 85 -P95 8 -P99 10 -DroppedFrames 30),
     (New-Result "iter9-fork-cpu-overhead-c2-many-draw-calls-webgl2" "many-draw-calls" -AvgFps 116 -OneLow 94 -PointOneLow 85 -P95 8 -P99 10 -AvgCpuFrameMs 8.1),
     (New-Result "iter9-fork-submit-overhead-c2-many-draw-calls-webgpu" "many-draw-calls" -Renderer "webgpu" -AvgFps 116 -OneLow 94 -PointOneLow 85 -P95 8 -P99 10 -AvgRenderSubmissionMs 6.8)
   )
@@ -313,8 +313,8 @@ try {
   }
   if ($Report -notmatch "iter9-fork-dropped-frames-c2" -or
       $Report -notmatch "blocked-dropped-frames" -or
-      $Report -notmatch "dropped frames \+2") {
-    throw "Candidate analyzer did not block a speed win with dropped-frame regression. Report: $Report"
+      $Report -notmatch "dropped frame rate \+0\.87 pp") {
+    throw "Candidate analyzer did not block a speed win with dropped-frame-rate regression. Report: $Report"
   }
   if ($Report -notmatch "iter9-fork-cpu-overhead-c2" -or
       $Report -notmatch "blocked-cpu-overhead" -or

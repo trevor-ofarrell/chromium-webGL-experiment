@@ -21,84 +21,92 @@ $WebGpuPatchText = Get-Content -LiteralPath $WebGpuPatchPath -Raw
 $WebGpuAddedCode = ((Get-Content -LiteralPath $WebGpuPatchPath) |
   Where-Object { $_.StartsWith("+") -and -not $_.StartsWith("+++") } |
   ForEach-Object { $_.Substring(1) }) -join "`n"
+
+function Test-GitApply {
+  param(
+    [string]$SourceDir,
+    [string]$PatchPath,
+    [switch]$Reverse
+  )
+
+  $OldErrorActionPreference = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
+  try {
+    $Args = @("-C", $SourceDir, "apply")
+    if ($Reverse) {
+      $Args += "--reverse"
+    }
+    $Args += @("--check", $PatchPath)
+    & git @Args *>$null
+    return ($LASTEXITCODE -eq 0)
+  } finally {
+    $ErrorActionPreference = $OldErrorActionPreference
+  }
+}
+
+$Src = Join-Path $Root "src"
+$WebGpuPatchAlreadyApplied = Test-GitApply $Src $WebGpuPatchPath -Reverse
+$WebGpuEvidenceRoot = $Src
+if (-not $WebGpuPatchAlreadyApplied) {
+  $WebGpuEvidenceRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("three-browser-webgpu-patch-evidence-" + [guid]::NewGuid().ToString("N"))
+  $WebGpuModuleParent = Join-Path $WebGpuEvidenceRoot "third_party\blink\renderer\modules"
+  New-Item -ItemType Directory -Path $WebGpuModuleParent -Force | Out-Null
+  Copy-Item -LiteralPath (Join-Path $Src "third_party\blink\renderer\modules\webgpu") -Destination $WebGpuModuleParent -Recurse
+
+  $OldErrorActionPreference = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
+  try {
+    & git -C $WebGpuEvidenceRoot apply $WebGpuPatchPath *>$null
+    if ($LASTEXITCODE -ne 0) {
+      throw "Unable to build temporary patched WebGPU evidence tree from $WebGpuPatchPath"
+    }
+  } finally {
+    $ErrorActionPreference = $OldErrorActionPreference
+  }
+}
+
+function Get-WebGpuEvidenceText {
+  param([string]$SourcePath)
+
+  $EvidencePath = $SourcePath
+  if (-not $WebGpuPatchAlreadyApplied) {
+    $SrcFullPath = [System.IO.Path]::GetFullPath($Src).TrimEnd("\", "/")
+    $SourceFullPath = [System.IO.Path]::GetFullPath($SourcePath)
+    $RelativePath = $SourceFullPath.Substring($SrcFullPath.Length).TrimStart("\", "/")
+    $EvidencePath = Join-Path $WebGpuEvidenceRoot $RelativePath
+  }
+  if (Test-Path -LiteralPath $EvidencePath) {
+    return Get-Content -LiteralPath $EvidencePath -Raw
+  }
+  return $WebGpuPatchText
+}
+
 $WebGpuQueueSourcePath = Join-Path $Root "src\third_party\blink\renderer\modules\webgpu\gpu_queue.cc"
-$WebGpuQueueSourceText = if (Test-Path -LiteralPath $WebGpuQueueSourcePath) {
-  Get-Content -LiteralPath $WebGpuQueueSourcePath -Raw
-} else {
-  $WebGpuPatchText
-}
+$WebGpuQueueSourceText = Get-WebGpuEvidenceText $WebGpuQueueSourcePath
 $WebGpuCommandEncoderSourcePath = Join-Path $Root "src\third_party\blink\renderer\modules\webgpu\gpu_command_encoder.cc"
-$WebGpuCommandEncoderSourceText = if (Test-Path -LiteralPath $WebGpuCommandEncoderSourcePath) {
-  Get-Content -LiteralPath $WebGpuCommandEncoderSourcePath -Raw
-} else {
-  $WebGpuPatchText
-}
+$WebGpuCommandEncoderSourceText = Get-WebGpuEvidenceText $WebGpuCommandEncoderSourcePath
 $WebGpuRenderBundleSourcePath = Join-Path $Root "src\third_party\blink\renderer\modules\webgpu\gpu_render_bundle_encoder.cc"
-$WebGpuRenderBundleSourceText = if (Test-Path -LiteralPath $WebGpuRenderBundleSourcePath) {
-  Get-Content -LiteralPath $WebGpuRenderBundleSourcePath -Raw
-} else {
-  $WebGpuPatchText
-}
+$WebGpuRenderBundleSourceText = Get-WebGpuEvidenceText $WebGpuRenderBundleSourcePath
 $WebGpuRenderPassSourcePath = Join-Path $Root "src\third_party\blink\renderer\modules\webgpu\gpu_render_pass_encoder.cc"
-$WebGpuRenderPassSourceText = if (Test-Path -LiteralPath $WebGpuRenderPassSourcePath) {
-  Get-Content -LiteralPath $WebGpuRenderPassSourcePath -Raw
-} else {
-  $WebGpuPatchText
-}
+$WebGpuRenderPassSourceText = Get-WebGpuEvidenceText $WebGpuRenderPassSourcePath
 $WebGpuComputePassSourcePath = Join-Path $Root "src\third_party\blink\renderer\modules\webgpu\gpu_compute_pass_encoder.cc"
-$WebGpuComputePassSourceText = if (Test-Path -LiteralPath $WebGpuComputePassSourcePath) {
-  Get-Content -LiteralPath $WebGpuComputePassSourcePath -Raw
-} else {
-  $WebGpuPatchText
-}
+$WebGpuComputePassSourceText = Get-WebGpuEvidenceText $WebGpuComputePassSourcePath
 $WebGpuProgrammablePassSourcePath = Join-Path $Root "src\third_party\blink\renderer\modules\webgpu\gpu_programmable_pass_encoder.cc"
-$WebGpuProgrammablePassSourceText = if (Test-Path -LiteralPath $WebGpuProgrammablePassSourcePath) {
-  Get-Content -LiteralPath $WebGpuProgrammablePassSourcePath -Raw
-} else {
-  $WebGpuPatchText
-}
+$WebGpuProgrammablePassSourceText = Get-WebGpuEvidenceText $WebGpuProgrammablePassSourcePath
 $WebGpuTextureSourcePath = Join-Path $Root "src\third_party\blink\renderer\modules\webgpu\gpu_texture.cc"
-$WebGpuTextureSourceText = if (Test-Path -LiteralPath $WebGpuTextureSourcePath) {
-  Get-Content -LiteralPath $WebGpuTextureSourcePath -Raw
-} else {
-  $WebGpuPatchText
-}
+$WebGpuTextureSourceText = Get-WebGpuEvidenceText $WebGpuTextureSourcePath
 $WebGpuDawnObjectSourcePath = Join-Path $Root "src\third_party\blink\renderer\modules\webgpu\dawn_object.cc"
-$WebGpuDawnObjectSourceText = if (Test-Path -LiteralPath $WebGpuDawnObjectSourcePath) {
-  Get-Content -LiteralPath $WebGpuDawnObjectSourcePath -Raw
-} else {
-  $WebGpuPatchText
-}
+$WebGpuDawnObjectSourceText = Get-WebGpuEvidenceText $WebGpuDawnObjectSourcePath
 $WebGpuShaderModuleSourcePath = Join-Path $Root "src\third_party\blink\renderer\modules\webgpu\gpu_shader_module.cc"
-$WebGpuShaderModuleSourceText = if (Test-Path -LiteralPath $WebGpuShaderModuleSourcePath) {
-  Get-Content -LiteralPath $WebGpuShaderModuleSourcePath -Raw
-} else {
-  $WebGpuPatchText
-}
+$WebGpuShaderModuleSourceText = Get-WebGpuEvidenceText $WebGpuShaderModuleSourcePath
 $WebGpuRenderPassHeaderPath = Join-Path $Root "src\third_party\blink\renderer\modules\webgpu\gpu_render_pass_encoder.h"
-$WebGpuRenderPassHeaderText = if (Test-Path -LiteralPath $WebGpuRenderPassHeaderPath) {
-  Get-Content -LiteralPath $WebGpuRenderPassHeaderPath -Raw
-} else {
-  $WebGpuPatchText
-}
+$WebGpuRenderPassHeaderText = Get-WebGpuEvidenceText $WebGpuRenderPassHeaderPath
 $WebGpuCommandEncoderHeaderPath = Join-Path $Root "src\third_party\blink\renderer\modules\webgpu\gpu_command_encoder.h"
-$WebGpuCommandEncoderHeaderText = if (Test-Path -LiteralPath $WebGpuCommandEncoderHeaderPath) {
-  Get-Content -LiteralPath $WebGpuCommandEncoderHeaderPath -Raw
-} else {
-  $WebGpuPatchText
-}
+$WebGpuCommandEncoderHeaderText = Get-WebGpuEvidenceText $WebGpuCommandEncoderHeaderPath
 $WebGpuComputePassHeaderPath = Join-Path $Root "src\third_party\blink\renderer\modules\webgpu\gpu_compute_pass_encoder.h"
-$WebGpuComputePassHeaderText = if (Test-Path -LiteralPath $WebGpuComputePassHeaderPath) {
-  Get-Content -LiteralPath $WebGpuComputePassHeaderPath -Raw
-} else {
-  $WebGpuPatchText
-}
+$WebGpuComputePassHeaderText = Get-WebGpuEvidenceText $WebGpuComputePassHeaderPath
 $WebGpuRenderBundleHeaderPath = Join-Path $Root "src\third_party\blink\renderer\modules\webgpu\gpu_render_bundle_encoder.h"
-$WebGpuRenderBundleHeaderText = if (Test-Path -LiteralPath $WebGpuRenderBundleHeaderPath) {
-  Get-Content -LiteralPath $WebGpuRenderBundleHeaderPath -Raw
-} else {
-  $WebGpuPatchText
-}
+$WebGpuRenderBundleHeaderText = Get-WebGpuEvidenceText $WebGpuRenderBundleHeaderPath
 
 function Assert-Contains {
   param(
@@ -589,7 +597,7 @@ Assert-Contains `
 
 Assert-Contains `
   $WebGpuAddedCode `
-  'base::NoDestructor<ViewerWebGPUDeviceExperimentState>' `
+  'static const ViewerWebGPUDeviceExperimentState state =[\s\S]*BuildViewerWebGPUDeviceExperimentState\(\);' `
   "WebGPU device experiment state is cached instead of re-reading command-line switches on every async pipeline call"
 
 Assert-Contains `
@@ -653,7 +661,7 @@ Assert-Contains `
 
 Assert-Contains `
   $WebGpuAddedCode `
-  'base::NoDestructor<ViewerWebGPUExperimentState>' `
+  'static const ViewerWebGPUExperimentState state =[\s\S]*BuildViewerWebGPUExperimentState\(\);' `
   "WebGPU source-backed experiment state is cached instead of re-reading command-line switches on every queue operation"
 
 Assert-Contains `
@@ -728,11 +736,7 @@ function Get-WebGpuModuleText {
   param([string]$RelativePath)
 
   $SourcePath = Join-Path $Root "src\third_party\blink\renderer\modules\webgpu\$RelativePath"
-  if (Test-Path -LiteralPath $SourcePath) {
-    return Get-Content -LiteralPath $SourcePath -Raw
-  }
-
-  return $WebGpuPatchText
+  return Get-WebGpuEvidenceText $SourcePath
 }
 
 $LabelSkipChecks = @(
@@ -1245,13 +1249,13 @@ Assert-Contains `
 
 Assert-Contains `
   $WebGpuPatchText `
-  'gpu_canvas_context\.cc[\s\S]*#include "third_party/blink/renderer/modules/webgpu/viewer_webgpu_experiment_switches\.h"[\s\S]*StringFromNullableUtf8Label\(const char\* label\)[\s\S]*!label \|\| !label\[0\][\s\S]*ShouldSkipResourceLabels\(\)[\s\S]*String::FromUtf8\(label\)[\s\S]*GPUCanvasContext::getCurrentTexture[\s\S]*StringFromNullableUtf8Label\(swap_texture_descriptor_\.label\)[\s\S]*texture_ = GPUTexture::Create\(device_, &texture_descriptor_\);' `
-  "WebGPU canvas getCurrentTexture skips nullable, empty, and trusted resource-label UTF-8 conversion for the swap wrapper and routes copy-to-swap labels through the descriptor-backed texture wrapper"
+  'gpu_canvas_context\.cc[\s\S]*#include "third_party/blink/renderer/modules/webgpu/viewer_webgpu_experiment_switches\.h"[\s\S]*StringFromNullableWGPUStringViewLabel\(wgpu::StringView label\)[\s\S]*!label\.data \|\| label\.length == 0[\s\S]*ShouldSkipResourceLabels\(\)[\s\S]*WGPU_STRLEN[\s\S]*String::FromUtf8\(std::string_view\(label\.data, label\.length\)\)[\s\S]*GPUCanvasContext::getCurrentTexture[\s\S]*StringFromNullableWGPUStringViewLabel\(swap_texture_descriptor_\.label\)[\s\S]*texture_ = GPUTexture::Create\(device_, &texture_descriptor_\);' `
+  "WebGPU canvas getCurrentTexture skips nullable, empty, bounded, and trusted resource-label UTF-8 conversion for the swap wrapper and routes copy-to-swap labels through the descriptor-backed texture wrapper"
 
 Assert-Contains `
   $WebGpuTextureSourceText `
-  'StringFromNullableUtf8Label\(const char\* label\)[\s\S]*!label \|\| !label\[0\][\s\S]*ShouldSkipResourceLabels\(\)[\s\S]*String::FromUtf8\(label\)' `
-  "WebGPU texture descriptor wrappers skip nullable, empty, and trusted resource-label UTF-8 conversion"
+  'StringFromNullableWGPUStringViewLabel\(wgpu::StringView label\)[\s\S]*!label\.data \|\| label\.length == 0[\s\S]*ShouldSkipResourceLabels\(\)[\s\S]*WGPU_STRLEN[\s\S]*String::FromUtf8\(std::string_view\(label\.data, label\.length\)\)' `
+  "WebGPU texture descriptor wrappers skip nullable, empty, bounded, and trusted resource-label UTF-8 conversion"
 
 $NormalizedWebGpuPatchText = $WebGpuPatchText -replace "`r`n", "`n"
 $TexturePatchSection = Get-TextSection `
@@ -1268,12 +1272,12 @@ $TextureDescriptorCreateSection = Get-TextSection `
 
 Assert-Contains `
   $TexturePatchSection `
-  'GPUTexture::Create\(GPUDevice\* device,[\s\S]*device->GetHandle\(\)\.CreateTexture\(desc\),[\s\S]*StringFromNullableUtf8Label\(desc->label\)' `
+  'GPUTexture::Create\(GPUDevice\* device,[\s\S]*device->GetHandle\(\)\.CreateTexture\(desc\),[\s\S]*StringFromNullableWGPUStringViewLabel\(desc->label\)' `
   "WebGPU texture creation wrappers skip nullable empty-label UTF-8 conversion for Dawn descriptors"
 
 Assert-Contains `
   $TextureDescriptorCreateSection `
-  "StringFromNullableUtf8Label\(desc->label\)" `
+  "StringFromNullableWGPUStringViewLabel\(desc->label\)" `
   "WebGPU descriptor-backed texture creation uses the descriptor label and does not reference IDL descriptor state"
 
 Assert-NotContains `
@@ -1283,7 +1287,7 @@ Assert-NotContains `
 
 Assert-Contains `
   $WebGpuPatchText `
-  'GPUTexture::CreateError\(GPUDevice\* device,[\s\S]*device->GetHandle\(\)\.CreateErrorTexture\(desc\),[\s\S]*StringFromNullableUtf8Label\(desc->label\)' `
+  'GPUTexture::CreateError\(GPUDevice\* device,[\s\S]*device->GetHandle\(\)\.CreateErrorTexture\(desc\),[\s\S]*StringFromNullableWGPUStringViewLabel\(desc->label\)' `
   "WebGPU error texture wrappers skip nullable empty-label UTF-8 conversion for Dawn descriptors"
 
 Assert-Contains `

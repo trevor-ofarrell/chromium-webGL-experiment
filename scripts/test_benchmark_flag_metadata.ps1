@@ -32,6 +32,20 @@ $PostAtlRunner = Read-RepoFile "scripts\run_post_atl_pipeline.ps1"
 $Validator = Read-RepoFile "scripts\validate_metrics.mjs"
 $TraceValidator = Read-RepoFile "scripts\validate_trace_result.mjs"
 $SuiteValidator = Read-RepoFile "scripts\validate_benchmark_suite.mjs"
+$CandidateAnalyzer = Read-RepoFile "scripts\analyze_candidates.mjs"
+$ComparisonReporter = Read-RepoFile "scripts\compare_results.mjs"
+
+foreach ($EvidenceFilter in @(
+    @{ Text = $SuiteValidator; Name = "suite validator" },
+    @{ Text = $CandidateAnalyzer; Name = "candidate analyzer" },
+    @{ Text = $ComparisonReporter; Name = "comparison reporter" }
+  )) {
+  Assert-Contains $EvidenceFilter.Text "defaultBenchmarkDisabledFeatures" "$($EvidenceFilter.Name) recognizes shared baseline feature suppressions"
+  Assert-Contains $EvidenceFilter.Text "'translate'" "$($EvidenceFilter.Name) allows shared Translate suppression without trusted experiment provenance"
+  Assert-Contains $EvidenceFilter.Text "'optimizationhints'" "$($EvidenceFilter.Name) allows shared OptimizationHints suppression without trusted experiment provenance"
+  Assert-Contains $EvidenceFilter.Text "'autofillservercommunication'" "$($EvidenceFilter.Name) allows shared AutofillServerCommunication suppression without trusted experiment provenance"
+  Assert-Contains $EvidenceFilter.Text "isDefaultBenchmarkDisableFeaturesValue" "$($EvidenceFilter.Name) separates baseline suppressions from experiment feature toggles"
+}
 
 $FlagMappings = @(
   @{ Arg = "viewerMode"; Switch = "--viewer-block-external-navigation"; Field = "viewer_block_external_navigation"; Type = "boolean" },

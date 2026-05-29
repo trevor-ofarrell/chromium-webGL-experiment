@@ -15,6 +15,9 @@ $Root = Resolve-Path (Join-Path $PSScriptRoot "..")
 $Src = Join-Path $Root "src"
 $DepotTools = Join-Path $Root "tools\depot_tools"
 $SourceArgs = Join-Path $Root $ArgsFile
+$CommonBuildPatchSeries = @(
+  "chromium_patches\0000-draft-win-clang-build-workarounds.patch"
+)
 $PatchSeries = @(
   "chromium_patches\0001-draft-minimal-three-viewer-entrypoint.patch",
   "chromium_patches\0002-draft-webgpu-queue-trace-attribution.patch"
@@ -125,6 +128,38 @@ function Get-PatchSeriesState {
   })
 }
 
+function Get-CommonBuildPatchSeriesState {
+  return @($CommonBuildPatchSeries | ForEach-Object {
+    $PatchRelativePath = $_
+    $PatchPath = Join-Path $Root $PatchRelativePath
+    [pscustomobject]@{
+      path = $PatchRelativePath
+      exists = Test-Path -LiteralPath $PatchPath -PathType Leaf
+      sha256 = Get-FileHashString $PatchPath
+      applies_cleanly = [bool](Test-ViewerPatchApplyState -PatchPath $PatchPath)
+      already_applied = [bool](Test-ViewerPatchApplyState -PatchPath $PatchPath -Reverse)
+    }
+  })
+}
+
+function Ensure-CommonBuildPatchSeriesApplied {
+  foreach ($PatchRelativePath in $CommonBuildPatchSeries) {
+    $PatchPath = Join-Path $Root $PatchRelativePath
+    if (-not (Test-Path -LiteralPath $PatchPath -PathType Leaf)) {
+      throw "Common Chromium build patch not found: $PatchPath"
+    }
+
+    if (Test-ViewerPatchApplyState -PatchPath $PatchPath) {
+      Invoke-Checked "git" @("-C", $Src, "apply", $PatchPath)
+      Write-Host "Applied common Chromium build patch $PatchRelativePath."
+    } elseif (Test-ViewerPatchApplyState -PatchPath $PatchPath -Reverse) {
+      Write-Host "Common Chromium build patch is already applied: $PatchRelativePath"
+    } else {
+      throw "Common Chromium build patch cannot be applied cleanly and is not already applied: $PatchRelativePath"
+    }
+  }
+}
+
 function Test-BaselineBuildProfile {
   $BaselineArgs = [System.IO.Path]::GetFullPath((Join-Path $Root "build\gn_args\baseline_content_shell.gn"))
   $SourceArgsFullPath = [System.IO.Path]::GetFullPath($SourceArgs)
@@ -185,6 +220,7 @@ function Write-BuildProvenance {
     viewer_patch_applies_cleanly = [bool](Test-ViewerPatchApplyState)
     viewer_patch_already_applied = [bool](Test-ViewerPatchApplyState -Reverse)
     viewer_patch_series = Get-PatchSeriesState
+    common_build_patch_series = Get-CommonBuildPatchSeriesState
   }
   $Provenance | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $ProvenancePath -Encoding UTF8
   Write-Host "Wrote build provenance $ProvenancePath"
@@ -207,6 +243,7 @@ if (-not (Test-Path $ArgsDest)) {
 }
 
 Assert-StockBaselineSourceUnpatched
+Ensure-CommonBuildPatchSeriesApplied
 
 $BuildStartedAt = (Get-Date).ToUniversalTime().ToString("o")
 Push-Location $Src

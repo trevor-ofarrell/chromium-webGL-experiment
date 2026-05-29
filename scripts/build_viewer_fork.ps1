@@ -4,7 +4,8 @@ param(
   [string]$ArgsFile = "build\gn_args\fork_safe_content_shell.gn",
   [string]$Target = "content_shell",
   [int]$Jobs = 0,
-  [switch]$ApplyPatch
+  [switch]$ApplyPatch,
+  [switch]$OverwriteArgs
 )
 
 $ErrorActionPreference = "Stop"
@@ -77,9 +78,9 @@ if ($ApplyPatch) {
 
 $BuildScript = Join-Path $Root "scripts\build_chromium.ps1"
 if ($Jobs -gt 0) {
-  & $BuildScript -OutDir $OutDir -Target $Target -ArgsFile $ArgsFile -Jobs $Jobs -AllowViewerPatchApplied
+  & $BuildScript -OutDir $OutDir -Target $Target -ArgsFile $ArgsFile -Jobs $Jobs -AllowViewerPatchApplied -OverwriteArgs:$OverwriteArgs
 } else {
-  & $BuildScript -OutDir $OutDir -Target $Target -ArgsFile $ArgsFile -AllowViewerPatchApplied
+  & $BuildScript -OutDir $OutDir -Target $Target -ArgsFile $ArgsFile -AllowViewerPatchApplied -OverwriteArgs:$OverwriteArgs
 }
 if ($LASTEXITCODE -ne 0) {
   throw "$BuildScript exited with code $LASTEXITCODE"

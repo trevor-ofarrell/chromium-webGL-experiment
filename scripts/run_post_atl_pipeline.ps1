@@ -819,7 +819,8 @@ if (-not $SkipBaselineBuild) {
     (Join-Path $Root "scripts\build_chromium.ps1"),
     "-OutDir", $BaselineOutDir,
     "-Target", "content_shell",
-    "-ArgsFile", $BaselineArgsFile
+    "-ArgsFile", $BaselineArgsFile,
+    "-OverwriteArgs"
   )
   if ($BuildJobs -gt 0) {
     $BaselineBuildCommand += @("-Jobs", "$BuildJobs")
@@ -832,7 +833,8 @@ if (-not $SkipForkBuild) {
     (Join-Path $Root "scripts\build_viewer_fork.ps1"),
     "-OutDir", $ForkOutDir,
     "-ArgsFile", $ForkArgsFile,
-    "-ApplyPatch"
+    "-ApplyPatch",
+    "-OverwriteArgs"
   )
   if ($BuildJobs -gt 0) {
     $ForkBuildCommand += @("-Jobs", "$BuildJobs")

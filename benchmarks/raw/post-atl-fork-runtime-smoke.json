@@ -1,0 +1,203 @@
+{
+  "generated_at": "2026-05-28T20:10:11.715Z",
+  "platform": "Windows_NT 10.0.26200 x64",
+  "browser_executable": "C:\\Users\\trevo\\code\\three-browser\\src\\out\\ReleaseViewerDefault\\content_shell.exe",
+  "browser_version": null,
+  "gpu_name": null,
+  "driver_version": null,
+  "angle_backend": null,
+  "browser_flags": [
+    "--remote-debugging-port=57146",
+    "--user-data-dir=C:\\Users\\trevo\\code\\three-browser\\benchmarks\\tmp\\smoke-profile-BrHWra",
+    "--no-first-run",
+    "--disable-default-apps",
+    "--disable-background-networking",
+    "--disable-component-update",
+    "--disable-sync",
+    "--disable-extensions",
+    "--disable-software-rasterizer",
+    "--enable-unsafe-webgpu",
+    "--enable-webgpu-developer-features",
+    "--disable-renderer-backgrounding",
+    "--disable-background-timer-throttling",
+    "--force-high-performance-gpu",
+    "--window-size=640,480",
+    "--window-position=40,40",
+    "--force-device-scale-factor=1",
+    "--viewer-app-url=http://127.0.0.1:57145/__smoke.html",
+    "--viewer-block-external-navigation",
+    "--viewer-trusted-content"
+  ],
+  "browser_extra_flags": [],
+  "allow_software_rendering": false,
+  "viewer_dir": "C:\\Users\\trevo\\code\\three-browser\\viewer\\dist",
+  "viewer_mode": true,
+  "viewer_trusted_content": true,
+  "viewer_app_url": "http://127.0.0.1:57145/__smoke.html",
+  "ok": true,
+  "tests": [
+    {
+      "name": "viewer_launch",
+      "status": "pass",
+      "duration_ms": 609,
+      "details": {
+        "canvas": true,
+        "hud": true,
+        "module_scripts": 1
+      }
+    },
+    {
+      "name": "webgl2_context",
+      "status": "pass",
+      "duration_ms": 15,
+      "details": {
+        "version": "WebGL 2.0 (OpenGL ES 3.0 Chromium)",
+        "vendor": "Google Inc. (NVIDIA)",
+        "renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 5060 Ti (0x00002D04) Direct3D11 vs_5_0 ps_5_0, D3D11)"
+      }
+    },
+    {
+      "name": "web_platform_basics",
+      "status": "pass",
+      "duration_ms": 12,
+      "details": {
+        "canvas_2d": true,
+        "raf_timestamp_ms": 802,
+        "performance_delta_ms": 3.7999999970197678,
+        "fetch_content_type": "image/svg+xml",
+        "fetch_bytes": 621
+      }
+    },
+    {
+      "name": "basic_input_events",
+      "status": "pass",
+      "duration_ms": 3,
+      "details": {
+        "events": [
+          "pointerdown",
+          "pointermove",
+          "pointerup",
+          "wheel",
+          "keydown"
+        ],
+        "pointer_event_constructor": true,
+        "wheel_delta_y": 42,
+        "key": "ArrowLeft"
+      }
+    },
+    {
+      "name": "webgl_context_loss_event",
+      "status": "pass",
+      "duration_ms": 458,
+      "details": {
+        "lost": 1,
+        "restored": 1
+      }
+    },
+    {
+      "name": "webgpu_adapter_device",
+      "status": "pass",
+      "duration_ms": 187,
+      "details": {
+        "features": [
+          "bgra8unorm-storage",
+          "chromium-experimental-multi-draw-indirect",
+          "chromium-experimental-timestamp-query-inside-passes",
+          "clip-distances",
+          "core-features-and-limits",
+          "depth-clip-control",
+          "depth32float-stencil8",
+          "dual-source-blending",
+          "float32-blendable",
+          "float32-filterable",
+          "indirect-first-instance",
+          "primitive-index",
+          "rg11b10ufloat-renderable",
+          "shader-f16",
+          "subgroup-size-control",
+          "subgroups",
+          "texture-component-swizzle",
+          "texture-compression-bc",
+          "texture-compression-bc-sliced-3d",
+          "texture-formats-tier1",
+          "texture-formats-tier2",
+          "timestamp-query"
+        ],
+        "max_texture_dimension_2d": 8192
+      }
+    },
+    {
+      "name": "webgpu_device_loss_signal",
+      "status": "pass",
+      "duration_ms": 52,
+      "details": {
+        "reason": "destroyed",
+        "message": "Device was destroyed."
+      }
+    },
+    {
+      "name": "three_webgpu_render",
+      "status": "pass",
+      "duration_ms": 345,
+      "details": {
+        "is_webgpu_renderer": true,
+        "backend": "WebGPUBackend",
+        "render_ms": 171.90000000596046,
+        "canvas_width": 64,
+        "canvas_height": 64
+      }
+    },
+    {
+      "name": "three_cube_render",
+      "status": "pass",
+      "duration_ms": 68,
+      "details": {
+        "center_pixel_rgba": [
+          0,
+          255,
+          0,
+          255
+        ]
+      }
+    },
+    {
+      "name": "texture_load",
+      "status": "pass",
+      "duration_ms": 50,
+      "details": {
+        "image_bitmap_supported": true,
+        "sample_pixel_rgba": [
+          75,
+          86,
+          99,
+          255
+        ]
+      }
+    },
+    {
+      "name": "shader_material",
+      "status": "pass",
+      "duration_ms": 44,
+      "details": {
+        "center_pixel_rgba": [
+          129,
+          128,
+          255,
+          255
+        ]
+      }
+    },
+    {
+      "name": "benchmark_run",
+      "status": "pass",
+      "duration_ms": 3059,
+      "details": {
+        "scene_name": "many-draw-calls",
+        "renderer_type": "webgl2",
+        "avg_fps": 60.00403388463091,
+        "frame_count": 119,
+        "startup_ms_to_first_frame": 218.30000001192093
+      }
+    }
+  ]
+}

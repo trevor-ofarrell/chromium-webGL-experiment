@@ -1,11 +1,11 @@
 {
-  "generated_at": "2026-05-21T00:39:17.714Z",
+  "generated_at": "2026-05-28T21:51:57.363Z",
   "platform": "Windows_NT 10.0.26200 x64",
   "browser_executable": "C:\\Users\\trevo\\code\\three-browser\\src\\out\\ReleaseViewerDefault\\content_shell.exe",
   "browser_version": null,
-  "viewer_app_url": "http://127.0.0.1:56008/index.html",
-  "blocked_origin": "http://127.0.0.1:56009",
-  "external_blocked_url": "http://192.168.1.84:56010/blocked.html",
+  "viewer_app_url": "http://127.0.0.1:54400/index.html",
+  "blocked_origin": "http://127.0.0.1:54401",
+  "external_blocked_url": "http://192.168.1.84:54402/blocked.html",
   "external_blocked_host": "192.168.1.84",
   "ok": true,
   "tests": [
@@ -13,14 +13,14 @@
       "name": "launches_viewer_app_url",
       "status": "pass",
       "details": {
-        "url": "http://127.0.0.1:56008/index.html"
+        "url": "http://127.0.0.1:54400/index.html"
       }
     },
     {
       "name": "allows_same_origin_navigation",
       "status": "pass",
       "details": {
-        "url": "http://127.0.0.1:56008/allowed.html"
+        "url": "http://127.0.0.1:54400/allowed.html"
       }
     },
     {
@@ -36,7 +36,7 @@
       "status": "pass",
       "details": {
         "url": "chrome-error://chromewebdata/",
-        "blocked_url": "http://192.168.1.84:56010/blocked.html",
+        "blocked_url": "http://192.168.1.84:54402/blocked.html",
         "external_blocked_hits": 0
       }
     },

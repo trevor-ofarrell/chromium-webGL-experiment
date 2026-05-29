@@ -1,9 +1,9 @@
 {
-    "generated_at":  "2026-05-24T05:24:24.8614590Z",
+    "generated_at":  "2026-05-27T20:20:23.9636859Z",
     "target_revision":  "3a94d90ec3c04556622c56944796dd76753e0581",
     "previous_revision":  "3a94d90ec3c04556622c56944796dd76753e0581",
     "selected_from_upstream_head":  true,
-    "selected_at":  "2026-05-24T05:23:24.8614590Z",
+    "selected_at":  "2026-05-27T20:19:23.9636859Z",
     "source":  "synthetic trusted suite semantics audit test",
     "skip_sync":  true,
     "skip_hooks":  true,

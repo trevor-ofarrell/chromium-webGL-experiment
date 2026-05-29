@@ -18,6 +18,10 @@ $ExpectedArgs = [ordered]@{
   blink_symbol_level = "0"
   v8_symbol_level = "0"
   treat_warnings_as_errors = "false"
+  dcheck_always_on = "false"
+  enable_expensive_dchecks = "false"
+  enable_ubsan_hardening = "false"
+  disable_llvm_machine_scheduler = "true"
 }
 
 $DisallowedTerms = @(

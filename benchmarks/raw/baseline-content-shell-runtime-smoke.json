@@ -1,11 +1,14 @@
 {
-  "generated_at": "2026-05-21T00:39:05.196Z",
+  "generated_at": "2026-05-28T21:51:46.137Z",
   "platform": "Windows_NT 10.0.26200 x64",
   "browser_executable": "C:\\Users\\trevo\\code\\three-browser\\src\\out\\ReleaseBaseline\\content_shell.exe",
   "browser_version": null,
+  "gpu_name": null,
+  "driver_version": null,
+  "angle_backend": null,
   "browser_flags": [
-    "--remote-debugging-port=52947",
-    "--user-data-dir=C:\\Users\\trevo\\code\\three-browser\\benchmarks\\tmp\\smoke-profile-mN9Zv2",
+    "--remote-debugging-port=53160",
+    "--user-data-dir=C:\\Users\\trevo\\code\\three-browser\\benchmarks\\tmp\\smoke-profile-HWYSmg",
     "--no-first-run",
     "--disable-default-apps",
     "--disable-background-networking",
@@ -17,9 +20,14 @@
     "--enable-webgpu-developer-features",
     "--disable-renderer-backgrounding",
     "--disable-background-timer-throttling",
-    "http://127.0.0.1:52946/__smoke.html"
+    "--force-high-performance-gpu",
+    "--window-size=640,480",
+    "--window-position=40,40",
+    "--force-device-scale-factor=1",
+    "http://127.0.0.1:53159/__smoke.html"
   ],
   "browser_extra_flags": [],
+  "allow_software_rendering": false,
   "viewer_dir": "C:\\Users\\trevo\\code\\three-browser\\viewer\\dist",
   "viewer_mode": false,
   "viewer_trusted_content": false,
@@ -29,7 +37,7 @@
     {
       "name": "viewer_launch",
       "status": "pass",
-      "duration_ms": 602,
+      "duration_ms": 530,
       "details": {
         "canvas": true,
         "hud": true,
@@ -39,7 +47,7 @@
     {
       "name": "webgl2_context",
       "status": "pass",
-      "duration_ms": 31,
+      "duration_ms": 21,
       "details": {
         "version": "WebGL 2.0 (OpenGL ES 3.0 Chromium)",
         "vendor": "Google Inc. (NVIDIA)",
@@ -49,11 +57,11 @@
     {
       "name": "web_platform_basics",
       "status": "pass",
-      "duration_ms": 16,
+      "duration_ms": 9,
       "details": {
         "canvas_2d": true,
-        "raf_timestamp_ms": 829.4,
-        "performance_delta_ms": 1.1999999284744263,
+        "raf_timestamp_ms": 709.8,
+        "performance_delta_ms": 0.4000000059604645,
         "fetch_content_type": "image/svg+xml",
         "fetch_bytes": 621
       }
@@ -61,7 +69,7 @@
     {
       "name": "basic_input_events",
       "status": "pass",
-      "duration_ms": 5,
+      "duration_ms": 4,
       "details": {
         "events": [
           "pointerdown",
@@ -78,7 +86,7 @@
     {
       "name": "webgl_context_loss_event",
       "status": "pass",
-      "duration_ms": 424,
+      "duration_ms": 425,
       "details": {
         "lost": 1,
         "restored": 1
@@ -87,7 +95,7 @@
     {
       "name": "webgpu_adapter_device",
       "status": "pass",
-      "duration_ms": 238,
+      "duration_ms": 189,
       "details": {
         "features": [
           "bgra8unorm-storage",
@@ -119,7 +127,7 @@
     {
       "name": "webgpu_device_loss_signal",
       "status": "pass",
-      "duration_ms": 60,
+      "duration_ms": 52,
       "details": {
         "reason": "destroyed",
         "message": "Device was destroyed."
@@ -128,11 +136,11 @@
     {
       "name": "three_webgpu_render",
       "status": "pass",
-      "duration_ms": 660,
+      "duration_ms": 621,
       "details": {
         "is_webgpu_renderer": true,
         "backend": "WebGPUBackend",
-        "render_ms": 264,
+        "render_ms": 167.5,
         "canvas_width": 64,
         "canvas_height": 64
       }
@@ -140,7 +148,7 @@
     {
       "name": "three_cube_render",
       "status": "pass",
-      "duration_ms": 141,
+      "duration_ms": 198,
       "details": {
         "center_pixel_rgba": [
           0,
@@ -153,7 +161,7 @@
     {
       "name": "texture_load",
       "status": "pass",
-      "duration_ms": 88,
+      "duration_ms": 54,
       "details": {
         "image_bitmap_supported": true,
         "sample_pixel_rgba": [
@@ -167,7 +175,7 @@
     {
       "name": "shader_material",
       "status": "pass",
-      "duration_ms": 60,
+      "duration_ms": 45,
       "details": {
         "center_pixel_rgba": [
           129,
@@ -180,13 +188,13 @@
     {
       "name": "benchmark_run",
       "status": "pass",
-      "duration_ms": 3341,
+      "duration_ms": 3317,
       "details": {
         "scene_name": "many-draw-calls",
         "renderer_type": "webgl2",
-        "avg_fps": 25.697307136356333,
-        "frame_count": 48,
-        "startup_ms_to_first_frame": 442.5
+        "avg_fps": 60.00100842030958,
+        "frame_count": 119,
+        "startup_ms_to_first_frame": 228.70000000298023
       }
     }
   ]

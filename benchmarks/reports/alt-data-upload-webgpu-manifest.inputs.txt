@@ -1,0 +1,14 @@
+﻿C:\Users\trevo\code\three-browser\benchmarks\raw\baseline-content-shell-webgpu-alt-data-upload-many-draw-calls-webgpu.json
+C:\Users\trevo\code\three-browser\benchmarks\raw\fork-viewer-default-webgpu-alt-data-upload-many-draw-calls-webgpu.json
+C:\Users\trevo\code\three-browser\benchmarks\raw\fork-viewer-default-webgpu-alt-data-upload-instancing-webgpu.json
+C:\Users\trevo\code\three-browser\benchmarks\raw\baseline-content-shell-webgpu-alt-data-upload-instancing-webgpu.json
+C:\Users\trevo\code\three-browser\benchmarks\raw\baseline-content-shell-webgpu-alt-data-upload-shader-heavy-webgpu.json
+C:\Users\trevo\code\three-browser\benchmarks\raw\fork-viewer-default-webgpu-alt-data-upload-shader-heavy-webgpu.json
+C:\Users\trevo\code\three-browser\benchmarks\raw\fork-viewer-default-webgpu-alt-data-upload-texture-streaming-webgpu.json
+C:\Users\trevo\code\three-browser\benchmarks\raw\baseline-content-shell-webgpu-alt-data-upload-texture-streaming-webgpu.json
+C:\Users\trevo\code\three-browser\benchmarks\raw\baseline-content-shell-webgpu-alt-data-upload-postprocessing-webgpu.json
+C:\Users\trevo\code\three-browser\benchmarks\raw\fork-viewer-default-webgpu-alt-data-upload-postprocessing-webgpu.json
+C:\Users\trevo\code\three-browser\benchmarks\raw\fork-viewer-default-webgpu-alt-data-upload-large-static-webgpu.json
+C:\Users\trevo\code\three-browser\benchmarks\raw\baseline-content-shell-webgpu-alt-data-upload-large-static-webgpu.json
+C:\Users\trevo\code\three-browser\benchmarks\raw\baseline-content-shell-webgpu-alt-data-upload-gltf-loader-stress-webgpu.json
+C:\Users\trevo\code\three-browser\benchmarks\raw\fork-viewer-default-webgpu-alt-data-upload-gltf-loader-stress-webgpu.json

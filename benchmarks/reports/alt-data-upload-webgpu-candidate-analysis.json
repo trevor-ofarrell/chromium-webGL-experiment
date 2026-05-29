@@ -1,0 +1,209 @@
+{
+  "generated_at": "2026-05-29T01:55:23.943Z",
+  "options": {
+    "min_measured_seconds": 30,
+    "min_scenes": 7,
+    "p99_regression_ms": 1,
+    "min_avg_fps_delta_pct": 0.5,
+    "scene_regression_pct": 1,
+    "low_regression_fps": 1,
+    "dropped_frames_regression": 0,
+    "dropped_frame_rate_regression_pct": 0.5,
+    "cpu_frame_regression_ms": 0.5,
+    "render_submission_regression_ms": 0.5,
+    "pipeline_create_regression_ms": 1,
+    "shader_compile_regression_events": 0,
+    "include_attribution": false,
+    "include_diagnostic_texture_modes": false,
+    "require_frame_times": true,
+    "require_checkout": true,
+    "require_package_size": true,
+    "required_candidate_renderers": [
+      "webgpu"
+    ],
+    "required_scenes": [],
+    "expected_chromium_revision": "3a94d90ec3c04556622c56944796dd76753e0581",
+    "expected_fork_revision": "3a94d90ec3c04556622c56944796dd76753e0581+viewerpatch-1e2ab6bffef9",
+    "build_args_compatibility_policy": "same-build-args-hash",
+    "environment_compatibility_policy": "same-platform-driver-gpu-device",
+    "complexity_compatibility_policy": "same-explicit-benchmark-complexity",
+    "webgpu_bundle_mode_compatibility_policy": "same-webgpu-bundle-mode",
+    "webgpu_pipeline_instrumentation_compatibility_policy": "same-webgpu-pipeline-instrumentation-mode",
+    "resource_warmup_compatibility_policy": "same-precompile-prerender-compile-texture-render-target-count-gpu-settle-and-webgpu-pipeline-quiet-mode",
+    "profile_cache_compatibility_policy": "same-profile-cache-mode-and-key",
+    "warm_profile_speed_claim_policy": "explicit-reuse-is-cache-attribution-not-retained-candidate",
+    "required_benchmark_evidence_policy": "candidate-analysis-filters-missing-required-metric-fields",
+    "gpu_timing_evidence_policy": "candidate-analysis-requires-explicit-gpu-timing-mode",
+    "stability_evidence_policy": "candidate-analysis-filters-stability-artifacts",
+    "trace_instrumentation_policy": "candidate-analysis-filters-viewer-and-source-webgpu-attribution-runs",
+    "trusted_experiment_metadata_policy": "candidate-analysis-filters-unsafe-experiments-missing-viewer-trusted-content-metadata",
+    "webgpu_cpu_fallback_policy": "candidate-analysis-filters-webgpu-cpu-texture-fallback-and-missing-copyexternalimage-rejection",
+    "webgpu_pipeline_quiet_success_policy": "candidate-analysis-filters-unachieved-or-measured-pipeline-create-webgpu-pipeline-quiet-warmup",
+    "shader_compile_stall_policy": "candidate-analysis-blocks-shader-compile-event-and-webgpu-pipeline-create-time-regressions",
+    "dropped_frame_regression_policy": "candidate-analysis-blocks-dropped-frame-rate-regressions-with-raw-count-fallback",
+    "cpu_submission_regression_policy": "candidate-analysis-blocks-cpu-frame-and-render-submission-regressions",
+    "package_size_speed_claim_policy": "require-package-size-when-enabled",
+    "baseline_selection_policy": "fastest-compatible-baseline"
+  },
+  "params": {
+    "min_measured_seconds": 30,
+    "min_scenes": 7,
+    "p99_regression_ms": 1,
+    "min_avg_fps_delta_pct": 0.5,
+    "scene_regression_pct": 1,
+    "low_regression_fps": 1,
+    "dropped_frames_regression": 0,
+    "dropped_frame_rate_regression_pct": 0.5,
+    "cpu_frame_regression_ms": 0.5,
+    "render_submission_regression_ms": 0.5,
+    "pipeline_create_regression_ms": 1,
+    "shader_compile_regression_events": 0,
+    "include_attribution": false,
+    "include_diagnostic_texture_modes": false,
+    "require_frame_times": true,
+    "require_checkout": true,
+    "require_package_size": true,
+    "required_candidate_renderers": [
+      "webgpu"
+    ],
+    "required_scenes": [],
+    "expected_chromium_revision": "3a94d90ec3c04556622c56944796dd76753e0581",
+    "expected_fork_revision": "3a94d90ec3c04556622c56944796dd76753e0581+viewerpatch-1e2ab6bffef9",
+    "build_args_compatibility_policy": "same-build-args-hash",
+    "environment_compatibility_policy": "same-platform-driver-gpu-device",
+    "complexity_compatibility_policy": "same-explicit-benchmark-complexity",
+    "webgpu_bundle_mode_compatibility_policy": "same-webgpu-bundle-mode",
+    "webgpu_pipeline_instrumentation_compatibility_policy": "same-webgpu-pipeline-instrumentation-mode",
+    "resource_warmup_compatibility_policy": "same-precompile-prerender-compile-texture-render-target-count-gpu-settle-and-webgpu-pipeline-quiet-mode",
+    "profile_cache_compatibility_policy": "same-profile-cache-mode-and-key",
+    "warm_profile_speed_claim_policy": "explicit-reuse-is-cache-attribution-not-retained-candidate",
+    "required_benchmark_evidence_policy": "candidate-analysis-filters-missing-required-metric-fields",
+    "gpu_timing_evidence_policy": "candidate-analysis-requires-explicit-gpu-timing-mode",
+    "stability_evidence_policy": "candidate-analysis-filters-stability-artifacts",
+    "trace_instrumentation_policy": "candidate-analysis-filters-viewer-and-source-webgpu-attribution-runs",
+    "trusted_experiment_metadata_policy": "candidate-analysis-filters-unsafe-experiments-missing-viewer-trusted-content-metadata",
+    "webgpu_cpu_fallback_policy": "candidate-analysis-filters-webgpu-cpu-texture-fallback-and-missing-copyexternalimage-rejection",
+    "webgpu_pipeline_quiet_success_policy": "candidate-analysis-filters-unachieved-or-measured-pipeline-create-webgpu-pipeline-quiet-warmup",
+    "shader_compile_stall_policy": "candidate-analysis-blocks-shader-compile-event-and-webgpu-pipeline-create-time-regressions",
+    "dropped_frame_regression_policy": "candidate-analysis-blocks-dropped-frame-rate-regressions-with-raw-count-fallback",
+    "cpu_submission_regression_policy": "candidate-analysis-blocks-cpu-frame-and-render-submission-regressions",
+    "package_size_speed_claim_policy": "require-package-size-when-enabled",
+    "baseline_selection_policy": "fastest-compatible-baseline"
+  },
+  "input_file_digest": "b4c83e457ea969f949df2f58a8a01626f2415e7e7052a464569b59c07a28cbb0",
+  "input_files": [
+    {
+      "path": "benchmarks/raw/baseline-content-shell-webgpu-alt-data-upload-many-draw-calls-webgpu.json",
+      "sha256": "097a922db22f972dcb70c7e313f4d6e45d344ae1a571532cd111c19ff510031a",
+      "size_bytes": 46711
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-default-webgpu-alt-data-upload-many-draw-calls-webgpu.json",
+      "sha256": "9e3c1df15902ed732a2e0c06e7a18bf3a60452b70e516597f44bf29d64eee9a6",
+      "size_bytes": 48495
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-default-webgpu-alt-data-upload-instancing-webgpu.json",
+      "sha256": "883f9566c155f08121e4a236247768a7b5b3c2694962892404b353291c7a3884",
+      "size_bytes": 57567
+    },
+    {
+      "path": "benchmarks/raw/baseline-content-shell-webgpu-alt-data-upload-instancing-webgpu.json",
+      "sha256": "4ad04ebb5c55f0fb5108d5af1c58b93a908fed8b889292eeeda666963b91c92e",
+      "size_bytes": 57616
+    },
+    {
+      "path": "benchmarks/raw/baseline-content-shell-webgpu-alt-data-upload-shader-heavy-webgpu.json",
+      "sha256": "9dd115f8d8764032381359c203f13272a380747f3ef78ff209a8d1ff4c4840f0",
+      "size_bytes": 57392
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-default-webgpu-alt-data-upload-shader-heavy-webgpu.json",
+      "sha256": "fe35e4a50cd9beee6b09c2874592e3f3de603a519e506fe233f33a38b64a154d",
+      "size_bytes": 57363
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-default-webgpu-alt-data-upload-texture-streaming-webgpu.json",
+      "sha256": "a12047cdb0a2824f8aaae842a5acdd6092dd0f7c57b6b42cd3fc10be3d9fa5d9",
+      "size_bytes": 56580
+    },
+    {
+      "path": "benchmarks/raw/baseline-content-shell-webgpu-alt-data-upload-texture-streaming-webgpu.json",
+      "sha256": "c398ef3a563aab29519eb97b6d31bb2abf88a1d44bc2fcc77ac42d46bdb4a849",
+      "size_bytes": 56707
+    },
+    {
+      "path": "benchmarks/raw/baseline-content-shell-webgpu-alt-data-upload-postprocessing-webgpu.json",
+      "sha256": "d1ab516b2872a4996216cbcbad5a6f489546b78c929bcd95bcd7b83710a69263",
+      "size_bytes": 57163
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-default-webgpu-alt-data-upload-postprocessing-webgpu.json",
+      "sha256": "0e0885889c762908a356c450bfe372823dc18f0728a8a41f9a92e2d693587f91",
+      "size_bytes": 57523
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-default-webgpu-alt-data-upload-large-static-webgpu.json",
+      "sha256": "be509552e2572d491ff073b859d86e44478ee47722bce4a32aef328d7b00e5c4",
+      "size_bytes": 57025
+    },
+    {
+      "path": "benchmarks/raw/baseline-content-shell-webgpu-alt-data-upload-large-static-webgpu.json",
+      "sha256": "3fe6adfe280af648a0b14f49170e70d8eaf43c9b5cf697a048e809f747b30a9e",
+      "size_bytes": 57098
+    },
+    {
+      "path": "benchmarks/raw/baseline-content-shell-webgpu-alt-data-upload-gltf-loader-stress-webgpu.json",
+      "sha256": "da009a17d18adb746603e9c56ae90daad26769cef1da4602adad0c4f133591b4",
+      "size_bytes": 56930
+    },
+    {
+      "path": "benchmarks/raw/fork-viewer-default-webgpu-alt-data-upload-gltf-loader-stress-webgpu.json",
+      "sha256": "8f20340273516da17d40285a3922526e9170ffefe164a40894e54b83fd2f376d",
+      "size_bytes": 56294
+    }
+  ],
+  "input_count": 14,
+  "accepted_count": 0,
+  "filtered_count": 14,
+  "filtered_reason_counts": [
+    {
+      "reason": "diagnostic texture_upload_mode=data",
+      "count": 14
+    }
+  ],
+  "baseline_selection_diagnostics": [],
+  "required_candidate_gate": {
+    "required_renderers": [
+      "webgpu"
+    ],
+    "ok": false,
+    "renderers": [
+      {
+        "renderer": "webgpu",
+        "ok": false,
+        "candidate_count": 0,
+        "best_status": "missing",
+        "best_candidate_family": "",
+        "best_baseline_family": "",
+        "best_scenes": 0,
+        "best_avg_fps_delta_pct": null,
+        "best_min_fps_delta_pct": null,
+        "best_p99_frame_ms_delta": null,
+        "best_dropped_frames_delta": null,
+        "best_dropped_frame_rate_delta_pct": null,
+        "best_shader_compile_events_delta": null,
+        "best_webgpu_pipeline_create_measured_ms_delta": null,
+        "best_avg_cpu_frame_ms_delta": null,
+        "best_avg_render_submission_ms_delta": null,
+        "failure": "webgpu: no comparable fork-over-baseline family",
+        "candidate_families": []
+      }
+    ],
+    "failures": [
+      "webgpu: no comparable fork-over-baseline family"
+    ]
+  },
+  "blocker_diagnostics": [],
+  "families": []
+}

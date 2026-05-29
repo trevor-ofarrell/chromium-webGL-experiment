@@ -1,64 +1,35 @@
 # Benchmark Summary
 
-Generated from 56 result file(s).
+Generated from 9 result file(s).
+Input file digest: `d22b927058aab1c172dc0b2d2db6502c8ff2b8273b536703b219fbaeb97d82a4`
+Strict summary evidence validation was enabled: all rows must include complete benchmark metric evidence, explicit GPU timing mode, positive package-size evidence, and no attribution instrumentation before this report is written.
 
 | Scene | Renderer | Variant | Avg FPS | 1% Low FPS | 0.1% Low FPS | P50 ms | P95 ms | P99 ms | Max ms | CPU ms | GPU ms | JS ms | Submit ms | Compositor ms | Present ms | Dropped | Draw calls | Triangles | Texture MB | Buffer MB | Shader events | JS heap MB | GPU memory MB | RSS MB | Startup ms | Binary MB | Viewer MB | Package MB |
 | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| gltf-loader-stress | webgl2 | fork-viewer-exp-aggressive-gpu | 20.8 | 5.4 | 4.0 | 27.80 | 131.90 | 159.80 | 250.00 | 5.92 | 0.183 | 0.112 | 5.71 |  |  | 649 | 1500 | 18000 | 0.0 | 0.0 | 0 | 10.6 |  | 532 | 771 | 288.4 | 1.4 | 553.0 |
-| gltf-loader-stress | webgl2 | fork-viewer-exp-angle-d3d11 | 25.9 | 7.2 | 6.3 | 27.70 | 104.10 | 124.90 | 159.70 | 5.18 | 0.155 | 0.098 | 4.99 |  |  | 800 | 1500 | 18000 | 0.0 | 0.0 | 0 | 10.9 |  | 532 | 702 | 288.4 | 1.4 | 553.0 |
-| gltf-loader-stress | webgl2 | fork-viewer-exp-default | 21.7 | 5.9 | 5.1 | 27.80 | 131.80 | 152.80 | 194.50 | 5.53 | 0.151 | 0.103 | 5.33 |  |  | 676 | 1500 | 18000 | 0.0 | 0.0 | 0 | 9.1 |  | 528 | 706 | 288.4 | 1.4 | 553.0 |
-| gltf-loader-stress | webgl2 | fork-viewer-exp-direct-gpu-presentation-gate | 20.9 | 5.8 | 4.6 | 34.70 | 125.00 | 152.80 | 215.30 | 5.93 | 0.175 | 0.106 | 5.72 |  |  | 667 | 1500 | 18000 | 0.0 | 0.0 | 0 | 8.2 |  | 527 | 729 | 288.4 | 1.4 | 553.0 |
-| gltf-loader-stress | webgl2 | fork-viewer-exp-disable-unneeded-blink-features-gate | 21.3 | 6.0 | 4.8 | 34.80 | 125.00 | 159.70 | 208.40 | 5.68 | 0.159 | 0.106 | 5.47 |  |  | 677 | 1500 | 18000 | 0.0 | 0.0 | 0 | 10.2 |  | 526 | 754 | 288.4 | 1.4 | 553.0 |
-| gltf-loader-stress | webgl2 | fork-viewer-exp-in-process-gpu | 105.9 | 5.4 | 3.1 | 7.00 | 10.80 | 104.20 | 340.20 | 5.22 | 2.340 | 0.091 | 5.06 |  |  | 122 | 1500 | 18000 | 0.0 | 0.0 | 0 | 15.6 |  | 508 | 615 | 288.4 | 1.4 | 553.0 |
-| gltf-loader-stress | webgl2 | fork-viewer-exp-relaxed-webgl-validation-gate | 25.9 | 7.3 | 6.3 | 27.80 | 97.30 | 124.90 | 159.70 | 5.33 | 0.154 | 0.097 | 5.13 |  |  | 799 | 1500 | 18000 | 0.0 | 0.0 | 0 | 9.1 |  | 530 | 750 | 288.4 | 1.4 | 553.0 |
-| gltf-loader-stress | webgl2 | fork-viewer-exp-single-process | 108.6 | 8.0 | 3.3 | 7.00 | 13.90 | 21.00 | 345.40 | 6.37 | 3.195 | 0.112 | 6.19 |  |  | 66 | 1500 | 18000 | 0.0 | 0.0 | 0 | 9.5 |  | 252 | 605 | 288.4 | 1.4 | 553.0 |
-| instancing | webgl2 | fork-viewer-exp-aggressive-gpu | 20.7 | 5.6 | 5.0 | 27.70 | 138.90 | 166.70 | 201.30 | 0.36 | 0.958 | 0.033 | 0.24 |  |  | 622 | 1 | 780000 | 0.0 | 4.7 | 0 | 8.9 |  | 534 | 874 | 288.4 | 1.4 | 553.0 |
-| instancing | webgl2 | fork-viewer-exp-angle-d3d11 | 25.9 | 7.1 | 6.3 | 20.80 | 104.10 | 125.10 | 159.70 | 0.32 | 1.025 | 0.028 | 0.21 |  |  | 766 | 1 | 780000 | 0.0 | 4.7 | 0 | 9.5 |  | 538 | 770 | 288.4 | 1.4 | 553.0 |
-| instancing | webgl2 | fork-viewer-exp-default | 21.8 | 6.0 | 5.3 | 27.70 | 132.00 | 159.60 | 187.40 | 0.34 | 0.907 | 0.030 | 0.22 |  |  | 657 | 1 | 780000 | 0.0 | 4.7 | 0 | 9.1 |  | 530 | 749 | 288.4 | 1.4 | 553.0 |
-| instancing | webgl2 | fork-viewer-exp-direct-gpu-presentation-gate | 22.2 | 6.3 | 5.8 | 27.60 | 125.10 | 152.80 | 173.50 | 0.34 | 0.993 | 0.030 | 0.22 |  |  | 665 | 1 | 780000 | 0.0 | 4.7 | 0 | 9.2 |  | 540 | 728 | 288.4 | 1.4 | 553.0 |
-| instancing | webgl2 | fork-viewer-exp-disable-unneeded-blink-features-gate | 26.1 | 6.6 | 5.5 | 20.80 | 104.10 | 131.90 | 180.40 | 0.32 | 1.007 | 0.027 | 0.21 |  |  | 765 | 1 | 780000 | 0.0 | 4.7 | 0 | 9.5 |  | 531 | 775 | 288.4 | 1.4 | 553.0 |
-| instancing | webgl2 | fork-viewer-exp-in-process-gpu | 106.3 | 4.8 | 2.6 | 6.90 | 7.40 | 104.20 | 554.80 | 0.27 | 0.322 | 0.024 | 0.20 |  |  | 129 | 1 | 780000 | 0.0 | 4.7 | 0 | 9.6 |  | 507 | 703 | 288.4 | 1.4 | 553.0 |
-| instancing | webgl2 | fork-viewer-exp-relaxed-webgl-validation-gate | 26.1 | 6.7 | 5.5 | 20.80 | 104.10 | 132.00 | 180.60 | 0.32 | 0.993 | 0.031 | 0.21 |  |  | 767 | 1 | 780000 | 0.0 | 4.7 | 0 | 9.8 |  | 534 | 734 | 288.4 | 1.4 | 553.0 |
-| instancing | webgl2 | fork-viewer-exp-single-process | 118.7 | 6.9 | 2.8 | 6.90 | 7.00 | 27.80 | 430.50 | 0.27 | 0.292 | 0.023 | 0.20 |  |  | 86 | 1 | 780000 | 0.0 | 4.7 | 0 | 12.1 |  | 250 | 592 | 288.4 | 1.4 | 553.0 |
-| large-static | webgl2 | fork-viewer-exp-aggressive-gpu | 21.1 | 5.3 | 4.2 | 27.70 | 138.90 | 166.60 | 236.20 | 0.35 | 0.311 | 0.031 | 0.23 |  |  | 638 | 1 | 259200 | 0.0 | 7.4 | 0 | 12.0 |  | 534 | 802 | 288.4 | 1.4 | 553.0 |
-| large-static | webgl2 | fork-viewer-exp-angle-d3d11 | 26.1 | 6.7 | 5.5 | 20.90 | 104.10 | 131.90 | 180.70 | 0.32 | 0.283 | 0.027 | 0.21 |  |  | 781 | 1 | 259200 | 0.0 | 7.4 | 0 | 11.9 |  | 535 | 684 | 288.4 | 1.4 | 553.0 |
-| large-static | webgl2 | fork-viewer-exp-default | 22.0 | 5.5 | 4.2 | 27.70 | 125.00 | 159.60 | 236.00 | 0.34 | 0.324 | 0.028 | 0.22 |  |  | 669 | 1 | 259200 | 0.0 | 7.4 | 0 | 11.8 |  | 538 | 680 | 288.4 | 1.4 | 553.0 |
-| large-static | webgl2 | fork-viewer-exp-direct-gpu-presentation-gate | 20.9 | 5.6 | 4.8 | 27.70 | 138.80 | 166.60 | 208.30 | 0.35 | 0.308 | 0.032 | 0.23 |  |  | 631 | 1 | 259200 | 0.0 | 7.4 | 0 | 12.0 |  | 536 | 770 | 288.4 | 1.4 | 553.0 |
-| large-static | webgl2 | fork-viewer-exp-disable-unneeded-blink-features-gate | 26.1 | 6.6 | 5.1 | 20.90 | 104.10 | 125.10 | 194.40 | 0.32 | 0.315 | 0.026 | 0.21 |  |  | 779 | 1 | 259200 | 0.0 | 7.4 | 0 | 12.1 |  | 533 | 692 | 288.4 | 1.4 | 553.0 |
-| large-static | webgl2 | fork-viewer-exp-in-process-gpu | 107.2 | 5.1 | 2.5 | 6.90 | 8.00 | 104.10 | 611.00 | 0.27 | 0.054 | 0.022 | 0.20 |  |  | 131 | 1 | 259200 | 0.0 | 7.4 | 0 | 12.4 |  | 511 | 660 | 288.4 | 1.4 | 553.0 |
-| large-static | webgl2 | fork-viewer-exp-relaxed-webgl-validation-gate | 26.4 | 7.3 | 6.3 | 20.80 | 104.10 | 125.00 | 159.80 | 0.32 | 0.270 | 0.027 | 0.21 |  |  | 773 | 1 | 259200 | 0.0 | 7.4 | 0 | 11.9 |  | 535 | 663 | 288.4 | 1.4 | 553.0 |
-| large-static | webgl2 | fork-viewer-exp-single-process | 118.7 | 6.6 | 3.1 | 6.90 | 7.00 | 27.70 | 361.00 | 0.27 | 0.045 | 0.025 | 0.20 |  |  | 75 | 1 | 259200 | 0.0 | 7.4 | 0 | 13.6 |  | 251 | 558 | 288.4 | 1.4 | 553.0 |
-| many-draw-calls | webgl2 | fork-viewer-exp-aggressive-gpu | 20.6 | 6.2 | 5.5 | 48.60 | 118.00 | 145.90 | 180.60 | 11.00 | 0.548 | 0.162 | 10.74 |  |  | 812 | 2199.8791565287916 | 26398.5498783455 | 0.0 | 0.3 | 0 | 15.0 |  | 539 | 802 | 288.4 | 1.4 | 553.0 |
-| many-draw-calls | webgl2 | fork-viewer-exp-angle-d3d11 | 25.7 | 7.8 | 6.9 | 34.70 | 90.40 | 118.10 | 145.80 | 10.27 | 0.366 | 0.148 | 10.03 |  |  | 927 | 2199.874352331606 | 26398.492227979274 | 0.0 | 0.3 | 0 | 9.7 |  | 533 | 813 | 288.4 | 1.4 | 553.0 |
-| many-draw-calls | webgl2 | fork-viewer-exp-default | 21.6 | 5.6 | 3.7 | 41.70 | 104.30 | 145.90 | 270.90 | 12.01 | 0.660 | 0.177 | 11.73 |  |  | 865 | 2199.8688271604938 | 26398.425925925927 | 0.0 | 0.3 | 0 | 10.5 |  | 544 | 827 | 288.4 | 1.4 | 553.0 |
-| many-draw-calls | webgl2 | fork-viewer-exp-direct-gpu-presentation-gate | 21.4 | 6.1 | 4.8 | 48.50 | 111.10 | 145.80 | 208.40 | 10.31 | 0.518 | 0.151 | 10.07 |  |  | 813 | 2199.8747081712063 | 26398.496498054476 | 0.0 | 0.3 | 0 | 15.9 |  | 539 | 718 | 288.4 | 1.4 | 553.0 |
-| many-draw-calls | webgl2 | fork-viewer-exp-disable-unneeded-blink-features-gate | 25.4 | 7.4 | 6.3 | 34.70 | 97.20 | 118.10 | 159.70 | 9.89 | 0.243 | 0.142 | 9.65 |  |  | 896 | 2199.8792650918635 | 26398.55118110236 | 0.0 | 0.3 | 0 | 15.3 |  | 537 | 760 | 288.4 | 1.4 | 553.0 |
-| many-draw-calls | webgl2 | fork-viewer-exp-in-process-gpu | 66.9 | 4.5 | 3.1 | 13.80 | 20.80 | 162.00 | 354.10 | 9.99 | 6.505 | 0.142 | 9.78 |  |  | 133 | 2199.89325 | 26398.719 | 0.0 | 0.3 | 0 | 12.8 |  | 512 | 698 | 288.4 | 1.4 | 553.0 |
-| many-draw-calls | webgl2 | fork-viewer-exp-relaxed-webgl-validation-gate | 25.7 | 7.9 | 6.9 | 34.70 | 97.20 | 111.20 | 145.90 | 10.06 | 0.400 | 0.148 | 9.82 |  |  | 911 | 2199.873944119558 | 26398.487329434698 | 0.0 | 0.3 | 0 | 16.1 |  | 541 | 768 | 288.4 | 1.4 | 553.0 |
-| many-draw-calls | webgl2 | fork-viewer-exp-single-process | 56.4 | 4.4 | 2.9 | 13.90 | 20.90 | 152.80 | 367.80 | 12.78 | 8.425 | 0.185 | 12.52 |  |  | 132 | 2199.8590425531916 | 26398.308510638297 | 0.0 | 0.3 | 0 | 13.6 |  | 252 | 632 | 288.4 | 1.4 | 553.0 |
-| postprocessing | webgl2 | fork-viewer-exp-aggressive-gpu | 22.0 | 5.4 | 4.2 | 27.70 | 125.10 | 152.90 | 236.00 | 0.45 | 2.296 | 0.033 | 0.34 |  |  | 666 | 2 | 11264002 | 0.0 | 1.3 | 1 | 6.2 |  | 521 | 772 | 288.4 | 1.4 | 553.0 |
-| postprocessing | webgl2 | fork-viewer-exp-angle-d3d11 | 26.4 | 7.3 | 6.3 | 20.80 | 97.30 | 118.10 | 159.80 | 0.42 | 2.170 | 0.029 | 0.32 |  |  | 777 | 2 | 11264002 | 0.0 | 1.3 | 1 | 6.3 |  | 524 | 725 | 288.4 | 1.4 | 553.0 |
-| postprocessing | webgl2 | fork-viewer-exp-default | 21.3 | 5.5 | 4.6 | 21.00 | 132.00 | 159.70 | 215.20 | 0.48 | 2.304 | 0.034 | 0.36 |  |  | 639 | 2 | 11264002 | 0.0 | 1.3 | 1 | 6.3 |  | 520 | 761 | 288.4 | 1.4 | 553.0 |
-| postprocessing | webgl2 | fork-viewer-exp-direct-gpu-presentation-gate | 20.9 | 5.8 | 5.8 | 27.70 | 132.00 | 166.70 | 173.70 | 0.47 | 2.305 | 0.032 | 0.36 |  |  | 629 | 2 | 11264002 | 0.0 | 1.3 | 1 | 6.2 |  | 529 | 771 | 288.4 | 1.4 | 553.0 |
-| postprocessing | webgl2 | fork-viewer-exp-disable-unneeded-blink-features-gate | 26.3 | 6.8 | 5.8 | 20.80 | 104.10 | 131.90 | 173.40 | 0.42 | 2.437 | 0.030 | 0.32 |  |  | 767 | 2 | 11264002 | 0.0 | 1.3 | 1 | 6.1 |  | 523 | 696 | 288.4 | 1.4 | 553.0 |
-| postprocessing | webgl2 | fork-viewer-exp-in-process-gpu | 109.3 | 5.0 | 2.9 | 6.90 | 7.10 | 90.30 | 416.60 | 0.37 | 1.207 | 0.023 | 0.31 |  |  | 107 | 2 | 11264002 | 0.0 | 1.3 | 1 | 7.8 |  | 502 | 615 | 288.4 | 1.4 | 553.0 |
-| postprocessing | webgl2 | fork-viewer-exp-relaxed-webgl-validation-gate | 26.4 | 7.2 | 6.0 | 20.80 | 97.40 | 125.00 | 166.50 | 0.42 | 2.335 | 0.030 | 0.32 |  |  | 776 | 2 | 11264002 | 0.0 | 1.3 | 1 | 6.2 |  | 523 | 691 | 288.4 | 1.4 | 553.0 |
-| postprocessing | webgl2 | fork-viewer-exp-single-process | 121.0 | 7.4 | 3.3 | 6.90 | 7.00 | 27.70 | 340.50 | 0.39 | 1.184 | 0.025 | 0.32 |  |  | 75 | 2 | 11264002 | 0.0 | 1.3 | 1 | 9.5 |  | 247 | 576 | 288.4 | 1.4 | 553.0 |
-| shader-heavy | webgl2 | fork-viewer-exp-aggressive-gpu | 21.2 | 5.6 | 4.2 | 27.70 | 132.00 | 159.70 | 236.20 | 0.33 | 0.023 | 0.035 | 0.21 |  |  | 644 | 1 | 720 | 0.0 | 0.0 | 1 | 4.6 |  | 514 | 713 | 288.4 | 1.4 | 553.0 |
-| shader-heavy | webgl2 | fork-viewer-exp-angle-d3d11 | 26.3 | 7.1 | 6.3 | 20.90 | 104.10 | 125.30 | 159.70 | 0.30 | 0.022 | 0.029 | 0.19 |  |  | 779 | 1 | 720 | 0.0 | 0.0 | 1 | 5.0 |  | 514 | 624 | 288.4 | 1.4 | 553.0 |
-| shader-heavy | webgl2 | fork-viewer-exp-default | 20.8 | 5.2 | 4.1 | 27.70 | 138.90 | 166.70 | 243.00 | 0.35 | 0.020 | 0.038 | 0.21 |  |  | 629 | 1 | 720 | 0.0 | 0.0 | 1 | 4.9 |  | 512 | 682 | 288.4 | 1.4 | 553.0 |
-| shader-heavy | webgl2 | fork-viewer-exp-direct-gpu-presentation-gate | 20.7 | 5.8 | 5.1 | 27.70 | 145.80 | 159.80 | 194.40 | 0.34 | 0.019 | 0.037 | 0.21 |  |  | 624 | 1 | 720 | 0.0 | 0.0 | 1 | 4.6 |  | 509 | 592 | 288.4 | 1.4 | 553.0 |
-| shader-heavy | webgl2 | fork-viewer-exp-disable-unneeded-blink-features-gate | 26.3 | 6.9 | 6.3 | 20.80 | 104.10 | 131.90 | 159.60 | 0.30 | 0.019 | 0.030 | 0.19 |  |  | 776 | 1 | 720 | 0.0 | 0.0 | 1 | 4.3 |  | 515 | 605 | 288.4 | 1.4 | 553.0 |
-| shader-heavy | webgl2 | fork-viewer-exp-in-process-gpu | 102.1 | 4.7 | 3.0 | 6.90 | 8.10 | 131.90 | 401.60 | 0.25 | 0.029 | 0.026 | 0.17 |  |  | 132 | 1 | 720 | 0.0 | 0.0 | 1 | 4.7 |  | 489 | 498 | 288.4 | 1.4 | 553.0 |
-| shader-heavy | webgl2 | fork-viewer-exp-relaxed-webgl-validation-gate | 25.9 | 6.7 | 5.3 | 20.80 | 104.20 | 132.00 | 187.70 | 0.30 | 0.021 | 0.032 | 0.19 |  |  | 764 | 1 | 720 | 0.0 | 0.0 | 1 | 4.9 |  | 511 | 602 | 288.4 | 1.4 | 553.0 |
-| shader-heavy | webgl2 | fork-viewer-exp-single-process | 119.5 | 7.3 | 3.3 | 6.90 | 7.10 | 34.50 | 487.00 | 0.26 | 0.018 | 0.025 | 0.19 |  |  | 100 | 1 | 720 | 0.0 | 0.0 | 1 | 9.5 |  | 231 | 478 | 288.4 | 1.4 | 553.0 |
-| texture-streaming | webgl2 | fork-viewer-exp-aggressive-gpu | 9.5 | 3.1 | 2.7 | 97.20 | 236.10 | 291.60 | 375.00 | 6.79 | 81.679 | 1.039 | 5.67 |  |  | 326 | 48 | 96 | 4368.8 | 0.0 | 0 | 4.6 |  | 554 | 790 | 288.4 | 1.4 | 553.0 |
-| texture-streaming | webgl2 | fork-viewer-exp-angle-d3d11 | 10.5 | 4.0 | 3.5 | 90.20 | 215.30 | 229.20 | 284.70 | 6.09 | 75.001 | 0.900 | 5.12 |  |  | 338 | 48 | 96 | 4851.3 | 0.0 | 0 | 5.9 |  | 554 | 657 | 288.4 | 1.4 | 553.0 |
-| texture-streaming | webgl2 | fork-viewer-exp-default | 9.3 | 3.4 | 3.1 | 104.10 | 242.90 | 270.70 | 326.30 | 6.93 | 84.009 | 1.041 | 5.80 |  |  | 321 | 48 | 96 | 4289.5 | 0.0 | 0 | 5.4 |  | 554 | 718 | 288.4 | 1.4 | 553.0 |
-| texture-streaming | webgl2 | fork-viewer-exp-direct-gpu-presentation-gate | 8.6 | 2.7 | 2.4 | 111.10 | 263.80 | 291.70 | 409.60 | 7.32 | 90.766 | 1.112 | 6.12 |  |  | 303 | 48 | 96 | 3959.0 | 0.0 | 0 | 5.7 |  | 557 | 793 | 288.4 | 1.4 | 553.0 |
-| texture-streaming | webgl2 | fork-viewer-exp-disable-unneeded-blink-features-gate | 10.6 | 3.9 | 3.5 | 83.30 | 215.20 | 229.10 | 284.80 | 6.14 | 75.631 | 0.915 | 5.14 |  |  | 338 | 48 | 96 | 4864.5 | 0.0 | 0 | 6.1 |  | 554 | 652 | 288.4 | 1.4 | 553.0 |
-| texture-streaming | webgl2 | fork-viewer-exp-in-process-gpu | 10.3 | 3.4 | 2.8 | 90.40 | 212.50 | 236.50 | 361.30 | 6.71 | 95.204 | 1.028 | 5.60 |  |  | 358 | 48 | 96 | 4758.8 | 0.0 | 0 | 5.8 |  | 517 | 619 | 288.4 | 1.4 | 553.0 |
-| texture-streaming | webgl2 | fork-viewer-exp-relaxed-webgl-validation-gate | 10.5 | 3.8 | 3.3 | 97.20 | 208.30 | 222.30 | 305.60 | 6.16 | 75.622 | 0.918 | 5.16 |  |  | 344 | 48 | 96 | 4851.3 | 0.0 | 0 | 6.0 |  | 558 | 654 | 288.4 | 1.4 | 553.0 |
-| texture-streaming | webgl2 | fork-viewer-exp-single-process | 10.2 | 3.9 | 3.5 | 94.00 | 212.30 | 237.40 | 282.80 | 8.23 | 97.125 | 1.205 | 6.93 |  |  | 391 | 48 | 96 | 4672.8 | 0.0 | 0 | 9.5 |  | 255 | 567 | 288.4 | 1.4 | 553.0 |
+| texture-streaming | webgl2 | fork-viewer-exp-angle-d3d11 | 7.5 | 2.6 | 2.5 | 16.90 | 266.80 | 283.40 | 399.90 | 5.25 | 133.764 | 1.008 | 4.19 |  |  | 110 | 96 | 192 | 3500.2 | 0.0 | 0 | 5.3 |  | 432 | 518 | 201.5 | 1.4 | 452.0 |
+| texture-streaming | webgl2 | fork-viewer-exp-angle-d3d11-relaxed-webgl-validation | 7.4 | 2.4 | 2.4 | 16.90 | 283.30 | 300.10 | 416.70 | 5.15 | 134.050 | 1.010 | 4.10 |  |  | 109 | 96 | 192 | 3486.8 | 0.0 | 0 | 5.6 |  | 430 | 545 | 201.5 | 1.4 | 452.0 |
+| texture-streaming | webgl2 | fork-viewer-exp-angle-d3d11-relaxed-webgl-validation-zero-copy | 7.6 | 3.1 | 2.7 | 16.90 | 266.70 | 283.40 | 366.60 | 4.98 | 132.050 | 0.959 | 3.98 |  |  | 112 | 96 | 192 | 3526.9 | 0.0 | 0 | 5.4 |  | 434 | 511 | 201.5 | 1.4 | 452.0 |
+| texture-streaming | webgl2 | fork-viewer-exp-angle-d3d11-zero-copy | 7.5 | 3.5 | 3.5 | 16.90 | 266.70 | 266.90 | 283.50 | 4.98 | 132.204 | 0.958 | 3.97 |  |  | 112 | 96 | 192 | 3513.5 | 0.0 | 0 | 6.0 |  | 429 | 513 | 201.5 | 1.4 | 452.0 |
+| texture-streaming | webgl2 | fork-viewer-exp-default | 7.7 | 2.8 | 2.6 | 16.90 | 266.60 | 283.30 | 383.30 | 5.01 | 129.727 | 0.971 | 4.00 |  |  | 114 | 96 | 192 | 3607.0 | 0.0 | 0 | 5.3 |  | 434 | 580 | 201.5 | 1.4 | 452.0 |
+| texture-streaming | webgl2 | fork-viewer-exp-relaxed-webgl-validation-gate | 7.6 | 2.7 | 2.6 | 16.90 | 266.70 | 283.40 | 383.30 | 5.08 | 132.053 | 0.955 | 4.09 |  |  | 110 | 96 | 192 | 3526.9 | 0.0 | 0 | 5.4 |  | 431 | 542 | 201.5 | 1.4 | 452.0 |
+| texture-streaming | webgl2 | fork-viewer-exp-webgl2-gpu-compositor-resources | 7.4 | 2.4 | 2.4 | 16.90 | 267.00 | 299.90 | 416.70 | 5.02 | 133.050 | 0.964 | 4.02 |  |  | 110 | 96 | 192 | 3473.4 | 0.0 | 0 | 5.3 |  | 432 | 520 | 201.5 | 1.4 | 452.0 |
+| texture-streaming | webgl2 | fork-viewer-exp-webgl2-zero-copy-gpu-compositor-resources | 7.3 | 3.0 | 2.7 | 16.90 | 283.40 | 300.00 | 366.70 | 5.37 | 137.905 | 1.031 | 4.30 |  |  | 106 | 96 | 192 | 3246.3 | 0.0 | 0 | 5.2 |  | 438 | 846 | 201.5 | 1.4 | 452.0 |
+| texture-streaming | webgl2 | fork-viewer-exp-zero-copy | 7.5 | 2.6 | 2.6 | 16.90 | 266.70 | 283.50 | 383.30 | 5.16 | 132.698 | 1.005 | 4.11 |  |  | 109 | 96 | 192 | 3513.5 | 0.0 | 0 | 5.9 |  | 432 | 536 | 201.5 | 1.4 | 452.0 |
+
+## WebGPU Fast-Path Coverage
+
+These counters are diagnostic attribution only. They show whether WebGPU queue and pipeline descriptors match source fast paths; they are not standalone speed evidence.
+
+| Scene | Renderer | Variant | WriteTexture calls | Common writeTexture layout | Common writeTexture extent | CopyExternal calls | Default source origin | Common source origin | Explicit common source origin | sRGB destination | Full-source copy | Pipeline stack-eligible descriptors | Measured stack-eligible descriptors |
+| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| texture-streaming | webgl2 | fork-viewer-exp-angle-d3d11 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| texture-streaming | webgl2 | fork-viewer-exp-angle-d3d11-relaxed-webgl-validation | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| texture-streaming | webgl2 | fork-viewer-exp-angle-d3d11-relaxed-webgl-validation-zero-copy | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| texture-streaming | webgl2 | fork-viewer-exp-angle-d3d11-zero-copy | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| texture-streaming | webgl2 | fork-viewer-exp-default | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| texture-streaming | webgl2 | fork-viewer-exp-relaxed-webgl-validation-gate | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| texture-streaming | webgl2 | fork-viewer-exp-webgl2-gpu-compositor-resources | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| texture-streaming | webgl2 | fork-viewer-exp-webgl2-zero-copy-gpu-compositor-resources | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| texture-streaming | webgl2 | fork-viewer-exp-zero-copy | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 
 Unavailable metrics are intentionally blank.

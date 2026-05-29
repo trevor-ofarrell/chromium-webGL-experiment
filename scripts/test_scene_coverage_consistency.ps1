@@ -76,7 +76,10 @@ function Extract-PowerShellArray {
 
 function Extract-BenchmarkMethodologyScenes {
   param([string]$Text)
-  $Block = [regex]::Match($Text, "Implemented viewer scene names:\s*(.*?)\s*Renderer modes:", [System.Text.RegularExpressions.RegexOptions]::Singleline)
+  $Block = [regex]::Match(
+    $Text,
+    "(?:Implemented viewer scene names:|The viewer runs seven deterministic scenes:)\s*(.*?)\s*Renderer modes:",
+    [System.Text.RegularExpressions.RegexOptions]::Singleline)
   if (-not $Block.Success) {
     throw "Could not locate implemented scene list in docs/benchmark_methodology.md."
   }

@@ -1,0 +1,1535 @@
+﻿{
+    "generated_at":  "2026-05-28T21:04:48.4425318Z",
+    "dry_run":  false,
+    "phase":  "completed",
+    "chromium_revision":  "3a94d90ec3c04556622c56944796dd76753e0581",
+    "fork_revision":  "3a94d90ec3c04556622c56944796dd76753e0581+viewerpatch-1e2ab6bffef9",
+    "browser":  "C:\\Users\\trevo\\code\\three-browser\\src\\out\\ReleaseViewerDefault\\content_shell.exe",
+    "build_args":  "C:\\Users\\trevo\\code\\three-browser\\src\\out\\ReleaseViewerDefault\\args.gn",
+    "package_dir":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\packages\\viewer-default",
+    "renderer":  "webgl2",
+    "scenes":  [
+                   "texture-streaming"
+               ],
+    "suite_validation":  {
+                             "expected_scenes":  [
+                                                     "texture-streaming"
+                                                 ],
+                             "require_checkout":  true,
+                             "require_build_args":  true,
+                             "require_fork_revision":  true,
+                             "expected_fork_revision":  "3a94d90ec3c04556622c56944796dd76753e0581+viewerpatch-1e2ab6bffef9",
+                             "forbid_smoke":  true,
+                             "reject_software_rendering":  true,
+                             "reject_gpu_instability":  true,
+                             "require_gpu_metadata":  true,
+                             "require_frame_times":  true,
+                             "expected_chromium_revision":  "3a94d90ec3c04556622c56944796dd76753e0581",
+                             "expected_browser":  "C:\\Users\\trevo\\code\\three-browser\\src\\out\\ReleaseViewerDefault\\content_shell.exe",
+                             "expected_build_args_hash":  "55c64c990be11ff9e4469152fb3b4c87cf55a9df4a110f83a51684100fbb0e02",
+                             "expected_measured_seconds":  30,
+                             "expected_warmup_seconds":  5,
+                             "expected_complexity":  2,
+                             "exact_scene_output_files":  true,
+                             "expected_flag_metadata":  true,
+                             "required_browser_flags":  [
+                                                            "--disable-software-rasterizer"
+                                                        ],
+                             "profile_cache_policy":  "same-profile-cache-mode-and-key",
+                             "profile_cache_prime_policy":  "none"
+                         },
+    "options":  {
+                    "duration":  30,
+                    "warmup":  5,
+                    "precompile":  false,
+                    "prerender_frames":  0,
+                    "settle_gpu_after_warmup":  false,
+                    "webgpu_pipeline_quiet_frames":  0,
+                    "webgpu_pipeline_quiet_max_frames":  0,
+                    "webgpu_bundle_mode":  "off",
+                    "label_suffix":  "",
+                    "experiment_label_filter":  [
+                                                    "fork-viewer-exp-default",
+                                                    "fork-viewer-exp-zero-copy",
+                                                    "fork-viewer-exp-webgl2-gpu-compositor-resources",
+                                                    "fork-viewer-exp-webgl2-zero-copy-gpu-compositor-resources",
+                                                    "fork-viewer-exp-angle-d3d11",
+                                                    "fork-viewer-exp-angle-d3d11-zero-copy",
+                                                    "fork-viewer-exp-relaxed-webgl-validation-gate",
+                                                    "fork-viewer-exp-angle-d3d11-relaxed-webgl-validation",
+                                                    "fork-viewer-exp-angle-d3d11-relaxed-webgl-validation-zero-copy"
+                                                ],
+                    "disable_gpu_timing":  false,
+                    "complexity":  2,
+                    "profile_cache_key":  null,
+                    "profile_cache_mode":  "fresh-temp",
+                    "profile_cache_root":  null,
+                    "prime_profile_cache":  false,
+                    "profile_cache_policy":  "same-profile-cache-mode-and-key",
+                    "profile_cache_prime_policy":  "none"
+                },
+    "experiments":  [
+                        {
+                            "label":  "fork-viewer-exp-default",
+                            "base_label":  "fork-viewer-exp-default",
+                            "label_suffix":  "",
+                            "description":  "Default trusted viewer profile for experiment comparisons",
+                            "flags":  [
+
+                                      ],
+                            "browser_flags":  [
+
+                                              ],
+                            "required_browser_flags":  [
+                                                           "--disable-software-rasterizer"
+                                                       ],
+                            "expected_flag_metadata":  [
+                                                           "viewer_mode=true",
+                                                           "viewer_block_external_navigation=true",
+                                                           "viewer_trusted_content=true",
+                                                           "viewer_aggressive_gpu=false",
+                                                           "viewer_relaxed_webgl_validation=false",
+                                                           "viewer_zero_copy=false",
+                                                           "viewer_in_process_gpu=false",
+                                                           "viewer_single_process=false",
+                                                           "viewer_force_angle_backend=null",
+                                                           "requested_angle_backend=null",
+                                                           "viewer_disable_unneeded_blink_features=false",
+                                                           "viewer_direct_gpu_presentation=false",
+                                                           "viewer_defer_webgpu_pipeline_flush=false",
+                                                           "viewer_defer_webgpu_queue_flush=false",
+                                                           "viewer_defer_webgpu_submit_flush=false",
+                                                           "viewer_skip_webgpu_canvas_texture_validation=false",
+                                                           "viewer_skip_webgpu_canvas_memory_accounting=false",
+                                                           "viewer_skip_webgpu_copy_external_image_color_conversion=false",
+                                                           "viewer_skip_webgpu_copy_external_image_color_space_validation=false",
+                                                           "viewer_skip_webgpu_copy_external_image_dest_validation=false",
+                                                           "viewer_skip_webgpu_copy_external_image_source_validation=false",
+                                                           "viewer_skip_webgpu_copy_external_image_copy_size_validation=false",
+                                                           "viewer_skip_webgpu_write_texture_layout_validation=false",
+                                                           "viewer_reject_webgpu_cpu_texture_fallback=false",
+                                                           "viewer_skip_webgpu_use_counters=false",
+                                                           "viewer_cache_webgpu_bind_group_layouts=false",
+                                                           "viewer_skip_webgpu_command_labels=false",
+                                                           "viewer_skip_webgpu_resource_labels=false",
+                                                           "viewer_skip_webgpu_shader_source_null_check=false",
+                                                           "viewer_skip_webgpu_shader_memory_accounting=false",
+                                                           "viewer_skip_webgpu_redundant_pipeline_sets=false",
+                                                           "viewer_skip_webgpu_redundant_bind_group_sets=false",
+                                                           "viewer_skip_webgpu_redundant_buffer_sets=false",
+                                                           "viewer_skip_webgpu_redundant_render_state_sets=false",
+                                                           "viewer_trace_webgpu_queue=false",
+                                                           "gpu_timing_enabled=true",
+                                                           "benchmark_hud_enabled=false",
+                                                           "resource_warmup_enabled=false",
+                                                           "resource_warmup_precompile=false",
+                                                           "resource_warmup_prerender_frames=0",
+                                                           "resource_warmup_settle_gpu=false",
+                                                           "resource_warmup_pipeline_quiet_frames=0",
+                                                           "resource_warmup_pipeline_quiet_max_frames=0",
+                                                           "webgpu_bundle_mode=off",
+                                                           "profile_cache_mode=fresh-temp",
+                                                           "profile_cache_key=null",
+                                                           "profile_reuse_enabled=false"
+                                                       ],
+                            "result_files":  [
+                                                 "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-exp-default-texture-streaming-webgl2.json"
+                                             ]
+                        },
+                        {
+                            "label":  "fork-viewer-exp-zero-copy",
+                            "base_label":  "fork-viewer-exp-zero-copy",
+                            "label_suffix":  "",
+                            "description":  "Trusted zero-copy raster/upload path experiment; currently valid only for WebGL2 speed-candidate runs",
+                            "flags":  [
+                                          "--viewerZeroCopy"
+                                      ],
+                            "browser_flags":  [
+
+                                              ],
+                            "required_browser_flags":  [
+                                                           "--disable-software-rasterizer"
+                                                       ],
+                            "expected_flag_metadata":  [
+                                                           "viewer_mode=true",
+                                                           "viewer_block_external_navigation=true",
+                                                           "viewer_trusted_content=true",
+                                                           "viewer_aggressive_gpu=false",
+                                                           "viewer_relaxed_webgl_validation=false",
+                                                           "viewer_zero_copy=true",
+                                                           "viewer_in_process_gpu=false",
+                                                           "viewer_single_process=false",
+                                                           "viewer_force_angle_backend=null",
+                                                           "requested_angle_backend=null",
+                                                           "viewer_disable_unneeded_blink_features=false",
+                                                           "viewer_direct_gpu_presentation=false",
+                                                           "viewer_defer_webgpu_pipeline_flush=false",
+                                                           "viewer_defer_webgpu_queue_flush=false",
+                                                           "viewer_defer_webgpu_submit_flush=false",
+                                                           "viewer_skip_webgpu_canvas_texture_validation=false",
+                                                           "viewer_skip_webgpu_canvas_memory_accounting=false",
+                                                           "viewer_skip_webgpu_copy_external_image_color_conversion=false",
+                                                           "viewer_skip_webgpu_copy_external_image_color_space_validation=false",
+                                                           "viewer_skip_webgpu_copy_external_image_dest_validation=false",
+                                                           "viewer_skip_webgpu_copy_external_image_source_validation=false",
+                                                           "viewer_skip_webgpu_copy_external_image_copy_size_validation=false",
+                                                           "viewer_skip_webgpu_write_texture_layout_validation=false",
+                                                           "viewer_reject_webgpu_cpu_texture_fallback=false",
+                                                           "viewer_skip_webgpu_use_counters=false",
+                                                           "viewer_cache_webgpu_bind_group_layouts=false",
+                                                           "viewer_skip_webgpu_command_labels=false",
+                                                           "viewer_skip_webgpu_resource_labels=false",
+                                                           "viewer_skip_webgpu_shader_source_null_check=false",
+                                                           "viewer_skip_webgpu_shader_memory_accounting=false",
+                                                           "viewer_skip_webgpu_redundant_pipeline_sets=false",
+                                                           "viewer_skip_webgpu_redundant_bind_group_sets=false",
+                                                           "viewer_skip_webgpu_redundant_buffer_sets=false",
+                                                           "viewer_skip_webgpu_redundant_render_state_sets=false",
+                                                           "viewer_trace_webgpu_queue=false",
+                                                           "gpu_timing_enabled=true",
+                                                           "benchmark_hud_enabled=false",
+                                                           "resource_warmup_enabled=false",
+                                                           "resource_warmup_precompile=false",
+                                                           "resource_warmup_prerender_frames=0",
+                                                           "resource_warmup_settle_gpu=false",
+                                                           "resource_warmup_pipeline_quiet_frames=0",
+                                                           "resource_warmup_pipeline_quiet_max_frames=0",
+                                                           "webgpu_bundle_mode=off",
+                                                           "profile_cache_mode=fresh-temp",
+                                                           "profile_cache_key=null",
+                                                           "profile_reuse_enabled=false"
+                                                       ],
+                            "result_files":  [
+                                                 "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-exp-zero-copy-texture-streaming-webgl2.json"
+                                             ]
+                        },
+                        {
+                            "label":  "fork-viewer-exp-webgl2-gpu-compositor-resources",
+                            "base_label":  "fork-viewer-exp-webgl2-gpu-compositor-resources",
+                            "label_suffix":  "",
+                            "description":  "Trusted WebGL2 compositor GPU-memory-buffer resource experiment for zero-copy tail attribution",
+                            "flags":  [
+
+                                      ],
+                            "browser_flags":  [
+                                                  "--enable-gpu-memory-buffer-compositor-resources",
+                                                  "--ui-enable-zero-copy",
+                                                  "--enable-gpu-rasterization"
+                                              ],
+                            "required_browser_flags":  [
+                                                           "--disable-software-rasterizer",
+                                                           "--enable-gpu-memory-buffer-compositor-resources",
+                                                           "--ui-enable-zero-copy",
+                                                           "--enable-gpu-rasterization"
+                                                       ],
+                            "expected_flag_metadata":  [
+                                                           "viewer_mode=true",
+                                                           "viewer_block_external_navigation=true",
+                                                           "viewer_trusted_content=true",
+                                                           "viewer_aggressive_gpu=false",
+                                                           "viewer_relaxed_webgl_validation=false",
+                                                           "viewer_zero_copy=false",
+                                                           "viewer_in_process_gpu=false",
+                                                           "viewer_single_process=false",
+                                                           "viewer_force_angle_backend=null",
+                                                           "requested_angle_backend=null",
+                                                           "viewer_disable_unneeded_blink_features=false",
+                                                           "viewer_direct_gpu_presentation=false",
+                                                           "viewer_defer_webgpu_pipeline_flush=false",
+                                                           "viewer_defer_webgpu_queue_flush=false",
+                                                           "viewer_defer_webgpu_submit_flush=false",
+                                                           "viewer_skip_webgpu_canvas_texture_validation=false",
+                                                           "viewer_skip_webgpu_canvas_memory_accounting=false",
+                                                           "viewer_skip_webgpu_copy_external_image_color_conversion=false",
+                                                           "viewer_skip_webgpu_copy_external_image_color_space_validation=false",
+                                                           "viewer_skip_webgpu_copy_external_image_dest_validation=false",
+                                                           "viewer_skip_webgpu_copy_external_image_source_validation=false",
+                                                           "viewer_skip_webgpu_copy_external_image_copy_size_validation=false",
+                                                           "viewer_skip_webgpu_write_texture_layout_validation=false",
+                                                           "viewer_reject_webgpu_cpu_texture_fallback=false",
+                                                           "viewer_skip_webgpu_use_counters=false",
+                                                           "viewer_cache_webgpu_bind_group_layouts=false",
+                                                           "viewer_skip_webgpu_command_labels=false",
+                                                           "viewer_skip_webgpu_resource_labels=false",
+                                                           "viewer_skip_webgpu_shader_source_null_check=false",
+                                                           "viewer_skip_webgpu_shader_memory_accounting=false",
+                                                           "viewer_skip_webgpu_redundant_pipeline_sets=false",
+                                                           "viewer_skip_webgpu_redundant_bind_group_sets=false",
+                                                           "viewer_skip_webgpu_redundant_buffer_sets=false",
+                                                           "viewer_skip_webgpu_redundant_render_state_sets=false",
+                                                           "viewer_trace_webgpu_queue=false",
+                                                           "gpu_timing_enabled=true",
+                                                           "benchmark_hud_enabled=false",
+                                                           "resource_warmup_enabled=false",
+                                                           "resource_warmup_precompile=false",
+                                                           "resource_warmup_prerender_frames=0",
+                                                           "resource_warmup_settle_gpu=false",
+                                                           "resource_warmup_pipeline_quiet_frames=0",
+                                                           "resource_warmup_pipeline_quiet_max_frames=0",
+                                                           "webgpu_bundle_mode=off",
+                                                           "profile_cache_mode=fresh-temp",
+                                                           "profile_cache_key=null",
+                                                           "profile_reuse_enabled=false"
+                                                       ],
+                            "result_files":  [
+                                                 "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-exp-webgl2-gpu-compositor-resources-texture-streaming-webgl2.json"
+                                             ]
+                        },
+                        {
+                            "label":  "fork-viewer-exp-webgl2-zero-copy-gpu-compositor-resources",
+                            "base_label":  "fork-viewer-exp-webgl2-zero-copy-gpu-compositor-resources",
+                            "label_suffix":  "",
+                            "description":  "Trusted WebGL2 zero-copy plus compositor GPU-memory-buffer resource experiment for tail-latency repair",
+                            "flags":  [
+                                          "--viewerZeroCopy"
+                                      ],
+                            "browser_flags":  [
+                                                  "--enable-gpu-memory-buffer-compositor-resources",
+                                                  "--ui-enable-zero-copy",
+                                                  "--enable-gpu-rasterization"
+                                              ],
+                            "required_browser_flags":  [
+                                                           "--disable-software-rasterizer",
+                                                           "--enable-gpu-memory-buffer-compositor-resources",
+                                                           "--ui-enable-zero-copy",
+                                                           "--enable-gpu-rasterization"
+                                                       ],
+                            "expected_flag_metadata":  [
+                                                           "viewer_mode=true",
+                                                           "viewer_block_external_navigation=true",
+                                                           "viewer_trusted_content=true",
+                                                           "viewer_aggressive_gpu=false",
+                                                           "viewer_relaxed_webgl_validation=false",
+                                                           "viewer_zero_copy=true",
+                                                           "viewer_in_process_gpu=false",
+                                                           "viewer_single_process=false",
+                                                           "viewer_force_angle_backend=null",
+                                                           "requested_angle_backend=null",
+                                                           "viewer_disable_unneeded_blink_features=false",
+                                                           "viewer_direct_gpu_presentation=false",
+                                                           "viewer_defer_webgpu_pipeline_flush=false",
+                                                           "viewer_defer_webgpu_queue_flush=false",
+                                                           "viewer_defer_webgpu_submit_flush=false",
+                                                           "viewer_skip_webgpu_canvas_texture_validation=false",
+                                                           "viewer_skip_webgpu_canvas_memory_accounting=false",
+                                                           "viewer_skip_webgpu_copy_external_image_color_conversion=false",
+                                                           "viewer_skip_webgpu_copy_external_image_color_space_validation=false",
+                                                           "viewer_skip_webgpu_copy_external_image_dest_validation=false",
+                                                           "viewer_skip_webgpu_copy_external_image_source_validation=false",
+                                                           "viewer_skip_webgpu_copy_external_image_copy_size_validation=false",
+                                                           "viewer_skip_webgpu_write_texture_layout_validation=false",
+                                                           "viewer_reject_webgpu_cpu_texture_fallback=false",
+                                                           "viewer_skip_webgpu_use_counters=false",
+                                                           "viewer_cache_webgpu_bind_group_layouts=false",
+                                                           "viewer_skip_webgpu_command_labels=false",
+                                                           "viewer_skip_webgpu_resource_labels=false",
+                                                           "viewer_skip_webgpu_shader_source_null_check=false",
+                                                           "viewer_skip_webgpu_shader_memory_accounting=false",
+                                                           "viewer_skip_webgpu_redundant_pipeline_sets=false",
+                                                           "viewer_skip_webgpu_redundant_bind_group_sets=false",
+                                                           "viewer_skip_webgpu_redundant_buffer_sets=false",
+                                                           "viewer_skip_webgpu_redundant_render_state_sets=false",
+                                                           "viewer_trace_webgpu_queue=false",
+                                                           "gpu_timing_enabled=true",
+                                                           "benchmark_hud_enabled=false",
+                                                           "resource_warmup_enabled=false",
+                                                           "resource_warmup_precompile=false",
+                                                           "resource_warmup_prerender_frames=0",
+                                                           "resource_warmup_settle_gpu=false",
+                                                           "resource_warmup_pipeline_quiet_frames=0",
+                                                           "resource_warmup_pipeline_quiet_max_frames=0",
+                                                           "webgpu_bundle_mode=off",
+                                                           "profile_cache_mode=fresh-temp",
+                                                           "profile_cache_key=null",
+                                                           "profile_reuse_enabled=false"
+                                                       ],
+                            "result_files":  [
+                                                 "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-exp-webgl2-zero-copy-gpu-compositor-resources-texture-streaming-webgl2.json"
+                                             ]
+                        },
+                        {
+                            "label":  "fork-viewer-exp-angle-d3d11",
+                            "base_label":  "fork-viewer-exp-angle-d3d11",
+                            "label_suffix":  "",
+                            "description":  "Trusted ANGLE backend experiment: d3d11",
+                            "flags":  [
+                                          "--viewerForceAngleBackend",
+                                          "d3d11"
+                                      ],
+                            "browser_flags":  [
+
+                                              ],
+                            "required_browser_flags":  [
+                                                           "--disable-software-rasterizer"
+                                                       ],
+                            "expected_flag_metadata":  [
+                                                           "viewer_mode=true",
+                                                           "viewer_block_external_navigation=true",
+                                                           "viewer_trusted_content=true",
+                                                           "viewer_aggressive_gpu=false",
+                                                           "viewer_relaxed_webgl_validation=false",
+                                                           "viewer_zero_copy=false",
+                                                           "viewer_in_process_gpu=false",
+                                                           "viewer_single_process=false",
+                                                           "viewer_force_angle_backend=d3d11",
+                                                           "requested_angle_backend=d3d11",
+                                                           "viewer_disable_unneeded_blink_features=false",
+                                                           "viewer_direct_gpu_presentation=false",
+                                                           "viewer_defer_webgpu_pipeline_flush=false",
+                                                           "viewer_defer_webgpu_queue_flush=false",
+                                                           "viewer_defer_webgpu_submit_flush=false",
+                                                           "viewer_skip_webgpu_canvas_texture_validation=false",
+                                                           "viewer_skip_webgpu_canvas_memory_accounting=false",
+                                                           "viewer_skip_webgpu_copy_external_image_color_conversion=false",
+                                                           "viewer_skip_webgpu_copy_external_image_color_space_validation=false",
+                                                           "viewer_skip_webgpu_copy_external_image_dest_validation=false",
+                                                           "viewer_skip_webgpu_copy_external_image_source_validation=false",
+                                                           "viewer_skip_webgpu_copy_external_image_copy_size_validation=false",
+                                                           "viewer_skip_webgpu_write_texture_layout_validation=false",
+                                                           "viewer_reject_webgpu_cpu_texture_fallback=false",
+                                                           "viewer_skip_webgpu_use_counters=false",
+                                                           "viewer_cache_webgpu_bind_group_layouts=false",
+                                                           "viewer_skip_webgpu_command_labels=false",
+                                                           "viewer_skip_webgpu_resource_labels=false",
+                                                           "viewer_skip_webgpu_shader_source_null_check=false",
+                                                           "viewer_skip_webgpu_shader_memory_accounting=false",
+                                                           "viewer_skip_webgpu_redundant_pipeline_sets=false",
+                                                           "viewer_skip_webgpu_redundant_bind_group_sets=false",
+                                                           "viewer_skip_webgpu_redundant_buffer_sets=false",
+                                                           "viewer_skip_webgpu_redundant_render_state_sets=false",
+                                                           "viewer_trace_webgpu_queue=false",
+                                                           "gpu_timing_enabled=true",
+                                                           "benchmark_hud_enabled=false",
+                                                           "resource_warmup_enabled=false",
+                                                           "resource_warmup_precompile=false",
+                                                           "resource_warmup_prerender_frames=0",
+                                                           "resource_warmup_settle_gpu=false",
+                                                           "resource_warmup_pipeline_quiet_frames=0",
+                                                           "resource_warmup_pipeline_quiet_max_frames=0",
+                                                           "webgpu_bundle_mode=off",
+                                                           "profile_cache_mode=fresh-temp",
+                                                           "profile_cache_key=null",
+                                                           "profile_reuse_enabled=false"
+                                                       ],
+                            "result_files":  [
+                                                 "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-exp-angle-d3d11-texture-streaming-webgl2.json"
+                                             ]
+                        },
+                        {
+                            "label":  "fork-viewer-exp-angle-d3d11-zero-copy",
+                            "base_label":  "fork-viewer-exp-angle-d3d11-zero-copy",
+                            "label_suffix":  "",
+                            "description":  "Trusted WebGL2 ANGLE d3d11 plus zero-copy interaction experiment for tail/throughput attribution",
+                            "flags":  [
+                                          "--viewerForceAngleBackend",
+                                          "d3d11",
+                                          "--viewerZeroCopy"
+                                      ],
+                            "browser_flags":  [
+
+                                              ],
+                            "required_browser_flags":  [
+                                                           "--disable-software-rasterizer"
+                                                       ],
+                            "expected_flag_metadata":  [
+                                                           "viewer_mode=true",
+                                                           "viewer_block_external_navigation=true",
+                                                           "viewer_trusted_content=true",
+                                                           "viewer_aggressive_gpu=false",
+                                                           "viewer_relaxed_webgl_validation=false",
+                                                           "viewer_zero_copy=true",
+                                                           "viewer_in_process_gpu=false",
+                                                           "viewer_single_process=false",
+                                                           "viewer_force_angle_backend=d3d11",
+                                                           "requested_angle_backend=d3d11",
+                                                           "viewer_disable_unneeded_blink_features=false",
+                                                           "viewer_direct_gpu_presentation=false",
+                                                           "viewer_defer_webgpu_pipeline_flush=false",
+                                                           "viewer_defer_webgpu_queue_flush=false",
+                                                           "viewer_defer_webgpu_submit_flush=false",
+                                                           "viewer_skip_webgpu_canvas_texture_validation=false",
+                                                           "viewer_skip_webgpu_canvas_memory_accounting=false",
+                                                           "viewer_skip_webgpu_copy_external_image_color_conversion=false",
+                                                           "viewer_skip_webgpu_copy_external_image_color_space_validation=false",
+                                                           "viewer_skip_webgpu_copy_external_image_dest_validation=false",
+                                                           "viewer_skip_webgpu_copy_external_image_source_validation=false",
+                                                           "viewer_skip_webgpu_copy_external_image_copy_size_validation=false",
+                                                           "viewer_skip_webgpu_write_texture_layout_validation=false",
+                                                           "viewer_reject_webgpu_cpu_texture_fallback=false",
+                                                           "viewer_skip_webgpu_use_counters=false",
+                                                           "viewer_cache_webgpu_bind_group_layouts=false",
+                                                           "viewer_skip_webgpu_command_labels=false",
+                                                           "viewer_skip_webgpu_resource_labels=false",
+                                                           "viewer_skip_webgpu_shader_source_null_check=false",
+                                                           "viewer_skip_webgpu_shader_memory_accounting=false",
+                                                           "viewer_skip_webgpu_redundant_pipeline_sets=false",
+                                                           "viewer_skip_webgpu_redundant_bind_group_sets=false",
+                                                           "viewer_skip_webgpu_redundant_buffer_sets=false",
+                                                           "viewer_skip_webgpu_redundant_render_state_sets=false",
+                                                           "viewer_trace_webgpu_queue=false",
+                                                           "gpu_timing_enabled=true",
+                                                           "benchmark_hud_enabled=false",
+                                                           "resource_warmup_enabled=false",
+                                                           "resource_warmup_precompile=false",
+                                                           "resource_warmup_prerender_frames=0",
+                                                           "resource_warmup_settle_gpu=false",
+                                                           "resource_warmup_pipeline_quiet_frames=0",
+                                                           "resource_warmup_pipeline_quiet_max_frames=0",
+                                                           "webgpu_bundle_mode=off",
+                                                           "profile_cache_mode=fresh-temp",
+                                                           "profile_cache_key=null",
+                                                           "profile_reuse_enabled=false"
+                                                       ],
+                            "result_files":  [
+                                                 "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-exp-angle-d3d11-zero-copy-texture-streaming-webgl2.json"
+                                             ]
+                        },
+                        {
+                            "label":  "fork-viewer-exp-relaxed-webgl-validation-gate",
+                            "base_label":  "fork-viewer-exp-relaxed-webgl-validation-gate",
+                            "label_suffix":  "",
+                            "description":  "Trusted pass-through command decoder alias for WebGL validation-overhead measurement",
+                            "flags":  [
+                                          "--viewerRelaxedWebglValidation"
+                                      ],
+                            "browser_flags":  [
+
+                                              ],
+                            "required_browser_flags":  [
+                                                           "--disable-software-rasterizer"
+                                                       ],
+                            "expected_flag_metadata":  [
+                                                           "viewer_mode=true",
+                                                           "viewer_block_external_navigation=true",
+                                                           "viewer_trusted_content=true",
+                                                           "viewer_aggressive_gpu=false",
+                                                           "viewer_relaxed_webgl_validation=true",
+                                                           "viewer_zero_copy=false",
+                                                           "viewer_in_process_gpu=false",
+                                                           "viewer_single_process=false",
+                                                           "viewer_force_angle_backend=null",
+                                                           "requested_angle_backend=null",
+                                                           "viewer_disable_unneeded_blink_features=false",
+                                                           "viewer_direct_gpu_presentation=false",
+                                                           "viewer_defer_webgpu_pipeline_flush=false",
+                                                           "viewer_defer_webgpu_queue_flush=false",
+                                                           "viewer_defer_webgpu_submit_flush=false",
+                                                           "viewer_skip_webgpu_canvas_texture_validation=false",
+                                                           "viewer_skip_webgpu_canvas_memory_accounting=false",
+                                                           "viewer_skip_webgpu_copy_external_image_color_conversion=false",
+                                                           "viewer_skip_webgpu_copy_external_image_color_space_validation=false",
+                                                           "viewer_skip_webgpu_copy_external_image_dest_validation=false",
+                                                           "viewer_skip_webgpu_copy_external_image_source_validation=false",
+                                                           "viewer_skip_webgpu_copy_external_image_copy_size_validation=false",
+                                                           "viewer_skip_webgpu_write_texture_layout_validation=false",
+                                                           "viewer_reject_webgpu_cpu_texture_fallback=false",
+                                                           "viewer_skip_webgpu_use_counters=false",
+                                                           "viewer_cache_webgpu_bind_group_layouts=false",
+                                                           "viewer_skip_webgpu_command_labels=false",
+                                                           "viewer_skip_webgpu_resource_labels=false",
+                                                           "viewer_skip_webgpu_shader_source_null_check=false",
+                                                           "viewer_skip_webgpu_shader_memory_accounting=false",
+                                                           "viewer_skip_webgpu_redundant_pipeline_sets=false",
+                                                           "viewer_skip_webgpu_redundant_bind_group_sets=false",
+                                                           "viewer_skip_webgpu_redundant_buffer_sets=false",
+                                                           "viewer_skip_webgpu_redundant_render_state_sets=false",
+                                                           "viewer_trace_webgpu_queue=false",
+                                                           "gpu_timing_enabled=true",
+                                                           "benchmark_hud_enabled=false",
+                                                           "resource_warmup_enabled=false",
+                                                           "resource_warmup_precompile=false",
+                                                           "resource_warmup_prerender_frames=0",
+                                                           "resource_warmup_settle_gpu=false",
+                                                           "resource_warmup_pipeline_quiet_frames=0",
+                                                           "resource_warmup_pipeline_quiet_max_frames=0",
+                                                           "webgpu_bundle_mode=off",
+                                                           "profile_cache_mode=fresh-temp",
+                                                           "profile_cache_key=null",
+                                                           "profile_reuse_enabled=false"
+                                                       ],
+                            "result_files":  [
+                                                 "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-exp-relaxed-webgl-validation-gate-texture-streaming-webgl2.json"
+                                             ]
+                        },
+                        {
+                            "label":  "fork-viewer-exp-angle-d3d11-relaxed-webgl-validation",
+                            "base_label":  "fork-viewer-exp-angle-d3d11-relaxed-webgl-validation",
+                            "label_suffix":  "",
+                            "description":  "Trusted WebGL2 ANGLE d3d11 plus relaxed-validation interaction experiment",
+                            "flags":  [
+                                          "--viewerForceAngleBackend",
+                                          "d3d11",
+                                          "--viewerRelaxedWebglValidation"
+                                      ],
+                            "browser_flags":  [
+
+                                              ],
+                            "required_browser_flags":  [
+                                                           "--disable-software-rasterizer"
+                                                       ],
+                            "expected_flag_metadata":  [
+                                                           "viewer_mode=true",
+                                                           "viewer_block_external_navigation=true",
+                                                           "viewer_trusted_content=true",
+                                                           "viewer_aggressive_gpu=false",
+                                                           "viewer_relaxed_webgl_validation=true",
+                                                           "viewer_zero_copy=false",
+                                                           "viewer_in_process_gpu=false",
+                                                           "viewer_single_process=false",
+                                                           "viewer_force_angle_backend=d3d11",
+                                                           "requested_angle_backend=d3d11",
+                                                           "viewer_disable_unneeded_blink_features=false",
+                                                           "viewer_direct_gpu_presentation=false",
+                                                           "viewer_defer_webgpu_pipeline_flush=false",
+                                                           "viewer_defer_webgpu_queue_flush=false",
+                                                           "viewer_defer_webgpu_submit_flush=false",
+                                                           "viewer_skip_webgpu_canvas_texture_validation=false",
+                                                           "viewer_skip_webgpu_canvas_memory_accounting=false",
+                                                           "viewer_skip_webgpu_copy_external_image_color_conversion=false",
+                                                           "viewer_skip_webgpu_copy_external_image_color_space_validation=false",
+                                                           "viewer_skip_webgpu_copy_external_image_dest_validation=false",
+                                                           "viewer_skip_webgpu_copy_external_image_source_validation=false",
+                                                           "viewer_skip_webgpu_copy_external_image_copy_size_validation=false",
+                                                           "viewer_skip_webgpu_write_texture_layout_validation=false",
+                                                           "viewer_reject_webgpu_cpu_texture_fallback=false",
+                                                           "viewer_skip_webgpu_use_counters=false",
+                                                           "viewer_cache_webgpu_bind_group_layouts=false",
+                                                           "viewer_skip_webgpu_command_labels=false",
+                                                           "viewer_skip_webgpu_resource_labels=false",
+                                                           "viewer_skip_webgpu_shader_source_null_check=false",
+                                                           "viewer_skip_webgpu_shader_memory_accounting=false",
+                                                           "viewer_skip_webgpu_redundant_pipeline_sets=false",
+                                                           "viewer_skip_webgpu_redundant_bind_group_sets=false",
+                                                           "viewer_skip_webgpu_redundant_buffer_sets=false",
+                                                           "viewer_skip_webgpu_redundant_render_state_sets=false",
+                                                           "viewer_trace_webgpu_queue=false",
+                                                           "gpu_timing_enabled=true",
+                                                           "benchmark_hud_enabled=false",
+                                                           "resource_warmup_enabled=false",
+                                                           "resource_warmup_precompile=false",
+                                                           "resource_warmup_prerender_frames=0",
+                                                           "resource_warmup_settle_gpu=false",
+                                                           "resource_warmup_pipeline_quiet_frames=0",
+                                                           "resource_warmup_pipeline_quiet_max_frames=0",
+                                                           "webgpu_bundle_mode=off",
+                                                           "profile_cache_mode=fresh-temp",
+                                                           "profile_cache_key=null",
+                                                           "profile_reuse_enabled=false"
+                                                       ],
+                            "result_files":  [
+                                                 "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-exp-angle-d3d11-relaxed-webgl-validation-texture-streaming-webgl2.json"
+                                             ]
+                        },
+                        {
+                            "label":  "fork-viewer-exp-angle-d3d11-relaxed-webgl-validation-zero-copy",
+                            "base_label":  "fork-viewer-exp-angle-d3d11-relaxed-webgl-validation-zero-copy",
+                            "label_suffix":  "",
+                            "description":  "Trusted WebGL2 ANGLE d3d11 plus relaxed-validation plus zero-copy interaction experiment",
+                            "flags":  [
+                                          "--viewerForceAngleBackend",
+                                          "d3d11",
+                                          "--viewerRelaxedWebglValidation",
+                                          "--viewerZeroCopy"
+                                      ],
+                            "browser_flags":  [
+
+                                              ],
+                            "required_browser_flags":  [
+                                                           "--disable-software-rasterizer"
+                                                       ],
+                            "expected_flag_metadata":  [
+                                                           "viewer_mode=true",
+                                                           "viewer_block_external_navigation=true",
+                                                           "viewer_trusted_content=true",
+                                                           "viewer_aggressive_gpu=false",
+                                                           "viewer_relaxed_webgl_validation=true",
+                                                           "viewer_zero_copy=true",
+                                                           "viewer_in_process_gpu=false",
+                                                           "viewer_single_process=false",
+                                                           "viewer_force_angle_backend=d3d11",
+                                                           "requested_angle_backend=d3d11",
+                                                           "viewer_disable_unneeded_blink_features=false",
+                                                           "viewer_direct_gpu_presentation=false",
+                                                           "viewer_defer_webgpu_pipeline_flush=false",
+                                                           "viewer_defer_webgpu_queue_flush=false",
+                                                           "viewer_defer_webgpu_submit_flush=false",
+                                                           "viewer_skip_webgpu_canvas_texture_validation=false",
+                                                           "viewer_skip_webgpu_canvas_memory_accounting=false",
+                                                           "viewer_skip_webgpu_copy_external_image_color_conversion=false",
+                                                           "viewer_skip_webgpu_copy_external_image_color_space_validation=false",
+                                                           "viewer_skip_webgpu_copy_external_image_dest_validation=false",
+                                                           "viewer_skip_webgpu_copy_external_image_source_validation=false",
+                                                           "viewer_skip_webgpu_copy_external_image_copy_size_validation=false",
+                                                           "viewer_skip_webgpu_write_texture_layout_validation=false",
+                                                           "viewer_reject_webgpu_cpu_texture_fallback=false",
+                                                           "viewer_skip_webgpu_use_counters=false",
+                                                           "viewer_cache_webgpu_bind_group_layouts=false",
+                                                           "viewer_skip_webgpu_command_labels=false",
+                                                           "viewer_skip_webgpu_resource_labels=false",
+                                                           "viewer_skip_webgpu_shader_source_null_check=false",
+                                                           "viewer_skip_webgpu_shader_memory_accounting=false",
+                                                           "viewer_skip_webgpu_redundant_pipeline_sets=false",
+                                                           "viewer_skip_webgpu_redundant_bind_group_sets=false",
+                                                           "viewer_skip_webgpu_redundant_buffer_sets=false",
+                                                           "viewer_skip_webgpu_redundant_render_state_sets=false",
+                                                           "viewer_trace_webgpu_queue=false",
+                                                           "gpu_timing_enabled=true",
+                                                           "benchmark_hud_enabled=false",
+                                                           "resource_warmup_enabled=false",
+                                                           "resource_warmup_precompile=false",
+                                                           "resource_warmup_prerender_frames=0",
+                                                           "resource_warmup_settle_gpu=false",
+                                                           "resource_warmup_pipeline_quiet_frames=0",
+                                                           "resource_warmup_pipeline_quiet_max_frames=0",
+                                                           "webgpu_bundle_mode=off",
+                                                           "profile_cache_mode=fresh-temp",
+                                                           "profile_cache_key=null",
+                                                           "profile_reuse_enabled=false"
+                                                       ],
+                            "result_files":  [
+                                                 "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-exp-angle-d3d11-relaxed-webgl-validation-zero-copy-texture-streaming-webgl2.json"
+                                             ]
+                        }
+                    ],
+    "result_files":  {
+                         "all":  [
+                                     "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-exp-default-texture-streaming-webgl2.json",
+                                     "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-exp-zero-copy-texture-streaming-webgl2.json",
+                                     "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-exp-webgl2-gpu-compositor-resources-texture-streaming-webgl2.json",
+                                     "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-exp-webgl2-zero-copy-gpu-compositor-resources-texture-streaming-webgl2.json",
+                                     "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-exp-angle-d3d11-texture-streaming-webgl2.json",
+                                     "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-exp-angle-d3d11-zero-copy-texture-streaming-webgl2.json",
+                                     "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-exp-relaxed-webgl-validation-gate-texture-streaming-webgl2.json",
+                                     "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-exp-angle-d3d11-relaxed-webgl-validation-texture-streaming-webgl2.json",
+                                     "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-exp-angle-d3d11-relaxed-webgl-validation-zero-copy-texture-streaming-webgl2.json"
+                                 ],
+                         "by_experiment":  [
+                                               {
+                                                   "label":  "fork-viewer-exp-default",
+                                                   "base_label":  "fork-viewer-exp-default",
+                                                   "label_suffix":  "",
+                                                   "description":  "Default trusted viewer profile for experiment comparisons",
+                                                   "flags":  [
+
+                                                             ],
+                                                   "browser_flags":  [
+
+                                                                     ],
+                                                   "required_browser_flags":  [
+                                                                                  "--disable-software-rasterizer"
+                                                                              ],
+                                                   "expected_flag_metadata":  [
+                                                                                  "viewer_mode=true",
+                                                                                  "viewer_block_external_navigation=true",
+                                                                                  "viewer_trusted_content=true",
+                                                                                  "viewer_aggressive_gpu=false",
+                                                                                  "viewer_relaxed_webgl_validation=false",
+                                                                                  "viewer_zero_copy=false",
+                                                                                  "viewer_in_process_gpu=false",
+                                                                                  "viewer_single_process=false",
+                                                                                  "viewer_force_angle_backend=null",
+                                                                                  "requested_angle_backend=null",
+                                                                                  "viewer_disable_unneeded_blink_features=false",
+                                                                                  "viewer_direct_gpu_presentation=false",
+                                                                                  "viewer_defer_webgpu_pipeline_flush=false",
+                                                                                  "viewer_defer_webgpu_queue_flush=false",
+                                                                                  "viewer_defer_webgpu_submit_flush=false",
+                                                                                  "viewer_skip_webgpu_canvas_texture_validation=false",
+                                                                                  "viewer_skip_webgpu_canvas_memory_accounting=false",
+                                                                                  "viewer_skip_webgpu_copy_external_image_color_conversion=false",
+                                                                                  "viewer_skip_webgpu_copy_external_image_color_space_validation=false",
+                                                                                  "viewer_skip_webgpu_copy_external_image_dest_validation=false",
+                                                                                  "viewer_skip_webgpu_copy_external_image_source_validation=false",
+                                                                                  "viewer_skip_webgpu_copy_external_image_copy_size_validation=false",
+                                                                                  "viewer_skip_webgpu_write_texture_layout_validation=false",
+                                                                                  "viewer_reject_webgpu_cpu_texture_fallback=false",
+                                                                                  "viewer_skip_webgpu_use_counters=false",
+                                                                                  "viewer_cache_webgpu_bind_group_layouts=false",
+                                                                                  "viewer_skip_webgpu_command_labels=false",
+                                                                                  "viewer_skip_webgpu_resource_labels=false",
+                                                                                  "viewer_skip_webgpu_shader_source_null_check=false",
+                                                                                  "viewer_skip_webgpu_shader_memory_accounting=false",
+                                                                                  "viewer_skip_webgpu_redundant_pipeline_sets=false",
+                                                                                  "viewer_skip_webgpu_redundant_bind_group_sets=false",
+                                                                                  "viewer_skip_webgpu_redundant_buffer_sets=false",
+                                                                                  "viewer_skip_webgpu_redundant_render_state_sets=false",
+                                                                                  "viewer_trace_webgpu_queue=false",
+                                                                                  "gpu_timing_enabled=true",
+                                                                                  "benchmark_hud_enabled=false",
+                                                                                  "resource_warmup_enabled=false",
+                                                                                  "resource_warmup_precompile=false",
+                                                                                  "resource_warmup_prerender_frames=0",
+                                                                                  "resource_warmup_settle_gpu=false",
+                                                                                  "resource_warmup_pipeline_quiet_frames=0",
+                                                                                  "resource_warmup_pipeline_quiet_max_frames=0",
+                                                                                  "webgpu_bundle_mode=off",
+                                                                                  "profile_cache_mode=fresh-temp",
+                                                                                  "profile_cache_key=null",
+                                                                                  "profile_reuse_enabled=false"
+                                                                              ],
+                                                   "result_files":  [
+                                                                        "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-exp-default-texture-streaming-webgl2.json"
+                                                                    ]
+                                               },
+                                               {
+                                                   "label":  "fork-viewer-exp-zero-copy",
+                                                   "base_label":  "fork-viewer-exp-zero-copy",
+                                                   "label_suffix":  "",
+                                                   "description":  "Trusted zero-copy raster/upload path experiment; currently valid only for WebGL2 speed-candidate runs",
+                                                   "flags":  [
+                                                                 "--viewerZeroCopy"
+                                                             ],
+                                                   "browser_flags":  [
+
+                                                                     ],
+                                                   "required_browser_flags":  [
+                                                                                  "--disable-software-rasterizer"
+                                                                              ],
+                                                   "expected_flag_metadata":  [
+                                                                                  "viewer_mode=true",
+                                                                                  "viewer_block_external_navigation=true",
+                                                                                  "viewer_trusted_content=true",
+                                                                                  "viewer_aggressive_gpu=false",
+                                                                                  "viewer_relaxed_webgl_validation=false",
+                                                                                  "viewer_zero_copy=true",
+                                                                                  "viewer_in_process_gpu=false",
+                                                                                  "viewer_single_process=false",
+                                                                                  "viewer_force_angle_backend=null",
+                                                                                  "requested_angle_backend=null",
+                                                                                  "viewer_disable_unneeded_blink_features=false",
+                                                                                  "viewer_direct_gpu_presentation=false",
+                                                                                  "viewer_defer_webgpu_pipeline_flush=false",
+                                                                                  "viewer_defer_webgpu_queue_flush=false",
+                                                                                  "viewer_defer_webgpu_submit_flush=false",
+                                                                                  "viewer_skip_webgpu_canvas_texture_validation=false",
+                                                                                  "viewer_skip_webgpu_canvas_memory_accounting=false",
+                                                                                  "viewer_skip_webgpu_copy_external_image_color_conversion=false",
+                                                                                  "viewer_skip_webgpu_copy_external_image_color_space_validation=false",
+                                                                                  "viewer_skip_webgpu_copy_external_image_dest_validation=false",
+                                                                                  "viewer_skip_webgpu_copy_external_image_source_validation=false",
+                                                                                  "viewer_skip_webgpu_copy_external_image_copy_size_validation=false",
+                                                                                  "viewer_skip_webgpu_write_texture_layout_validation=false",
+                                                                                  "viewer_reject_webgpu_cpu_texture_fallback=false",
+                                                                                  "viewer_skip_webgpu_use_counters=false",
+                                                                                  "viewer_cache_webgpu_bind_group_layouts=false",
+                                                                                  "viewer_skip_webgpu_command_labels=false",
+                                                                                  "viewer_skip_webgpu_resource_labels=false",
+                                                                                  "viewer_skip_webgpu_shader_source_null_check=false",
+                                                                                  "viewer_skip_webgpu_shader_memory_accounting=false",
+                                                                                  "viewer_skip_webgpu_redundant_pipeline_sets=false",
+                                                                                  "viewer_skip_webgpu_redundant_bind_group_sets=false",
+                                                                                  "viewer_skip_webgpu_redundant_buffer_sets=false",
+                                                                                  "viewer_skip_webgpu_redundant_render_state_sets=false",
+                                                                                  "viewer_trace_webgpu_queue=false",
+                                                                                  "gpu_timing_enabled=true",
+                                                                                  "benchmark_hud_enabled=false",
+                                                                                  "resource_warmup_enabled=false",
+                                                                                  "resource_warmup_precompile=false",
+                                                                                  "resource_warmup_prerender_frames=0",
+                                                                                  "resource_warmup_settle_gpu=false",
+                                                                                  "resource_warmup_pipeline_quiet_frames=0",
+                                                                                  "resource_warmup_pipeline_quiet_max_frames=0",
+                                                                                  "webgpu_bundle_mode=off",
+                                                                                  "profile_cache_mode=fresh-temp",
+                                                                                  "profile_cache_key=null",
+                                                                                  "profile_reuse_enabled=false"
+                                                                              ],
+                                                   "result_files":  [
+                                                                        "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-exp-zero-copy-texture-streaming-webgl2.json"
+                                                                    ]
+                                               },
+                                               {
+                                                   "label":  "fork-viewer-exp-webgl2-gpu-compositor-resources",
+                                                   "base_label":  "fork-viewer-exp-webgl2-gpu-compositor-resources",
+                                                   "label_suffix":  "",
+                                                   "description":  "Trusted WebGL2 compositor GPU-memory-buffer resource experiment for zero-copy tail attribution",
+                                                   "flags":  [
+
+                                                             ],
+                                                   "browser_flags":  [
+                                                                         "--enable-gpu-memory-buffer-compositor-resources",
+                                                                         "--ui-enable-zero-copy",
+                                                                         "--enable-gpu-rasterization"
+                                                                     ],
+                                                   "required_browser_flags":  [
+                                                                                  "--disable-software-rasterizer",
+                                                                                  "--enable-gpu-memory-buffer-compositor-resources",
+                                                                                  "--ui-enable-zero-copy",
+                                                                                  "--enable-gpu-rasterization"
+                                                                              ],
+                                                   "expected_flag_metadata":  [
+                                                                                  "viewer_mode=true",
+                                                                                  "viewer_block_external_navigation=true",
+                                                                                  "viewer_trusted_content=true",
+                                                                                  "viewer_aggressive_gpu=false",
+                                                                                  "viewer_relaxed_webgl_validation=false",
+                                                                                  "viewer_zero_copy=false",
+                                                                                  "viewer_in_process_gpu=false",
+                                                                                  "viewer_single_process=false",
+                                                                                  "viewer_force_angle_backend=null",
+                                                                                  "requested_angle_backend=null",
+                                                                                  "viewer_disable_unneeded_blink_features=false",
+                                                                                  "viewer_direct_gpu_presentation=false",
+                                                                                  "viewer_defer_webgpu_pipeline_flush=false",
+                                                                                  "viewer_defer_webgpu_queue_flush=false",
+                                                                                  "viewer_defer_webgpu_submit_flush=false",
+                                                                                  "viewer_skip_webgpu_canvas_texture_validation=false",
+                                                                                  "viewer_skip_webgpu_canvas_memory_accounting=false",
+                                                                                  "viewer_skip_webgpu_copy_external_image_color_conversion=false",
+                                                                                  "viewer_skip_webgpu_copy_external_image_color_space_validation=false",
+                                                                                  "viewer_skip_webgpu_copy_external_image_dest_validation=false",
+                                                                                  "viewer_skip_webgpu_copy_external_image_source_validation=false",
+                                                                                  "viewer_skip_webgpu_copy_external_image_copy_size_validation=false",
+                                                                                  "viewer_skip_webgpu_write_texture_layout_validation=false",
+                                                                                  "viewer_reject_webgpu_cpu_texture_fallback=false",
+                                                                                  "viewer_skip_webgpu_use_counters=false",
+                                                                                  "viewer_cache_webgpu_bind_group_layouts=false",
+                                                                                  "viewer_skip_webgpu_command_labels=false",
+                                                                                  "viewer_skip_webgpu_resource_labels=false",
+                                                                                  "viewer_skip_webgpu_shader_source_null_check=false",
+                                                                                  "viewer_skip_webgpu_shader_memory_accounting=false",
+                                                                                  "viewer_skip_webgpu_redundant_pipeline_sets=false",
+                                                                                  "viewer_skip_webgpu_redundant_bind_group_sets=false",
+                                                                                  "viewer_skip_webgpu_redundant_buffer_sets=false",
+                                                                                  "viewer_skip_webgpu_redundant_render_state_sets=false",
+                                                                                  "viewer_trace_webgpu_queue=false",
+                                                                                  "gpu_timing_enabled=true",
+                                                                                  "benchmark_hud_enabled=false",
+                                                                                  "resource_warmup_enabled=false",
+                                                                                  "resource_warmup_precompile=false",
+                                                                                  "resource_warmup_prerender_frames=0",
+                                                                                  "resource_warmup_settle_gpu=false",
+                                                                                  "resource_warmup_pipeline_quiet_frames=0",
+                                                                                  "resource_warmup_pipeline_quiet_max_frames=0",
+                                                                                  "webgpu_bundle_mode=off",
+                                                                                  "profile_cache_mode=fresh-temp",
+                                                                                  "profile_cache_key=null",
+                                                                                  "profile_reuse_enabled=false"
+                                                                              ],
+                                                   "result_files":  [
+                                                                        "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-exp-webgl2-gpu-compositor-resources-texture-streaming-webgl2.json"
+                                                                    ]
+                                               },
+                                               {
+                                                   "label":  "fork-viewer-exp-webgl2-zero-copy-gpu-compositor-resources",
+                                                   "base_label":  "fork-viewer-exp-webgl2-zero-copy-gpu-compositor-resources",
+                                                   "label_suffix":  "",
+                                                   "description":  "Trusted WebGL2 zero-copy plus compositor GPU-memory-buffer resource experiment for tail-latency repair",
+                                                   "flags":  [
+                                                                 "--viewerZeroCopy"
+                                                             ],
+                                                   "browser_flags":  [
+                                                                         "--enable-gpu-memory-buffer-compositor-resources",
+                                                                         "--ui-enable-zero-copy",
+                                                                         "--enable-gpu-rasterization"
+                                                                     ],
+                                                   "required_browser_flags":  [
+                                                                                  "--disable-software-rasterizer",
+                                                                                  "--enable-gpu-memory-buffer-compositor-resources",
+                                                                                  "--ui-enable-zero-copy",
+                                                                                  "--enable-gpu-rasterization"
+                                                                              ],
+                                                   "expected_flag_metadata":  [
+                                                                                  "viewer_mode=true",
+                                                                                  "viewer_block_external_navigation=true",
+                                                                                  "viewer_trusted_content=true",
+                                                                                  "viewer_aggressive_gpu=false",
+                                                                                  "viewer_relaxed_webgl_validation=false",
+                                                                                  "viewer_zero_copy=true",
+                                                                                  "viewer_in_process_gpu=false",
+                                                                                  "viewer_single_process=false",
+                                                                                  "viewer_force_angle_backend=null",
+                                                                                  "requested_angle_backend=null",
+                                                                                  "viewer_disable_unneeded_blink_features=false",
+                                                                                  "viewer_direct_gpu_presentation=false",
+                                                                                  "viewer_defer_webgpu_pipeline_flush=false",
+                                                                                  "viewer_defer_webgpu_queue_flush=false",
+                                                                                  "viewer_defer_webgpu_submit_flush=false",
+                                                                                  "viewer_skip_webgpu_canvas_texture_validation=false",
+                                                                                  "viewer_skip_webgpu_canvas_memory_accounting=false",
+                                                                                  "viewer_skip_webgpu_copy_external_image_color_conversion=false",
+                                                                                  "viewer_skip_webgpu_copy_external_image_color_space_validation=false",
+                                                                                  "viewer_skip_webgpu_copy_external_image_dest_validation=false",
+                                                                                  "viewer_skip_webgpu_copy_external_image_source_validation=false",
+                                                                                  "viewer_skip_webgpu_copy_external_image_copy_size_validation=false",
+                                                                                  "viewer_skip_webgpu_write_texture_layout_validation=false",
+                                                                                  "viewer_reject_webgpu_cpu_texture_fallback=false",
+                                                                                  "viewer_skip_webgpu_use_counters=false",
+                                                                                  "viewer_cache_webgpu_bind_group_layouts=false",
+                                                                                  "viewer_skip_webgpu_command_labels=false",
+                                                                                  "viewer_skip_webgpu_resource_labels=false",
+                                                                                  "viewer_skip_webgpu_shader_source_null_check=false",
+                                                                                  "viewer_skip_webgpu_shader_memory_accounting=false",
+                                                                                  "viewer_skip_webgpu_redundant_pipeline_sets=false",
+                                                                                  "viewer_skip_webgpu_redundant_bind_group_sets=false",
+                                                                                  "viewer_skip_webgpu_redundant_buffer_sets=false",
+                                                                                  "viewer_skip_webgpu_redundant_render_state_sets=false",
+                                                                                  "viewer_trace_webgpu_queue=false",
+                                                                                  "gpu_timing_enabled=true",
+                                                                                  "benchmark_hud_enabled=false",
+                                                                                  "resource_warmup_enabled=false",
+                                                                                  "resource_warmup_precompile=false",
+                                                                                  "resource_warmup_prerender_frames=0",
+                                                                                  "resource_warmup_settle_gpu=false",
+                                                                                  "resource_warmup_pipeline_quiet_frames=0",
+                                                                                  "resource_warmup_pipeline_quiet_max_frames=0",
+                                                                                  "webgpu_bundle_mode=off",
+                                                                                  "profile_cache_mode=fresh-temp",
+                                                                                  "profile_cache_key=null",
+                                                                                  "profile_reuse_enabled=false"
+                                                                              ],
+                                                   "result_files":  [
+                                                                        "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-exp-webgl2-zero-copy-gpu-compositor-resources-texture-streaming-webgl2.json"
+                                                                    ]
+                                               },
+                                               {
+                                                   "label":  "fork-viewer-exp-angle-d3d11",
+                                                   "base_label":  "fork-viewer-exp-angle-d3d11",
+                                                   "label_suffix":  "",
+                                                   "description":  "Trusted ANGLE backend experiment: d3d11",
+                                                   "flags":  [
+                                                                 "--viewerForceAngleBackend",
+                                                                 "d3d11"
+                                                             ],
+                                                   "browser_flags":  [
+
+                                                                     ],
+                                                   "required_browser_flags":  [
+                                                                                  "--disable-software-rasterizer"
+                                                                              ],
+                                                   "expected_flag_metadata":  [
+                                                                                  "viewer_mode=true",
+                                                                                  "viewer_block_external_navigation=true",
+                                                                                  "viewer_trusted_content=true",
+                                                                                  "viewer_aggressive_gpu=false",
+                                                                                  "viewer_relaxed_webgl_validation=false",
+                                                                                  "viewer_zero_copy=false",
+                                                                                  "viewer_in_process_gpu=false",
+                                                                                  "viewer_single_process=false",
+                                                                                  "viewer_force_angle_backend=d3d11",
+                                                                                  "requested_angle_backend=d3d11",
+                                                                                  "viewer_disable_unneeded_blink_features=false",
+                                                                                  "viewer_direct_gpu_presentation=false",
+                                                                                  "viewer_defer_webgpu_pipeline_flush=false",
+                                                                                  "viewer_defer_webgpu_queue_flush=false",
+                                                                                  "viewer_defer_webgpu_submit_flush=false",
+                                                                                  "viewer_skip_webgpu_canvas_texture_validation=false",
+                                                                                  "viewer_skip_webgpu_canvas_memory_accounting=false",
+                                                                                  "viewer_skip_webgpu_copy_external_image_color_conversion=false",
+                                                                                  "viewer_skip_webgpu_copy_external_image_color_space_validation=false",
+                                                                                  "viewer_skip_webgpu_copy_external_image_dest_validation=false",
+                                                                                  "viewer_skip_webgpu_copy_external_image_source_validation=false",
+                                                                                  "viewer_skip_webgpu_copy_external_image_copy_size_validation=false",
+                                                                                  "viewer_skip_webgpu_write_texture_layout_validation=false",
+                                                                                  "viewer_reject_webgpu_cpu_texture_fallback=false",
+                                                                                  "viewer_skip_webgpu_use_counters=false",
+                                                                                  "viewer_cache_webgpu_bind_group_layouts=false",
+                                                                                  "viewer_skip_webgpu_command_labels=false",
+                                                                                  "viewer_skip_webgpu_resource_labels=false",
+                                                                                  "viewer_skip_webgpu_shader_source_null_check=false",
+                                                                                  "viewer_skip_webgpu_shader_memory_accounting=false",
+                                                                                  "viewer_skip_webgpu_redundant_pipeline_sets=false",
+                                                                                  "viewer_skip_webgpu_redundant_bind_group_sets=false",
+                                                                                  "viewer_skip_webgpu_redundant_buffer_sets=false",
+                                                                                  "viewer_skip_webgpu_redundant_render_state_sets=false",
+                                                                                  "viewer_trace_webgpu_queue=false",
+                                                                                  "gpu_timing_enabled=true",
+                                                                                  "benchmark_hud_enabled=false",
+                                                                                  "resource_warmup_enabled=false",
+                                                                                  "resource_warmup_precompile=false",
+                                                                                  "resource_warmup_prerender_frames=0",
+                                                                                  "resource_warmup_settle_gpu=false",
+                                                                                  "resource_warmup_pipeline_quiet_frames=0",
+                                                                                  "resource_warmup_pipeline_quiet_max_frames=0",
+                                                                                  "webgpu_bundle_mode=off",
+                                                                                  "profile_cache_mode=fresh-temp",
+                                                                                  "profile_cache_key=null",
+                                                                                  "profile_reuse_enabled=false"
+                                                                              ],
+                                                   "result_files":  [
+                                                                        "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-exp-angle-d3d11-texture-streaming-webgl2.json"
+                                                                    ]
+                                               },
+                                               {
+                                                   "label":  "fork-viewer-exp-angle-d3d11-zero-copy",
+                                                   "base_label":  "fork-viewer-exp-angle-d3d11-zero-copy",
+                                                   "label_suffix":  "",
+                                                   "description":  "Trusted WebGL2 ANGLE d3d11 plus zero-copy interaction experiment for tail/throughput attribution",
+                                                   "flags":  [
+                                                                 "--viewerForceAngleBackend",
+                                                                 "d3d11",
+                                                                 "--viewerZeroCopy"
+                                                             ],
+                                                   "browser_flags":  [
+
+                                                                     ],
+                                                   "required_browser_flags":  [
+                                                                                  "--disable-software-rasterizer"
+                                                                              ],
+                                                   "expected_flag_metadata":  [
+                                                                                  "viewer_mode=true",
+                                                                                  "viewer_block_external_navigation=true",
+                                                                                  "viewer_trusted_content=true",
+                                                                                  "viewer_aggressive_gpu=false",
+                                                                                  "viewer_relaxed_webgl_validation=false",
+                                                                                  "viewer_zero_copy=true",
+                                                                                  "viewer_in_process_gpu=false",
+                                                                                  "viewer_single_process=false",
+                                                                                  "viewer_force_angle_backend=d3d11",
+                                                                                  "requested_angle_backend=d3d11",
+                                                                                  "viewer_disable_unneeded_blink_features=false",
+                                                                                  "viewer_direct_gpu_presentation=false",
+                                                                                  "viewer_defer_webgpu_pipeline_flush=false",
+                                                                                  "viewer_defer_webgpu_queue_flush=false",
+                                                                                  "viewer_defer_webgpu_submit_flush=false",
+                                                                                  "viewer_skip_webgpu_canvas_texture_validation=false",
+                                                                                  "viewer_skip_webgpu_canvas_memory_accounting=false",
+                                                                                  "viewer_skip_webgpu_copy_external_image_color_conversion=false",
+                                                                                  "viewer_skip_webgpu_copy_external_image_color_space_validation=false",
+                                                                                  "viewer_skip_webgpu_copy_external_image_dest_validation=false",
+                                                                                  "viewer_skip_webgpu_copy_external_image_source_validation=false",
+                                                                                  "viewer_skip_webgpu_copy_external_image_copy_size_validation=false",
+                                                                                  "viewer_skip_webgpu_write_texture_layout_validation=false",
+                                                                                  "viewer_reject_webgpu_cpu_texture_fallback=false",
+                                                                                  "viewer_skip_webgpu_use_counters=false",
+                                                                                  "viewer_cache_webgpu_bind_group_layouts=false",
+                                                                                  "viewer_skip_webgpu_command_labels=false",
+                                                                                  "viewer_skip_webgpu_resource_labels=false",
+                                                                                  "viewer_skip_webgpu_shader_source_null_check=false",
+                                                                                  "viewer_skip_webgpu_shader_memory_accounting=false",
+                                                                                  "viewer_skip_webgpu_redundant_pipeline_sets=false",
+                                                                                  "viewer_skip_webgpu_redundant_bind_group_sets=false",
+                                                                                  "viewer_skip_webgpu_redundant_buffer_sets=false",
+                                                                                  "viewer_skip_webgpu_redundant_render_state_sets=false",
+                                                                                  "viewer_trace_webgpu_queue=false",
+                                                                                  "gpu_timing_enabled=true",
+                                                                                  "benchmark_hud_enabled=false",
+                                                                                  "resource_warmup_enabled=false",
+                                                                                  "resource_warmup_precompile=false",
+                                                                                  "resource_warmup_prerender_frames=0",
+                                                                                  "resource_warmup_settle_gpu=false",
+                                                                                  "resource_warmup_pipeline_quiet_frames=0",
+                                                                                  "resource_warmup_pipeline_quiet_max_frames=0",
+                                                                                  "webgpu_bundle_mode=off",
+                                                                                  "profile_cache_mode=fresh-temp",
+                                                                                  "profile_cache_key=null",
+                                                                                  "profile_reuse_enabled=false"
+                                                                              ],
+                                                   "result_files":  [
+                                                                        "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-exp-angle-d3d11-zero-copy-texture-streaming-webgl2.json"
+                                                                    ]
+                                               },
+                                               {
+                                                   "label":  "fork-viewer-exp-relaxed-webgl-validation-gate",
+                                                   "base_label":  "fork-viewer-exp-relaxed-webgl-validation-gate",
+                                                   "label_suffix":  "",
+                                                   "description":  "Trusted pass-through command decoder alias for WebGL validation-overhead measurement",
+                                                   "flags":  [
+                                                                 "--viewerRelaxedWebglValidation"
+                                                             ],
+                                                   "browser_flags":  [
+
+                                                                     ],
+                                                   "required_browser_flags":  [
+                                                                                  "--disable-software-rasterizer"
+                                                                              ],
+                                                   "expected_flag_metadata":  [
+                                                                                  "viewer_mode=true",
+                                                                                  "viewer_block_external_navigation=true",
+                                                                                  "viewer_trusted_content=true",
+                                                                                  "viewer_aggressive_gpu=false",
+                                                                                  "viewer_relaxed_webgl_validation=true",
+                                                                                  "viewer_zero_copy=false",
+                                                                                  "viewer_in_process_gpu=false",
+                                                                                  "viewer_single_process=false",
+                                                                                  "viewer_force_angle_backend=null",
+                                                                                  "requested_angle_backend=null",
+                                                                                  "viewer_disable_unneeded_blink_features=false",
+                                                                                  "viewer_direct_gpu_presentation=false",
+                                                                                  "viewer_defer_webgpu_pipeline_flush=false",
+                                                                                  "viewer_defer_webgpu_queue_flush=false",
+                                                                                  "viewer_defer_webgpu_submit_flush=false",
+                                                                                  "viewer_skip_webgpu_canvas_texture_validation=false",
+                                                                                  "viewer_skip_webgpu_canvas_memory_accounting=false",
+                                                                                  "viewer_skip_webgpu_copy_external_image_color_conversion=false",
+                                                                                  "viewer_skip_webgpu_copy_external_image_color_space_validation=false",
+                                                                                  "viewer_skip_webgpu_copy_external_image_dest_validation=false",
+                                                                                  "viewer_skip_webgpu_copy_external_image_source_validation=false",
+                                                                                  "viewer_skip_webgpu_copy_external_image_copy_size_validation=false",
+                                                                                  "viewer_skip_webgpu_write_texture_layout_validation=false",
+                                                                                  "viewer_reject_webgpu_cpu_texture_fallback=false",
+                                                                                  "viewer_skip_webgpu_use_counters=false",
+                                                                                  "viewer_cache_webgpu_bind_group_layouts=false",
+                                                                                  "viewer_skip_webgpu_command_labels=false",
+                                                                                  "viewer_skip_webgpu_resource_labels=false",
+                                                                                  "viewer_skip_webgpu_shader_source_null_check=false",
+                                                                                  "viewer_skip_webgpu_shader_memory_accounting=false",
+                                                                                  "viewer_skip_webgpu_redundant_pipeline_sets=false",
+                                                                                  "viewer_skip_webgpu_redundant_bind_group_sets=false",
+                                                                                  "viewer_skip_webgpu_redundant_buffer_sets=false",
+                                                                                  "viewer_skip_webgpu_redundant_render_state_sets=false",
+                                                                                  "viewer_trace_webgpu_queue=false",
+                                                                                  "gpu_timing_enabled=true",
+                                                                                  "benchmark_hud_enabled=false",
+                                                                                  "resource_warmup_enabled=false",
+                                                                                  "resource_warmup_precompile=false",
+                                                                                  "resource_warmup_prerender_frames=0",
+                                                                                  "resource_warmup_settle_gpu=false",
+                                                                                  "resource_warmup_pipeline_quiet_frames=0",
+                                                                                  "resource_warmup_pipeline_quiet_max_frames=0",
+                                                                                  "webgpu_bundle_mode=off",
+                                                                                  "profile_cache_mode=fresh-temp",
+                                                                                  "profile_cache_key=null",
+                                                                                  "profile_reuse_enabled=false"
+                                                                              ],
+                                                   "result_files":  [
+                                                                        "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-exp-relaxed-webgl-validation-gate-texture-streaming-webgl2.json"
+                                                                    ]
+                                               },
+                                               {
+                                                   "label":  "fork-viewer-exp-angle-d3d11-relaxed-webgl-validation",
+                                                   "base_label":  "fork-viewer-exp-angle-d3d11-relaxed-webgl-validation",
+                                                   "label_suffix":  "",
+                                                   "description":  "Trusted WebGL2 ANGLE d3d11 plus relaxed-validation interaction experiment",
+                                                   "flags":  [
+                                                                 "--viewerForceAngleBackend",
+                                                                 "d3d11",
+                                                                 "--viewerRelaxedWebglValidation"
+                                                             ],
+                                                   "browser_flags":  [
+
+                                                                     ],
+                                                   "required_browser_flags":  [
+                                                                                  "--disable-software-rasterizer"
+                                                                              ],
+                                                   "expected_flag_metadata":  [
+                                                                                  "viewer_mode=true",
+                                                                                  "viewer_block_external_navigation=true",
+                                                                                  "viewer_trusted_content=true",
+                                                                                  "viewer_aggressive_gpu=false",
+                                                                                  "viewer_relaxed_webgl_validation=true",
+                                                                                  "viewer_zero_copy=false",
+                                                                                  "viewer_in_process_gpu=false",
+                                                                                  "viewer_single_process=false",
+                                                                                  "viewer_force_angle_backend=d3d11",
+                                                                                  "requested_angle_backend=d3d11",
+                                                                                  "viewer_disable_unneeded_blink_features=false",
+                                                                                  "viewer_direct_gpu_presentation=false",
+                                                                                  "viewer_defer_webgpu_pipeline_flush=false",
+                                                                                  "viewer_defer_webgpu_queue_flush=false",
+                                                                                  "viewer_defer_webgpu_submit_flush=false",
+                                                                                  "viewer_skip_webgpu_canvas_texture_validation=false",
+                                                                                  "viewer_skip_webgpu_canvas_memory_accounting=false",
+                                                                                  "viewer_skip_webgpu_copy_external_image_color_conversion=false",
+                                                                                  "viewer_skip_webgpu_copy_external_image_color_space_validation=false",
+                                                                                  "viewer_skip_webgpu_copy_external_image_dest_validation=false",
+                                                                                  "viewer_skip_webgpu_copy_external_image_source_validation=false",
+                                                                                  "viewer_skip_webgpu_copy_external_image_copy_size_validation=false",
+                                                                                  "viewer_skip_webgpu_write_texture_layout_validation=false",
+                                                                                  "viewer_reject_webgpu_cpu_texture_fallback=false",
+                                                                                  "viewer_skip_webgpu_use_counters=false",
+                                                                                  "viewer_cache_webgpu_bind_group_layouts=false",
+                                                                                  "viewer_skip_webgpu_command_labels=false",
+                                                                                  "viewer_skip_webgpu_resource_labels=false",
+                                                                                  "viewer_skip_webgpu_shader_source_null_check=false",
+                                                                                  "viewer_skip_webgpu_shader_memory_accounting=false",
+                                                                                  "viewer_skip_webgpu_redundant_pipeline_sets=false",
+                                                                                  "viewer_skip_webgpu_redundant_bind_group_sets=false",
+                                                                                  "viewer_skip_webgpu_redundant_buffer_sets=false",
+                                                                                  "viewer_skip_webgpu_redundant_render_state_sets=false",
+                                                                                  "viewer_trace_webgpu_queue=false",
+                                                                                  "gpu_timing_enabled=true",
+                                                                                  "benchmark_hud_enabled=false",
+                                                                                  "resource_warmup_enabled=false",
+                                                                                  "resource_warmup_precompile=false",
+                                                                                  "resource_warmup_prerender_frames=0",
+                                                                                  "resource_warmup_settle_gpu=false",
+                                                                                  "resource_warmup_pipeline_quiet_frames=0",
+                                                                                  "resource_warmup_pipeline_quiet_max_frames=0",
+                                                                                  "webgpu_bundle_mode=off",
+                                                                                  "profile_cache_mode=fresh-temp",
+                                                                                  "profile_cache_key=null",
+                                                                                  "profile_reuse_enabled=false"
+                                                                              ],
+                                                   "result_files":  [
+                                                                        "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-exp-angle-d3d11-relaxed-webgl-validation-texture-streaming-webgl2.json"
+                                                                    ]
+                                               },
+                                               {
+                                                   "label":  "fork-viewer-exp-angle-d3d11-relaxed-webgl-validation-zero-copy",
+                                                   "base_label":  "fork-viewer-exp-angle-d3d11-relaxed-webgl-validation-zero-copy",
+                                                   "label_suffix":  "",
+                                                   "description":  "Trusted WebGL2 ANGLE d3d11 plus relaxed-validation plus zero-copy interaction experiment",
+                                                   "flags":  [
+                                                                 "--viewerForceAngleBackend",
+                                                                 "d3d11",
+                                                                 "--viewerRelaxedWebglValidation",
+                                                                 "--viewerZeroCopy"
+                                                             ],
+                                                   "browser_flags":  [
+
+                                                                     ],
+                                                   "required_browser_flags":  [
+                                                                                  "--disable-software-rasterizer"
+                                                                              ],
+                                                   "expected_flag_metadata":  [
+                                                                                  "viewer_mode=true",
+                                                                                  "viewer_block_external_navigation=true",
+                                                                                  "viewer_trusted_content=true",
+                                                                                  "viewer_aggressive_gpu=false",
+                                                                                  "viewer_relaxed_webgl_validation=true",
+                                                                                  "viewer_zero_copy=true",
+                                                                                  "viewer_in_process_gpu=false",
+                                                                                  "viewer_single_process=false",
+                                                                                  "viewer_force_angle_backend=d3d11",
+                                                                                  "requested_angle_backend=d3d11",
+                                                                                  "viewer_disable_unneeded_blink_features=false",
+                                                                                  "viewer_direct_gpu_presentation=false",
+                                                                                  "viewer_defer_webgpu_pipeline_flush=false",
+                                                                                  "viewer_defer_webgpu_queue_flush=false",
+                                                                                  "viewer_defer_webgpu_submit_flush=false",
+                                                                                  "viewer_skip_webgpu_canvas_texture_validation=false",
+                                                                                  "viewer_skip_webgpu_canvas_memory_accounting=false",
+                                                                                  "viewer_skip_webgpu_copy_external_image_color_conversion=false",
+                                                                                  "viewer_skip_webgpu_copy_external_image_color_space_validation=false",
+                                                                                  "viewer_skip_webgpu_copy_external_image_dest_validation=false",
+                                                                                  "viewer_skip_webgpu_copy_external_image_source_validation=false",
+                                                                                  "viewer_skip_webgpu_copy_external_image_copy_size_validation=false",
+                                                                                  "viewer_skip_webgpu_write_texture_layout_validation=false",
+                                                                                  "viewer_reject_webgpu_cpu_texture_fallback=false",
+                                                                                  "viewer_skip_webgpu_use_counters=false",
+                                                                                  "viewer_cache_webgpu_bind_group_layouts=false",
+                                                                                  "viewer_skip_webgpu_command_labels=false",
+                                                                                  "viewer_skip_webgpu_resource_labels=false",
+                                                                                  "viewer_skip_webgpu_shader_source_null_check=false",
+                                                                                  "viewer_skip_webgpu_shader_memory_accounting=false",
+                                                                                  "viewer_skip_webgpu_redundant_pipeline_sets=false",
+                                                                                  "viewer_skip_webgpu_redundant_bind_group_sets=false",
+                                                                                  "viewer_skip_webgpu_redundant_buffer_sets=false",
+                                                                                  "viewer_skip_webgpu_redundant_render_state_sets=false",
+                                                                                  "viewer_trace_webgpu_queue=false",
+                                                                                  "gpu_timing_enabled=true",
+                                                                                  "benchmark_hud_enabled=false",
+                                                                                  "resource_warmup_enabled=false",
+                                                                                  "resource_warmup_precompile=false",
+                                                                                  "resource_warmup_prerender_frames=0",
+                                                                                  "resource_warmup_settle_gpu=false",
+                                                                                  "resource_warmup_pipeline_quiet_frames=0",
+                                                                                  "resource_warmup_pipeline_quiet_max_frames=0",
+                                                                                  "webgpu_bundle_mode=off",
+                                                                                  "profile_cache_mode=fresh-temp",
+                                                                                  "profile_cache_key=null",
+                                                                                  "profile_reuse_enabled=false"
+                                                                              ],
+                                                   "result_files":  [
+                                                                        "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-exp-angle-d3d11-relaxed-webgl-validation-zero-copy-texture-streaming-webgl2.json"
+                                                                    ]
+                                               }
+                                           ]
+                     },
+    "report_files":  {
+                         "summary":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\reports\\trusted-experiment-matrix-webgl2-summary.md",
+                         "comparison":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\reports\\trusted-experiment-matrix-webgl2-comparison.md"
+                     },
+    "manifest_files":  {
+                           "generic":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\reports\\trusted-experiment-matrix-manifest.json",
+                           "renderer":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\reports\\trusted-experiment-matrix-webgl2-manifest.json"
+                       },
+    "artifact_metadata":  {
+                              "inputs":  {
+                                             "browser":  {
+                                                             "path":  "C:\\Users\\trevo\\code\\three-browser\\src\\out\\ReleaseViewerDefault\\content_shell.exe",
+                                                             "exists":  true,
+                                                             "size_bytes":  211247104,
+                                                             "sha256":  "507b761aeca40037137af150f99391b12a73072ab2815a68d58d1fe5b8806101"
+                                                         },
+                                             "build_args":  {
+                                                                "path":  "C:\\Users\\trevo\\code\\three-browser\\src\\out\\ReleaseViewerDefault\\args.gn",
+                                                                "exists":  true,
+                                                                "size_bytes":  596,
+                                                                "sha256":  "55c64c990be11ff9e4469152fb3b4c87cf55a9df4a110f83a51684100fbb0e02"
+                                                            },
+                                             "viewer_patch":  {
+                                                                  "path":  "C:\\Users\\trevo\\code\\three-browser\\chromium_patches\\0001-draft-minimal-three-viewer-entrypoint.patch",
+                                                                  "exists":  true,
+                                                                  "size_bytes":  21412,
+                                                                  "sha256":  "1b25f718ae0d8f0f0037f35064da03da9fb28a9e4096f192b6ba11bf3054c84f"
+                                                              },
+                                             "viewer_patch_series":  [
+                                                                         {
+                                                                             "path":  "C:\\Users\\trevo\\code\\three-browser\\chromium_patches\\0001-draft-minimal-three-viewer-entrypoint.patch",
+                                                                             "exists":  true,
+                                                                             "size_bytes":  21412,
+                                                                             "sha256":  "1b25f718ae0d8f0f0037f35064da03da9fb28a9e4096f192b6ba11bf3054c84f"
+                                                                         },
+                                                                         {
+                                                                             "path":  "C:\\Users\\trevo\\code\\three-browser\\chromium_patches\\0002-draft-webgpu-queue-trace-attribution.patch",
+                                                                             "exists":  true,
+                                                                             "size_bytes":  200967,
+                                                                             "sha256":  "954621a72a797093ab628ab31790cd2588155457894ee4cb42d78b7b3262f8f0"
+                                                                         }
+                                                                     ],
+                                             "package":  {
+                                                             "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\packages\\viewer-default",
+                                                             "exists":  true,
+                                                             "file_count":  75,
+                                                             "size_bytes":  473930501
+                                                         }
+                                         },
+                              "results":  {
+                                              "all":  [
+                                                          {
+                                                              "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-exp-default-texture-streaming-webgl2.json",
+                                                              "exists":  true,
+                                                              "size_bytes":  23493,
+                                                              "sha256":  "f170bb784b27398b9b690bbe8f04ba9a8c7cab292e0d6308ea7a100c884cde1c"
+                                                          },
+                                                          {
+                                                              "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-exp-zero-copy-texture-streaming-webgl2.json",
+                                                              "exists":  true,
+                                                              "size_bytes":  23259,
+                                                              "sha256":  "55e8e97f4fba94c4bb7a1436935926ab09f4259b7fd525432d35f0c588d00197"
+                                                          },
+                                                          {
+                                                              "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-exp-webgl2-gpu-compositor-resources-texture-streaming-webgl2.json",
+                                                              "exists":  true,
+                                                              "size_bytes":  23542,
+                                                              "sha256":  "456c1a0e631dcf541f9f514e58c7dd567f2c38bb7d8a4574afd3f78ffeff717e"
+                                                          },
+                                                          {
+                                                              "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-exp-webgl2-zero-copy-gpu-compositor-resources-texture-streaming-webgl2.json",
+                                                              "exists":  true,
+                                                              "size_bytes":  23518,
+                                                              "sha256":  "3d6be074a6d1c3aa0063a68f2d7349978795b1fcf872bcbf168bc214928de1c5"
+                                                          },
+                                                          {
+                                                              "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-exp-angle-d3d11-texture-streaming-webgl2.json",
+                                                              "exists":  true,
+                                                              "size_bytes":  23420,
+                                                              "sha256":  "5a4507a1eaf436906851c4d1a0cb25322d890f3584f82dd8cb0d4d37d2cc1341"
+                                                          },
+                                                          {
+                                                              "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-exp-angle-d3d11-zero-copy-texture-streaming-webgl2.json",
+                                                              "exists":  true,
+                                                              "size_bytes":  23388,
+                                                              "sha256":  "334586b4a6568ddf3236185b89b6ca4368725e7931c4539411e765b3bb5ba5f5"
+                                                          },
+                                                          {
+                                                              "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-exp-relaxed-webgl-validation-gate-texture-streaming-webgl2.json",
+                                                              "exists":  true,
+                                                              "size_bytes":  23442,
+                                                              "sha256":  "4b45028451296337b42bd04b6c10a10207139c78d39983be8652c9929f255034"
+                                                          },
+                                                          {
+                                                              "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-exp-angle-d3d11-relaxed-webgl-validation-texture-streaming-webgl2.json",
+                                                              "exists":  true,
+                                                              "size_bytes":  23424,
+                                                              "sha256":  "5d525da8369af500dd12f0443f44a0f105d0111d92ca1aa5e9d7b3925dd52e9f"
+                                                          },
+                                                          {
+                                                              "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-exp-angle-d3d11-relaxed-webgl-validation-zero-copy-texture-streaming-webgl2.json",
+                                                              "exists":  true,
+                                                              "size_bytes":  23542,
+                                                              "sha256":  "70fb9f3a29dbd5f3c10230d75e0f5224c6285380dd96864522f2785118a96d50"
+                                                          }
+                                                      ],
+                                              "by_experiment":  [
+                                                                    {
+                                                                        "label":  "fork-viewer-exp-default",
+                                                                        "files":  {
+                                                                                      "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-exp-default-texture-streaming-webgl2.json",
+                                                                                      "exists":  true,
+                                                                                      "size_bytes":  23493,
+                                                                                      "sha256":  "f170bb784b27398b9b690bbe8f04ba9a8c7cab292e0d6308ea7a100c884cde1c"
+                                                                                  }
+                                                                    },
+                                                                    {
+                                                                        "label":  "fork-viewer-exp-zero-copy",
+                                                                        "files":  {
+                                                                                      "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-exp-zero-copy-texture-streaming-webgl2.json",
+                                                                                      "exists":  true,
+                                                                                      "size_bytes":  23259,
+                                                                                      "sha256":  "55e8e97f4fba94c4bb7a1436935926ab09f4259b7fd525432d35f0c588d00197"
+                                                                                  }
+                                                                    },
+                                                                    {
+                                                                        "label":  "fork-viewer-exp-webgl2-gpu-compositor-resources",
+                                                                        "files":  {
+                                                                                      "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-exp-webgl2-gpu-compositor-resources-texture-streaming-webgl2.json",
+                                                                                      "exists":  true,
+                                                                                      "size_bytes":  23542,
+                                                                                      "sha256":  "456c1a0e631dcf541f9f514e58c7dd567f2c38bb7d8a4574afd3f78ffeff717e"
+                                                                                  }
+                                                                    },
+                                                                    {
+                                                                        "label":  "fork-viewer-exp-webgl2-zero-copy-gpu-compositor-resources",
+                                                                        "files":  {
+                                                                                      "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-exp-webgl2-zero-copy-gpu-compositor-resources-texture-streaming-webgl2.json",
+                                                                                      "exists":  true,
+                                                                                      "size_bytes":  23518,
+                                                                                      "sha256":  "3d6be074a6d1c3aa0063a68f2d7349978795b1fcf872bcbf168bc214928de1c5"
+                                                                                  }
+                                                                    },
+                                                                    {
+                                                                        "label":  "fork-viewer-exp-angle-d3d11",
+                                                                        "files":  {
+                                                                                      "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-exp-angle-d3d11-texture-streaming-webgl2.json",
+                                                                                      "exists":  true,
+                                                                                      "size_bytes":  23420,
+                                                                                      "sha256":  "5a4507a1eaf436906851c4d1a0cb25322d890f3584f82dd8cb0d4d37d2cc1341"
+                                                                                  }
+                                                                    },
+                                                                    {
+                                                                        "label":  "fork-viewer-exp-angle-d3d11-zero-copy",
+                                                                        "files":  {
+                                                                                      "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-exp-angle-d3d11-zero-copy-texture-streaming-webgl2.json",
+                                                                                      "exists":  true,
+                                                                                      "size_bytes":  23388,
+                                                                                      "sha256":  "334586b4a6568ddf3236185b89b6ca4368725e7931c4539411e765b3bb5ba5f5"
+                                                                                  }
+                                                                    },
+                                                                    {
+                                                                        "label":  "fork-viewer-exp-relaxed-webgl-validation-gate",
+                                                                        "files":  {
+                                                                                      "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-exp-relaxed-webgl-validation-gate-texture-streaming-webgl2.json",
+                                                                                      "exists":  true,
+                                                                                      "size_bytes":  23442,
+                                                                                      "sha256":  "4b45028451296337b42bd04b6c10a10207139c78d39983be8652c9929f255034"
+                                                                                  }
+                                                                    },
+                                                                    {
+                                                                        "label":  "fork-viewer-exp-angle-d3d11-relaxed-webgl-validation",
+                                                                        "files":  {
+                                                                                      "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-exp-angle-d3d11-relaxed-webgl-validation-texture-streaming-webgl2.json",
+                                                                                      "exists":  true,
+                                                                                      "size_bytes":  23424,
+                                                                                      "sha256":  "5d525da8369af500dd12f0443f44a0f105d0111d92ca1aa5e9d7b3925dd52e9f"
+                                                                                  }
+                                                                    },
+                                                                    {
+                                                                        "label":  "fork-viewer-exp-angle-d3d11-relaxed-webgl-validation-zero-copy",
+                                                                        "files":  {
+                                                                                      "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\raw\\fork-viewer-exp-angle-d3d11-relaxed-webgl-validation-zero-copy-texture-streaming-webgl2.json",
+                                                                                      "exists":  true,
+                                                                                      "size_bytes":  23542,
+                                                                                      "sha256":  "70fb9f3a29dbd5f3c10230d75e0f5224c6285380dd96864522f2785118a96d50"
+                                                                                  }
+                                                                    }
+                                                                ]
+                                          },
+                              "reports":  {
+                                              "summary":  {
+                                                              "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\reports\\trusted-experiment-matrix-webgl2-summary.md",
+                                                              "exists":  true,
+                                                              "size_bytes":  4865,
+                                                              "sha256":  "3a46aba719ca396ec2ecaad87f0a71904dec5aec368014a1c474d1c7e475c578"
+                                                          },
+                                              "comparison":  {
+                                                                 "path":  "C:\\Users\\trevo\\code\\three-browser\\benchmarks\\reports\\trusted-experiment-matrix-webgl2-comparison.md",
+                                                                 "exists":  true,
+                                                                 "size_bytes":  8338,
+                                                                 "sha256":  "5ff96d3c425c46de98bc7c30274ae148cae5ebb5a440095b83faec108d01a575"
+                                                             }
+                                          }
+                          }
+}

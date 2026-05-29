@@ -1,0 +1,14 @@
+﻿C:\Users\trevo\code\three-browser\benchmarks\raw\baseline-content-shell-webgpu-bgl-cache-120-many-draw-calls-webgpu.json
+C:\Users\trevo\code\three-browser\benchmarks\raw\fork-viewer-exp-webgpu-bgl-cache-120-many-draw-calls-webgpu.json
+C:\Users\trevo\code\three-browser\benchmarks\raw\fork-viewer-exp-webgpu-bgl-cache-120-instancing-webgpu.json
+C:\Users\trevo\code\three-browser\benchmarks\raw\baseline-content-shell-webgpu-bgl-cache-120-instancing-webgpu.json
+C:\Users\trevo\code\three-browser\benchmarks\raw\baseline-content-shell-webgpu-bgl-cache-120-shader-heavy-webgpu.json
+C:\Users\trevo\code\three-browser\benchmarks\raw\fork-viewer-exp-webgpu-bgl-cache-120-shader-heavy-webgpu.json
+C:\Users\trevo\code\three-browser\benchmarks\raw\fork-viewer-exp-webgpu-bgl-cache-120-texture-streaming-webgpu.json
+C:\Users\trevo\code\three-browser\benchmarks\raw\baseline-content-shell-webgpu-bgl-cache-120-texture-streaming-webgpu.json
+C:\Users\trevo\code\three-browser\benchmarks\raw\baseline-content-shell-webgpu-bgl-cache-120-postprocessing-webgpu.json
+C:\Users\trevo\code\three-browser\benchmarks\raw\fork-viewer-exp-webgpu-bgl-cache-120-postprocessing-webgpu.json
+C:\Users\trevo\code\three-browser\benchmarks\raw\fork-viewer-exp-webgpu-bgl-cache-120-large-static-webgpu.json
+C:\Users\trevo\code\three-browser\benchmarks\raw\baseline-content-shell-webgpu-bgl-cache-120-large-static-webgpu.json
+C:\Users\trevo\code\three-browser\benchmarks\raw\baseline-content-shell-webgpu-bgl-cache-120-gltf-loader-stress-webgpu.json
+C:\Users\trevo\code\three-browser\benchmarks\raw\fork-viewer-exp-webgpu-bgl-cache-120-gltf-loader-stress-webgpu.json

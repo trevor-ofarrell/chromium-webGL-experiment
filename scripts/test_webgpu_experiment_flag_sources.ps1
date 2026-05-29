@@ -73,6 +73,8 @@ $Matrix = Read-RepoFile "scripts\run_trusted_experiment_matrix.ps1"
 $BlockerRunner = Read-RepoFile "scripts\run_blocker_experiments.ps1"
 $BenchmarkRunner = Read-RepoFile "scripts\run_benchmark.mjs"
 $TraceRunner = Read-RepoFile "scripts\run_trace_capture.mjs"
+$ShellSwitches = Read-RepoFile "src\content\shell\common\shell_switches.h"
+$ShellBrowserClient = Read-RepoFile "src\content\shell\browser\shell_content_browser_client.cc"
 $WebGpuPatch = Read-RepoFile "chromium_patches\0002-draft-webgpu-queue-trace-attribution.patch"
 $TrustedFlagDoc = Read-RepoFile "docs\trusted_content_flags.md"
 $DawnSource = Read-RepoFile "src\third_party\dawn\src\dawn\native\Toggles.cpp"
@@ -215,6 +217,37 @@ foreach ($Flag in $SourceBackedWebGpuTraceFlags) {
   Assert-TextContains $BenchmarkRunner ([regex]::Escape($Flag.Metadata)) "benchmark runner records diagnostic metadata $($Flag.Metadata)"
   Assert-TextContains $WebGpuPatch ([regex]::Escape("`"$($Flag.PatchSwitch)`"")) "Chromium WebGPU patch defines $($Flag.Browser)"
   Assert-TextContains $TrustedFlagDoc ([regex]::Escape($Flag.Browser)) "trusted-content flag doc documents $($Flag.Browser)"
+}
+
+foreach ($SwitchConstant in @(
+    "kViewerAppUrl",
+    "kViewerTrustedContent",
+    "kViewerDeferWebGPUPipelineFlush",
+    "kViewerDeferWebGPUQueueFlush",
+    "kViewerDeferWebGPUSubmitFlush",
+    "kViewerSkipWebGPUCanvasTextureValidation",
+    "kViewerSkipWebGPUCanvasMemoryAccounting",
+    "kViewerSkipWebGPUCopyExternalImageColorConversion",
+    "kViewerSkipWebGPUCopyExternalImageColorSpaceValidation",
+    "kViewerSkipWebGPUCopyExternalImageDestValidation",
+    "kViewerSkipWebGPUCopyExternalImageSourceValidation",
+    "kViewerSkipWebGPUCopyExternalImageCopySizeValidation",
+    "kViewerSkipWebGPUWriteTextureLayoutValidation",
+    "kViewerRejectWebGPUCPUTextureFallback",
+    "kViewerSkipWebGPUUseCounters",
+    "kViewerCacheWebGPUBindGroupLayouts",
+    "kViewerSkipWebGPUCommandLabels",
+    "kViewerSkipWebGPUResourceLabels",
+    "kViewerSkipWebGPUShaderSourceNullCheck",
+    "kViewerSkipWebGPUShaderMemoryAccounting",
+    "kViewerSkipWebGPURedundantPipelineSets",
+    "kViewerSkipWebGPURedundantBindGroupSets",
+    "kViewerSkipWebGPURedundantBufferSets",
+    "kViewerSkipWebGPURedundantRenderStateSets",
+    "kViewerTraceWebGPUQueue"
+  )) {
+  Assert-TextContains $ShellSwitches "inline constexpr char $SwitchConstant\[\]" "content_shell declares $SwitchConstant"
+  Assert-TextContains $ShellBrowserClient "switches::$SwitchConstant" "content_shell forwards $SwitchConstant to child processes"
 }
 
 Write-Host "Trusted WebGPU experiment Dawn toggles, Chromium feature flags, adapter values, source-backed viewer flags, and trace-only diagnostics map to source registries and patch wiring."

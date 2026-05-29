@@ -109,6 +109,15 @@ const nullableNumbers = new Set([
 
 const optionalNumbers = new Set([
   'avg_frame_ms',
+  'dropped_frame_rate',
+  'p95_cpu_frame_ms',
+  'p99_cpu_frame_ms',
+  'p95_gpu_frame_ms',
+  'p99_gpu_frame_ms',
+  'p95_js_frame_ms',
+  'p99_js_frame_ms',
+  'p95_render_submission_ms',
+  'p99_render_submission_ms',
   'process_rss_start_mb',
   'process_rss_peak_mb',
   'process_rss_end_mb',
@@ -213,11 +222,15 @@ const optionalNumbers = new Set([
   'webgpu_bind_group_set_render_pass_count',
   'webgpu_bind_group_set_render_bundle_count',
   'webgpu_bind_group_set_compute_pass_count',
+  'webgpu_bind_group_set_redundant_count',
+  'webgpu_bind_group_set_redundant_no_dynamic_offsets_count',
   'webgpu_bind_group_set_no_dynamic_offsets_count',
   'webgpu_bind_group_set_sequence_empty_dynamic_offsets_count',
   'webgpu_bind_group_set_typed_array_empty_dynamic_offsets_count',
   'webgpu_bind_group_set_non_empty_dynamic_offsets_count',
   'webgpu_bind_group_set_measured_count',
+  'webgpu_bind_group_set_measured_redundant_count',
+  'webgpu_bind_group_set_measured_redundant_no_dynamic_offsets_count',
   'webgpu_bind_group_set_measured_typed_array_empty_dynamic_offsets_count',
   'webgpu_pipeline_set_count',
   'webgpu_pipeline_set_ms',
@@ -379,6 +392,13 @@ const optionalBooleans = new Set([
   'webgpu_pipeline_instrumentation_available',
   'profile_reuse_enabled',
   'profile_dir_created_by_runner',
+]);
+
+const optionalNonNegativeSeries = new Set([
+  'cpu_frame_times_ms',
+  'js_frame_times_ms',
+  'render_submission_times_ms',
+  'gpu_frame_times_ms',
 ]);
 
 const integerNumbers = new Set([
@@ -649,6 +669,21 @@ function validateOptionalFields(data, errors) {
       data.frame_times_ms.forEach((value, index) => {
         if (!isFiniteNumber(value) || value < 0) {
           errors.push(`frame_times_ms[${index}] must be a non-negative finite number`);
+        }
+      });
+    }
+  }
+
+  for (const key of optionalNonNegativeSeries) {
+    if (!(key in data)) continue;
+    if (!Array.isArray(data[key])) {
+      errors.push(`${key} must be an array when present`);
+    } else if (data[key].length === 0) {
+      errors.push(`${key} must not be empty when present`);
+    } else {
+      data[key].forEach((value, index) => {
+        if (!isFiniteNumber(value) || value < 0) {
+          errors.push(`${key}[${index}] must be a non-negative finite number`);
         }
       });
     }
