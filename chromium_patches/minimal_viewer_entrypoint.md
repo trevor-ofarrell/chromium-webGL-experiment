@@ -42,7 +42,7 @@ Implemented behavior:
 
 Trusted aliases and risk:
 
-- `--viewer-force-angle-backend` maps to Chromium/ANGLE backend selection. Windows D3D11 is the measured useful backend in the trusted WebGL2 matrix.
+- `--viewer-force-angle-backend` maps to Chromium/ANGLE backend selection. WSL evidence starts with the platform default hardware WebGL2 path and only treats explicit backend probes as trusted experiments after host support is verified.
 - `--viewer-relaxed-webgl-validation` maps to Chromium pass-through command decoder behavior and skips Blink WebGL per-draw validation checks for trusted local content. The trusted matrix shows WebGL2 gains for the pre-source alias, but the deeper Blink draw-validation bypass still requires a rebuilt fork retest before any additional speed claim.
 - `--viewer-zero-copy` maps to Chromium `--enable-zero-copy` for trusted WebGL2 throughput experiments. It remains a candidate rather than a retained default because the current full-suite evidence improves average FPS but regresses low-FPS/tail metrics, and WebGPU zero-copy evidence regressed.
 - `--viewer-aggressive-gpu`, `--viewer-in-process-gpu`, and `--viewer-single-process` are trusted-only process/GPU experiments. In-process and single-process modes show large WebGL2 FPS gains and high crash-isolation risk, so they are not default launch policy.
@@ -60,5 +60,5 @@ Evidence:
 Rebase notes:
 
 - Keep deeper Blink changes small, explicitly trusted-gated, and tied to benchmark evidence before promoting them beyond experiment status.
-- Re-run `scripts/test_viewer_patch_entrypoint.ps1`, `scripts/test_viewer_patch_navigation_lock.ps1`, `scripts/test_viewer_patch_stdout_result.ps1`, and `scripts/test_viewer_patch_trusted_gates.ps1` after each patch refresh.
+- Re-run `scripts/verify_prebuild.sh` after each patch refresh, then rebuild stock and fork outputs from the same Chromium revision before claiming performance effects.
 - Rebuild stock and fork outputs from the same Chromium revision before claiming performance effects.

@@ -1,153 +1,99 @@
 # Build Guide
 
-This guide reproduces the stock Chromium baseline and the patched Three.js viewer fork for the current evidence set.
+This guide describes the supported WSL/Linux build flow. The old Windows PowerShell flow is archived under `scripts/windows-legacy/`.
 
-## Revision And Profiles
+## Host
 
-- Chromium revision: `3a94d90ec3c04556622c56944796dd76753e0581`
-- Fork revision stamp: `3a94d90ec3c04556622c56944796dd76753e0581+viewerpatch-43dbf0b6871e`
-- Stock GN args: `build/gn_args/baseline_content_shell.gn`
-- Fork GN args: `build/gn_args/fork_safe_content_shell.gn`
-- Trusted experiment GN args: `build/gn_args/fork_trusted_aggressive.gn`
-- Common build-support patch: `chromium_patches/0000-draft-win-clang-build-workarounds.patch`
+- Ubuntu 22.04 on WSL2 as the pinned target; Ubuntu 24.04 is accepted for current-host validation.
+- Repository path under `/home/<user>/code/three-browser`.
+- WSLg display available through `DISPLAY` or `WAYLAND_DISPLAY`.
+- GPU acceleration available through `/dev/dxg`.
 
-The generated stock and fork `args.gn` files in `src/out/ReleaseBaseline` and `src/out/ReleaseViewerDefault` hash to the checked-in profile template used by the official benchmark evidence.
-All comparable profiles set `dcheck_always_on = false` and `enable_expensive_dchecks = false` so non-official local builds use release-style DCHECK behavior for performance evidence. They also set `enable_ubsan_hardening = false` and `disable_llvm_machine_scheduler = true` through the common build-support patch because this host's Chromium clang revision crashes while compiling Blink WebGL2 with the default array-bounds/return hardening flags and later crashes in LLVM machine scheduling while compiling Protobuf. These are common build/profile controls, not viewer optimizations; they must remain identical for stock and fork evidence.
+Run the bootstrap from a fresh clone:
+
+```bash
+./scripts/bootstrap_wsl.sh
+```
+
+The bootstrap installs base packages, clones or updates `tools/depot_tools`, syncs the pinned Chromium revision, runs Chromium Linux dependency setup and hooks, and builds `viewer/dist`.
 
 ## Prerequisites
 
-Run:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\check_prereqs.ps1
+```bash
+./scripts/check_prereqs.sh
 ```
 
-The checker verifies depot_tools, `gclient`, GN, Ninja, Visual Studio Build Tools, the Visual C++ ATL component, Windows SDK debugger tools, Chromium revision, viewer build output, and current Windows Code Integrity state for generated Chromium Rust host tools, including proc-macro DLLs and build-script EXEs.
-
-If the checker reports `windows_code_integrity_chromium_rust = False`, Windows Application Control, WDAC, or Smart App Control is blocking generated Chromium Rust host tools under `src/out`. The current observed blocker is `OSError: [WinError 4551] An Application Control policy has blocked this file` while Siso tries to run `win_clang_x64_for_rust_host_build_tools\*_build_script.exe`. Allow generated Chromium build DLLs/EXEs through the active policy, or disable the blocking Smart App Control/WDAC policy for this build host, then rerun the prerequisite checker and the failed build.
-
-The required Visual Studio component is `Microsoft.VisualStudio.Component.VC.ATLMFC`. If the checker reports that the component is absent, install it from an elevated PowerShell session with:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\install_vs_atl.ps1
-```
-
-The environment manifest is written by:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify_prebuild.ps1
-```
-
-Output:
-
-- `benchmarks/reports/prebuild-environment.json`
+The checker verifies WSL/Ubuntu, Linux filesystem placement, `depot_tools`, `gclient`, Linux GN/Ninja, the pinned Chromium revision, viewer output, WSLg display variables, and `/dev/dxg`.
 
 ## Build Stock Baseline
 
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build_chromium.ps1 -OutDir out\ReleaseBaseline -ArgsFile build\gn_args\baseline_content_shell.gn -Target content_shell
+```bash
+./scripts/build_chromium.sh \
+  --out-dir out/ReleaseBaseline \
+  --args-file build/gn_args/linux/baseline_content_shell.gn \
+  --target content_shell
 ```
-
-`-OutDir` is relative to Chromium `src` for `scripts\build_chromium.ps1`, so `out\ReleaseBaseline` produces `src/out/ReleaseBaseline`. Stock baseline builds must run without the viewer patch series applied; the common build-support patch may be applied by the build script so the identical GN profile can compile on this Windows toolchain. The build script refuses baseline-profile builds when any viewer patch series entry is already applied or cannot be audited; `-AllowViewerPatchApplied` is reserved for non-evidence diagnostics and GN-generation regression fixtures.
 
 Expected outputs:
 
-- `src/out/ReleaseBaseline/content_shell.exe`
+- `src/out/ReleaseBaseline/content_shell`
 - `src/out/ReleaseBaseline/args.gn`
 - `src/out/ReleaseBaseline/three_browser_build_provenance.json`
 
+Stock baseline builds require an unpatched Chromium `src` tree. The Linux builder refuses baseline-profile builds when any viewer patch series entry is already applied.
+
 ## Build Fork
 
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build_viewer_fork.ps1 -ApplyPatch -OutDir out\ReleaseViewerDefault -ArgsFile build\gn_args\fork_safe_content_shell.gn -Target content_shell
+```bash
+./scripts/build_viewer_fork.sh \
+  --apply-patch \
+  --out-dir out/ReleaseViewerDefault \
+  --args-file build/gn_args/linux/fork_safe_content_shell.gn \
+  --target content_shell
 ```
 
 Expected outputs:
 
-- `src/out/ReleaseViewerDefault/content_shell.exe`
+- `src/out/ReleaseViewerDefault/content_shell`
 - `src/out/ReleaseViewerDefault/args.gn`
 - `src/out/ReleaseViewerDefault/three_browser_build_provenance.json`
 
-The build provenance JSON records Chromium revision, target hash, generated GN args hash, source GN args hash, and viewer-patch state. Skipped build resumes must validate this receipt before benchmark evidence is reused.
-
-For stock baselines, provenance must show `allow_viewer_patch_applied=false` and `baseline_source_guard_enabled=true`. The post-ATL resume guard and final artifact audit reject stock baseline artifacts that were built with the patched-source opt-in or with older provenance that predates the source-state guard.
-
-`-ApplyPatch` applies the current `chromium_patches` series in order. That includes the minimal viewer entrypoint patch, its trusted WebGL2 relaxed-validation draw-path experiment, and the WebGPU queue trace-attribution / requestDevice empty required-features fast path / device adapterInfo reuse / small-batch submit allocation skip / writeBuffer full-span and zero-offset explicit-count range fast paths / empty-label UTF-8 conversion skip across common WebGPU descriptors, descriptor-backed texture wrappers, and canvas current-texture wrappers / bind-group empty-dynamic-offset fast path across direct render-pass, render-bundle, compute-pass, and typed-array dynamic-offset encoder calls / render-pass color-attachment stack conversion with merged depth-slice validation / pipeline-layout bind-group-layout stack conversion / bind-group entry stack conversion / bind-group-layout entry stack conversion / render-pipeline vertex/fragment descriptor stack conversion / programmable-stage shader-constant stack conversion / texture size `GPUExtent3D` conversion fast path / texture view-format stack conversion / descriptor-metadata-backed texture wrapper construction for `GPUDevice.createTexture` and descriptor-backed internal/canvas copy-to-swap textures / texture-view default descriptor fast path / sampler default-descriptor fast path / render-bundle color-format stack conversion / render-pass executeBundles stack conversion / command-encoder creation, compute-pass begin, command-buffer finish, and render-bundle finish default-descriptor fast paths / texel-copy texture default/common-origin conversion fast path / external-image source default/common-origin conversion fast path / common writeTexture layout, byte-count, and `GPUExtent3D` conversion fast paths / copyExternalImage `GPUExtent3D` conversion fast path / full-source copyExternalImage subrect fast path / sRGB destination color-space validation fast path / source-color-space metadata fast path / same-color-space copyExternalImage conversion-constant fast path / trusted async pipeline/queue/submit-flush deferral / canvas validation skip / canvas memory-accounting skip / copyExternalImage sRGB color-conversion setup skip / copyExternalImage color-space validation skip / copyExternalImage destination/source/copy-size validation skips / writeTexture layout-validation skip / use-counter skip / CPU fallback diagnostic patch, and the apply step is idempotent for patch entries that are already present in `src`.
+The WSL profiles do not apply the old host-specific clang workaround patch. That patch remains archived for the previous Windows host only.
 
 ## Stage Packages
 
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\stage_viewer_package.ps1 -ChromiumOutDir .\src\out\ReleaseBaseline -PackageDir .\benchmarks\packages\baseline-content-shell -Clean
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\stage_viewer_package.ps1 -ChromiumOutDir .\src\out\ReleaseViewerDefault -PackageDir .\benchmarks\packages\viewer-default -Clean
+```bash
+./scripts/stage_viewer_package.sh --chromium-out-dir ./src/out/ReleaseBaseline --package-dir ./benchmarks/packages/baseline-content-shell --clean
+./scripts/stage_viewer_package.sh --chromium-out-dir ./src/out/ReleaseViewerDefault --package-dir ./benchmarks/packages/viewer-default --clean
 ```
 
-Expected package roots:
+Each Linux package contains `content_shell`, shared libraries/resources, `viewer/index.html`, and `run_viewer.sh`.
 
-- `benchmarks/packages/baseline-content-shell`
-- `benchmarks/packages/viewer-default`
+## Official WSL Evidence
 
-Each package contains `content_shell.exe`, runtime DLL/assets, `viewer/index.html`, and `run_viewer.ps1`. Package metadata is validated in official and trusted manifests.
+The first supported WSL target is WebGL2:
 
-## Complete Evidence Run
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\run_post_atl_pipeline.ps1 -RefreshChromiumPin -RefreshRevision 3a94d90ec3c04556622c56944796dd76753e0581 -Complexity 2 -IncludeWebGPU -IncludeAggressiveGpu -AggressiveAngleBackend d3d11 -AggressiveWebGl2RelaxedValidation -AggressiveWebGpuSourceFastPath -AggressiveWebGpuUploadFastPath -CaptureTrace -DisableWebGpuTiming -DisableForkWebGpuTiming -RunTrustedExperimentMatrix -RunTrustedWebGpuDawnMatrix -RunTargetedBlockerExperiments -TrustedMatrixZeroCopy -TrustedMatrixWebGlCompositorExperiments -TrustedMatrixWebGpuChromiumFeatureExperiments -TrustedMatrixWebGpuUploadExperiments -TrustedMatrixInProcessGpu -TrustedMatrixSingleProcess -TrustedMatrixAngleBackend d3d11 -TrustedMatrixReservedNoopGates -RunLongStability -MaxRssDeltaMb 128 -MaxRendererResourceDelta 0 -FinalGate
+```bash
+./scripts/run_official_comparison.sh \
+  --baseline-browser ./src/out/ReleaseBaseline/content_shell \
+  --fork-browser ./src/out/ReleaseViewerDefault/content_shell \
+  --baseline-package-dir ./benchmarks/packages/baseline-content-shell \
+  --fork-package-dir ./benchmarks/packages/viewer-default \
+  --renderer webgl2
 ```
 
-The command sequence invokes `refresh_chromium_pin.ps1`, verifies prerequisites, builds or validates stock and fork outputs, stages packages, runs official WebGL2/WebGPU comparisons, runs trace capture, runs the trusted WebGL2 experiment matrix, runs the trusted WebGPU Dawn/feature/upload matrix, runs the focused targeted-blocker speed iteration with comparable stock baselines, targeted WebGPU blocker traces, and suite-promotion planning, runs one-hour stock/fork stability, and executes the final artifact audit.
+Outputs:
 
-Use `-BuildJobs <n>` to reduce local compile parallelism on unstable hosts. This changes only build scheduling; GN args and benchmark metadata remain unchanged.
+- `benchmarks/reports/official-comparison-manifest.json`
+- `benchmarks/reports/official-webgl2-comparison.md`
+- `benchmarks/raw/*-webgl2.json`
 
-The completion command runs the official WebGL2 aggressive profile with D3D11 plus the source-backed relaxed WebGL validation alias and Blink draw-validation bypass through `-AggressiveWebGl2RelaxedValidation`; the official WebGPU aggressive profile stays backend-neutral and does not inherit the WebGL2 ANGLE backend, zero-copy, or relaxed-validation flags. The WebGPU aggressive profile now uses `-AggressiveWebGpuSourceFastPath` for the source-backed Blink WebGPU hot-path skips and `-AggressiveWebGpuUploadFastPath` for CPU-fallback-rejected CanvasTexture upload skips; `run_full_suite.ps1 -ReuseValidResults` rejects existing JSON whose viewer/WebGPU flag metadata does not match the selected profile. The separate WebGL2 trusted matrix still tests zero-copy and compositor repair rows before any WebGL2 profile is retained. The completion command also runs `-RunTrustedWebGpuDawnMatrix`, which invokes the WebGPU Dawn/browser-flag experiments as a separate renderer-specific pass without WebGL2-only zero-copy. The WebGL2 matrix includes `-TrustedMatrixWebGlCompositorExperiments` to test `--enable-gpu-memory-buffer-compositor-resources`, `--ui-enable-zero-copy`, and `--enable-gpu-rasterization` both alone and paired with `--viewer-zero-copy` as a tail-latency repair candidate. The targeted blocker runner additionally adds `-IncludeFramePacingExperiments`, which tests `--disable-frame-rate-limit`, `--disable-gpu-vsync`, and the combined pair as trusted-only FPS cap, presentation-latency, and frame-variance probes. The WebGPU Dawn pass includes D3D11 adapter, delayed-flush, unmonitored-fence, disable-fence, delayed-flush plus unmonitored-fence, thread-safe wait, delayed-flush plus thread-safe wait, DiscardView, CPU-upload-buffer, MapOnDefaultBuffers, backend-buffer auto-map, mapped-at-creation buffer clear-skip, DXC shader-compiler selection, standalone skip-validation / disable-robustness, D3D11 plus skip-validation / disable-robustness interaction rows, and D3D12 toggle probes. The WebGPU pass also includes `-TrustedMatrixWebGpuChromiumFeatureExperiments` to test `--enable-features=RemoveGPULegacyIPC`, `--enable-features=WebGPUUseHLSL2021`, `--disable-features=WebGPUEnableRangeAnalysisForRobustness`, and the combined IPC/HLSL feature flag as submit/IPC, shader-path, and robustness range-analysis candidates. `-TrustedMatrixWebGpuUploadExperiments` adds `--enable-features=IncreasedCmdBufferParseSlice`, `--disable-features=D3DBackingUploadWithUpdateSubresource`, the source-backed `--viewer-defer-webgpu-queue-flush`, `--viewer-cache-webgpu-bind-group-layouts`, `--viewer-skip-webgpu-command-labels`, `--viewer-defer-webgpu-submit-flush`, `--viewer-skip-webgpu-canvas-texture-validation`, `--viewer-skip-webgpu-canvas-memory-accounting`, `--viewer-skip-webgpu-copy-external-image-color-conversion`, `--viewer-skip-webgpu-copy-external-image-color-space-validation`, `--viewer-skip-webgpu-copy-external-image-dest-validation`, `--viewer-skip-webgpu-copy-external-image-source-validation`, `--viewer-skip-webgpu-copy-external-image-copy-size-validation`, the combined copyExternalImage trusted fast-path row, `--viewer-skip-webgpu-write-texture-layout-validation`, and `--viewer-skip-webgpu-use-counters` rows to test command-buffer parsing, D3D texture-upload, Blink queue flushing, pipeline bind-group-layout wrapper caching, command-label propagation, submit flushing, canvas getCurrentTexture descriptor validation, canvas memory accounting, copyExternalImage color-conversion/source/destination/copy-size validation, writeTexture layout validation, and use-counter overhead hypotheses against the current WebGPU blocker scenes. When all three WebGPU experiment families are selected, the helper also adds D3D11 adapter plus Chromium feature/upload interaction rows and a D3D11 + DXC + delayed-flush + unmonitored-fence + mapped-buffer clear-skip row, including queue-flush, bind-group-layout cache, command-label skip, submit-flush, canvas-validation-skip, canvas-memory-accounting-skip, copyExternalImage-color-conversion-skip, copyExternalImage-color-space-skip, copyExternalImage-destination-validation-skip, copyExternalImage-source-validation-skip, copyExternalImage-copy-size-validation-skip, the combined copyExternalImage fast path, writeTexture-layout-validation-skip, and use-counter-skip source interactions. It also emits the high-risk `fork-viewer-exp-webgpu-d3d11-aggressive-pipeline-fast-path` row, combining D3D11, DXC, delayed flush, unmonitored fence, mapped-buffer clear-skip, Dawn validation/robustness skips, Chromium IPC/HLSL/command-slice flags, robustness range-analysis disablement, and Blink pipeline/command-label/queue/submit/canvas/writeTexture/use-counter skips for focused glTF/draw-call blocker triage. For a standalone WebGPU pass, run the same helper with `-RunTrustedExperimentMatrix -TrustedMatrixRenderer webgpu -TrustedMatrixWebGpuDawnExperiments -TrustedMatrixWebGpuChromiumFeatureExperiments -TrustedMatrixWebGpuUploadExperiments` and leave out `-TrustedMatrixZeroCopy`. Trusted matrix duration/warmup inherit the official comparison duration/warmup unless explicitly overridden, and renderer-specific trusted manifests can feed the final speedup gate only when their revision and timing match the official stock baseline.
+The benchmark runner rejects software renderers such as SwiftShader and llvmpipe unless a diagnostic run explicitly opts out of retained evidence rules.
 
-The WebGPU upload/command-buffer matrix also includes the source-backed `--viewer-defer-webgpu-pipeline-flush`, `--viewer-cache-webgpu-bind-group-layouts`, `--viewer-skip-webgpu-command-labels`, `--viewer-skip-webgpu-resource-labels`, `--viewer-skip-webgpu-shader-source-null-check`, and `--viewer-skip-webgpu-shader-memory-accounting` rows plus D3D11 DXC/delayed-flush/unmonitored-fence/mapped-buffer clear-skip interaction rows. These are trusted-only attribution probes for async `createRenderPipelineAsync` / `createComputePipelineAsync` flush overhead, `getBindGroupLayout(index)` wrapper churn, per-frame WebGPU command label propagation, Three.js resource/pipeline descriptor label propagation, WGSL shader-source scanning, and shader-module memory accounting, and they are not retained optimizations until a rebuilt full-suite run improves throughput and tails without device loss or hangs.
+## Final Gate
 
-The command-label row now skips Dawn/native command labels, debug groups, debug markers, and the Blink wrapper labels on command encoder, pass encoder, render-bundle encoder, render-bundle, and command buffer objects. Resource wrapper labels and `.label` setter calls remain gated by the separate resource-label row.
-
-The resource-label row also clears async render/compute pipeline callback labels so `createRenderPipelineAsync` and `createComputePipelineAsync` do not retain descriptor labels while Dawn compiles pipelines under trusted local launches.
-
-The shader-module rows target shader-heavy startup/setup only: the source-null-check row skips Blink's WGSL NUL scan before Dawn shader-module creation, and the shader-memory-accounting row skips Tint's external-memory estimate. Both are included in the aggressive WebGPU source-fast-path profile but remain blocked on rebuilt same-revision evidence.
-
-The same matrix now includes `--viewer-skip-webgpu-redundant-pipeline-sets`, `--viewer-skip-webgpu-redundant-bind-group-sets`, `--viewer-skip-webgpu-redundant-buffer-sets`, and `--viewer-skip-webgpu-redundant-render-state-sets` as trusted-only pass-encoding probes. They skip consecutive same-pipeline binds, consecutive same-slot/same-bind-group zero-dynamic-offset binds, consecutive same-state vertex/index buffer binds, and consecutive same viewport/scissor/stencil-reference/blend-constant state sets inside a single render pass or render-bundle encoder where applicable. These rows are scheduled for draw-call/glTF and pipeline-sensitive blocker groups only after attribution shows redundant state churn.
-
-For WebGPU shader/pipeline cache attribution, rerun the post-ATL helper without `-ReuseValidResults` and add `-WebGpuProfileCacheKey <label> -ProfileCacheRoot .\benchmarks\tmp\<root> -PrimeWebGpuProfileCache`. The helper forwards the same key/root to the official WebGPU stock/fork suites, trusted WebGPU matrices, and targeted WebGPU blocker loop. The analyzer labels otherwise clean explicit-reuse wins as `cache-attribution`, and `required_candidate_gate` does not count them as retained speed evidence unless a matching fresh-profile official/trusted suite also improves. If targeted triage finds only a `cache-attribution` WebGPU win, `scripts\plan_suite_promotion.ps1` emits a fresh-profile confirmation suite with `-fresh-profile-confirmation` labels and deliberately omits `-ProfileCacheKey` / `-PrimeProfileCache`.
-
-For focused iteration before rerunning the full matrix, use the latest candidate-analysis blocker diagnostics:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\run_current_candidate_analysis.ps1 -OfficialManifest .\benchmarks\reports\official-comparison-manifest.json -InputList .\benchmarks\reports\post-atl-current-candidate-analysis-inputs.txt -Output .\benchmarks\reports\post-atl-current-candidate-analysis.md -Json .\benchmarks\reports\post-atl-current-candidate-analysis.json -RequireCandidateRenderer webgl2,webgpu
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\run_blocker_experiments.ps1 -CandidateAnalysisJson .\benchmarks\reports\post-atl-current-candidate-analysis.json -Precompile -PrerenderFrames 2 -SettleGpuAfterWarmup -WebGpuPipelineQuietFrames 2 -WebGpuPipelineQuietMaxFrames 12 -DisableWebGpuTiming -RunComparableBaselines -AnalyzeAfterRun -PlanSuitePromotionAfterTriage -CaptureTargetedTrace -RejectWebGpuCpuFallbackTrace -TraceQueueInstrumentation -TraceBindGroupInstrumentation -TracePipelineStateInstrumentation -TraceBufferStateInstrumentation -TraceRenderStateInstrumentation -TraceImmediateInstrumentation -TraceDuration 10 -TraceWarmup 2 -TraceStartDelayMs 2000 -RequireCandidateRenderer webgl2,webgpu
+```bash
+./scripts/audit_artifacts.sh --fail-on-incomplete --output ./docs/prompt_to_artifact_checklist.md
 ```
 
-Texture-streaming WebGPU blocker groups now also include `fork-viewer-exp-webgpu-d3d11-aggressive-upload-fast-path`, a trusted-only interaction row that combines D3D11/DXC/fence/flush/upload toggles with the source-backed copyExternalImage and queue/writeTexture hot-path skips. It is intentionally excluded from glTF/draw-call and large-static blocker groups until a texture-specific run proves it helps without CPU fallback, device loss, or tail regression. CopyExternalImage upload rows run with `--viewerRejectWebgpuCpuTextureFallback`, so a rebuilt benchmark fails closed if CanvasTexture upload falls back to CPU readback/upload.
-
-Add `-DryRun` to inspect the exact comparable baseline, trusted matrix, targeted trace, and post-run analysis commands without launching benchmarks; when paired with `-PlanSuitePromotionAfterTriage`, the dry-run also writes a planned triage placeholder and regenerates the no-promotion suite-promotion manifest so that handoff cannot retain an older fork stamp. The current-candidate handoff fails closed unless the official manifest is completed, same-revision, carries stock baseline plus fork/aggressive result buckets for every required renderer, each manifest bucket points at JSON with the matching `renderer_type`, stock buckets have `viewer_mode=false` and no `fork_revision`, fork buckets have `viewer_mode=true` and the expected fork revision, every compatible trusted-matrix `result_files.all` input matches the trusted manifest renderer, has `viewer_mode=true`, `viewer_trusted_content=true`, and the expected Chromium/fork revisions, and every input carries matching duration, warmup, complexity, and manifest-listed result JSON timing; the artifact audit then checks that the targeted blocker seed `candidate_analysis_json` has an input digest and exact input-file metadata matching the current official comparison plus compatible trusted manifests. The post-ATL and official comparison helpers default to `-Complexity 2` and forward that value through stock suites, fork suites, trusted matrices, and trace capture; `run_full_suite.ps1 -ReuseValidResults` rejects existing JSON from the wrong complexity so stress evidence cannot be satisfied by easier scenes. The completion-oriented `run_post_atl_pipeline.ps1 -FinalGate` preflight now rejects official runs below `-Duration 120 -Warmup 20`, requires `-DisableWebGpuTiming -DisableForkWebGpuTiming`, and rejects a `-TargetedBlockerComplexity` override that does not match `-Complexity`, so short, timestamp-device-loss-prone, or easier diagnostic passes cannot enter the final speedup gate. By default, the runner uses the analyzer's `required_candidate_gate.renderers` rows to focus on the best currently failing WebGL2/WebGPU family instead of every historical non-candidate row, then also includes same-renderer scene diagnostics whose average-FPS regression is at least `-SevereBlockerFpsRegressionPct` (default `20`) plus same-renderer `blocked-tail` candidate diagnostics so severe regressions such as the current WebGPU `large-static` loss and positive-FPS tail regressions are not skipped; WebGPU `texture-streaming` is additionally included as a dedicated upload-blocker scene whenever a non-candidate texture row has negative average FPS, even if it is below the generic severe threshold. Pass `-DisableSevereBlockerExpansion` only when you want the strict required-gate-only plan, or `-IncludeAllBlockerDiagnostics` when you intentionally want the broader legacy sweep. `-RunComparableBaselines` runs stock content-shell suites with the same duration, warmup, complexity, and WebGPU timing mode as the targeted fork experiments so the analyzer is not depending on stale or mismatched baseline artifacts. `-CaptureTargetedTrace -RejectWebGpuCpuFallbackTrace` captures matched stock and fork WebGPU traces for every planned WebGPU blocker scene, validates the trace JSON and sidecar metadata, rejects forced CPU texture fallback/readback paths, summarizes queue/path slices, and records the trace artifacts in `targeted-blocker-experiment-plan.json`; add `-TraceQueueInstrumentation` when viewer-side queue attribution is needed, `-TraceBindGroupInstrumentation` when viewer-side `setBindGroup` dynamic-offset attribution is needed, `-TracePipelineStateInstrumentation` when viewer-side `setPipeline` churn or redundant pipeline sets need attribution, and `-TraceBufferStateInstrumentation` when viewer-side redundant `setVertexBuffer` / `setIndexBuffer` state attribution is needed. The completion-oriented `run_post_atl_pipeline.ps1 -FinalGate` handoff adds `-RejectWebGpuCpuFallbackTrace` automatically to targeted WebGPU traces when `-CaptureTrace -IncludeWebGPU -RunTargetedBlockerExperiments` are present, and can forward `-TraceQueueInstrumentation`, `-TraceBindGroupInstrumentation`, `-TracePipelineStateInstrumentation`, and `-TraceBufferStateInstrumentation` into those traces. The artifact audit now requires targeted WebGPU trace manifests to record CPU-fallback rejection before they can support retained speed claims. `-AnalyzeAfterRun` writes the planned current-run baseline and fork result files to `benchmarks\reports\targeted-blocker-candidate-analysis-inputs.txt`, invokes `scripts/analyze_candidates.mjs --fileList` after the targeted matrices, and passes `--requireCheckout`, `--requirePackageSize`, plus the expected Chromium and fork revisions so installed-Chrome smokes, unpackaged artifacts, stale JSON from another checkout, or stale viewer patches are filtered. It writes a one-scene blocker triage report to `benchmarks\reports\targeted-blocker-triage-analysis.md` / `.json` first, then writes the strict seven-scene retention gate to `benchmarks\reports\targeted-blocker-candidate-analysis.md` / `.json`. `-PlanSuitePromotionAfterTriage` appends `scripts\plan_suite_promotion.ps1` as the next step, which expands clean one-scene triage winners into full seven-scene retest commands and writes `targeted-suite-promotion-plan.json` plus a scoped promotion analyzer input list. Completed suite-promotion manifests feed the final speedup gate only after their raw input list and analysis JSON have matching input digests, exact input-file path/hash/size metadata, matching Chromium/fork revisions, and matching official duration/warmup/complexity. The runner passes `-PostRunAnalysisMinAvgFpsDeltaPct` to both analyzer passes, defaulting to `0.5`, so noise-level positive averages do not become retained speed claims. It also passes `-PostRunAnalysisSceneRegressionPct`, defaulting to `1.0`, so a material per-scene average-FPS regression cannot be hidden inside a positive suite average. The runner writes `benchmarks\reports\targeted-blocker-experiment-plan.json` with active required-gate blocker diagnostics, severe same-renderer average-FPS diagnostics, same-renderer blocked-tail diagnostics, WebGPU upload-blocker diagnostics, the full diagnostic set, planned scenes, WebGL2 ANGLE backend probes, focused WebGPU experiment labels, WebGPU scene-label groups, resource-warmup mode, revision filters, checkout-gated result-file inputs, targeted trace files, candidate-analysis thresholds, suite-promotion paths, and command steps. The default targeted WebGL2 backend probe is `d3d11`; with `-IncludeZeroCopy` this includes the isolated D3D11 plus zero-copy row as well as relaxed-validation interactions and frame-pacing rows, so the current zero-copy tail issue can be separated from relaxed-validation and presentation-pacing behavior. Pass `-WebGlAngleBackend default` to omit backend interaction rows or pass another backend list for platform-specific triage. Targeted WebGPU rows are passed through `-ExperimentLabelFilter` so glTF/draw-call, texture-streaming, shader-heavy, and large-pass blockers run the relevant frame-pacing, D3D11, Dawn, Chromium feature, upload, and interaction probes instead of every trusted WebGPU row for every scene; non-suite WebGPU blocker scenes are partitioned by identical label sets first, so glTF/draw-call-only rows such as the aggressive D3D11 pipeline/submit fast path are not run against large-static or texture-only blockers. glTF rows are treated as both draw-call and shader/pipeline sensitive, so they include frame-pacing, DXC/HLSL, D3D12 pipeline/backend toggles, D3D11 DXC/fence/flush interactions, D3D11 plus Dawn skip-validation / disable-robustness interactions, and the aggressive D3D11 pipeline/submit fast-path row to test FPS caps, shader-codegen, pipeline, validation, robustness, adapter-path, and Blink hot-path costs on Windows. If you intentionally want to analyze a custom artifact set, pass `-PostRunAnalysisInputs`; otherwise the runner avoids broad `benchmarks\raw\*.json` scans and avoids oversized Windows command lines. `-RequireCandidateRenderer webgl2,webgpu` makes the strict retention analysis fail until both renderers have retained candidate families, while the triage analysis still ranks focused one-scene blocker experiments. The targeted runner is for triage only; retained performance claims still require the full seven-scene official/trusted/suite-promotion gate against checkout-built browser artifacts. The post-ATL helper can run the same loop after a rebuilt evidence pass with `-RunTargetedBlockerExperiments`.
-
-Targeted WebGPU trace attribution can also pass `-TraceRenderStateInstrumentation`, which forwards `--renderStateInstrumentation` into `run_trace_capture.mjs` and validates `webgpu_render_state_instrumentation_enabled=true` in the trace sidecar. It can also pass `-TraceImmediateInstrumentation`, which forwards `--immediateInstrumentation` and validates `webgpu_immediate_instrumentation_enabled=true`. Use these with the queue, bind-group, pipeline-state, and buffer-state attribution flags when testing whether source-backed pass-encoding fast paths are exercised by real Three.js command streams.
-
-The analyzer now treats extra shader compile events or measured-window WebGPU pipeline creation time above `--pipelineCreateRegressionMs 1.0` as `blocked-shader-stalls`; those rows are routed through the shader/pipeline WebGPU label set instead of being promoted as clean speed wins. It treats low-FPS regressions above `--lowRegressionFps 1.0`, per-scene dropped-frame-rate increases above `--droppedFrameRateRegressionPct 0.5` percentage points while continuing to report raw `dropped_frames`, and any per-scene CPU-frame or render-submission regression above `--cpuFrameRegressionMs 0.5` / `--renderSubmissionRegressionMs 0.5` as blockers, so a higher average-FPS row cannot be retained when material frame pacing or CPU-side submission cost gets worse.
-
-Current viewer metrics feed that gate from runtime evidence when possible: WebGL2 uses renderer program-count growth after warmup, while WebGPU wraps `GPUDevice` pipeline creation methods and maps measured-phase pipeline creations into `shader_compile_events`.
-
-The candidate analyzer treats WebGPU pipeline-instrumentation mode as a compatibility key. New runtime pipeline-telemetry results therefore cannot be compared against older WebGPU JSON artifacts that lack the instrumentation mode, and fork/stock rows with different pipeline-telemetry settings cannot support retained speed claims.
-
-The focused command above includes `-Precompile -PrerenderFrames 2 -SettleGpuAfterWarmup -WebGpuPipelineQuietFrames 2 -WebGpuPipelineQuietMaxFrames 12` because the current WebGL2 candidate is blocked by postprocessing low-FPS/tail behavior and WebGPU still needs glTF-loader throughput attribution without shader/pipeline warmup, queued GPU-work noise, first-use texture/render-target setup, or first-measured-frame pipeline creation. Omit those switches only when intentionally measuring the unwarmed path. The GPU-settle mode waits for `GPUQueue.onSubmittedWorkDone()` on WebGPU or `gl.finish()` on WebGL after resource warmup. The WebGPU pipeline-quiet mode then renders and drains additional WebGPU frames until pipeline creation telemetry is quiet for the requested consecutive-frame count, or records a bounded failure. Retained WebGPU evidence with pipeline-quiet warmup is rejected if pipeline instrumentation is unavailable or if any pipeline creation still occurs during the measured window. The runner passes the same resource-warmup mode to the comparable stock baseline and every fork experiment, and the candidate analyzer groups only matching resource-warmup modes, including compile target plus texture/render-target initialization counts, so settled or pipeline-quiet warmed fork runs are never compared against unsettled, non-quiet, measured-pipeline-contaminated, partially warmed, or unwarmed stock results.
-
-The targeted manifest records renderer-specific label suffixes for warmed runs. WebGL2 labels include precompile/prerender/GPU-settle state, while WebGPU labels additionally include `pipelinequiet<n>` when `-WebGpuPipelineQuietFrames` is set.
-
-## Validation Commands
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\audit_artifacts.ps1 -FailOnIncomplete -Output .\docs\prompt_to_artifact_checklist.md
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\test_gn_args_profiles.ps1
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\test_baseline_source_guard.ps1
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\test_binary_audit_rows.ps1
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\test_post_atl_pipeline_dry_run.ps1
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\test_blocker_experiment_plan.ps1
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\test_trusted_matrix_label_suffix.ps1
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\test_webgpu_experiment_flag_sources.ps1
-```
-
-The blocker-plan and trusted-matrix label/filter checks are also invoked by `scripts\verify_prebuild.ps1`, so the focused WebGPU experiment-label selection is tested before a post-WDAC build/evidence run. The standalone WebGPU flag source-registry check is invoked by `scripts\run_trusted_experiment_matrix.ps1` before WebGPU Dawn, Chromium-feature, or upload experiment matrices run, including dry-runs. A stale Dawn toggle, Chromium GPU feature, or WebGPU adapter value should fail before benchmark artifacts are written.
-
-The final checklist maps build, runtime, benchmark, optimization, stability, and documentation requirements to concrete artifacts.
+Archived platform artifacts do not satisfy WSL gates. Rebuild and rerun evidence on WSL before making Linux performance claims.

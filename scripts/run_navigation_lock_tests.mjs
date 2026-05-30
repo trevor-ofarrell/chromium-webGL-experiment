@@ -56,15 +56,6 @@ function commandText(command, args, options = {}) {
 }
 
 function getBrowserVersion(browser) {
-  if (process.platform === 'win32') {
-    const literalPath = browser.replaceAll("'", "''");
-    const out = commandText('powershell', [
-      '-NoProfile',
-      '-Command',
-      `(Get-Item -LiteralPath '${literalPath}').VersionInfo.ProductVersion`,
-    ]);
-    return out || null;
-  }
   return commandText(browser, ['--version'], { timeoutMs: 5000 }) || null;
 }
 

@@ -485,6 +485,25 @@ function readTextIfExists(file) {
   return fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
 }
 
+function hostEnvironmentMetadata() {
+  const kernelRelease = readTextIfExists('/proc/sys/kernel/osrelease').trim();
+  const procVersion = readTextIfExists('/proc/version').trim();
+  const isWsl = /microsoft|wsl/i.test(`${kernelRelease} ${procVersion}`);
+  const osRelease = readTextIfExists('/etc/os-release');
+  const prettyName = osRelease.split('\n')
+    .find((line) => line.startsWith('PRETTY_NAME='))
+    ?.split('=')[1]
+    ?.replace(/^"|"$/g, '') || null;
+
+  return {
+    host_platform: isWsl ? 'wsl-linux' : process.platform,
+    host_is_wsl: isWsl,
+    host_kernel_release: kernelRelease || os.release(),
+    host_distro: prettyName,
+    host_repo_filesystem_policy: rootDir.startsWith('/mnt/') ? 'windows-mount-unsupported' : 'linux-filesystem',
+  };
+}
+
 function sha256Text(text) {
   return crypto.createHash('sha256').update(text).digest('hex');
 }
@@ -555,64 +574,10 @@ function getGitRevision(dir) {
 }
 
 function getBrowserVersion(browser) {
-  if (process.platform === 'win32') {
-    const literalPath = browser.replaceAll("'", "''");
-    const out = commandText('powershell', [
-      '-NoProfile',
-      '-Command',
-      `(Get-Item -LiteralPath '${literalPath}').VersionInfo.ProductVersion`,
-    ]);
-    return out || null;
-  }
   return commandText(browser, ['--version'], { timeoutMs: 5000 }) || null;
 }
 
 function getProcessTreeRssMb(pid) {
-  if (process.platform === 'win32') {
-    const rootPid = Number(pid);
-    if (!Number.isInteger(rootPid) || rootPid <= 0) return null;
-    const script = `
-$rootPid = ${rootPid}
-$all = Get-CimInstance Win32_Process | Select-Object ProcessId, ParentProcessId, WorkingSetSize
-$byId = @{}
-$byParent = @{}
-foreach ($p in $all) {
-  $id = [int]$p.ProcessId
-  $parent = [int]$p.ParentProcessId
-  $byId[$id] = $p
-  if (-not $byParent.ContainsKey($parent)) {
-    $byParent[$parent] = New-Object System.Collections.Generic.List[int]
-  }
-  $byParent[$parent].Add($id)
-}
-$queue = New-Object System.Collections.Generic.Queue[int]
-$queue.Enqueue($rootPid)
-$visited = @{}
-$sum = [int64]0
-while ($queue.Count -gt 0) {
-  $current = $queue.Dequeue()
-  if ($visited.ContainsKey($current)) { continue }
-  $visited[$current] = $true
-  if ($byId.ContainsKey($current) -and $byId[$current].WorkingSetSize) {
-    $sum += [int64]$byId[$current].WorkingSetSize
-  }
-  if ($byParent.ContainsKey($current)) {
-    foreach ($child in $byParent[$current]) {
-      $queue.Enqueue([int]$child)
-    }
-  }
-}
-$sum
-`;
-    const out = commandText('powershell', [
-      '-NoProfile',
-      '-Command',
-      script,
-    ]);
-    const bytes = Number(out);
-    return Number.isFinite(bytes) && bytes > 0 ? bytes / (1024 * 1024) : null;
-  }
-
   const out = commandText('ps', ['-e', '-o', 'pid=,ppid=,rss=']);
   const rows = out.split('\n')
     .map((line) => line.trim().split(/\s+/).map(Number))
@@ -1305,6 +1270,7 @@ async function main() {
     result.browser_version = browserVersion;
     result.browser_is_from_checkout = browserIsFromCheckout;
     result.platform = result.platform || `${os.type()} ${os.release()} ${os.arch()}`;
+    Object.assign(result, hostEnvironmentMetadata());
     result.gpu_name = result.gpu_name || gpuDevice?.deviceString || null;
     result.driver_version = result.driver_version || gpuDevice?.driverVendor || gpuDevice?.driverVersion || null;
     result.angle_backend = result.angle_backend || requestedAngleBackend;

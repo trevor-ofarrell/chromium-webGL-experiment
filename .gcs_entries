@@ -239,5 +239,11 @@
     "src/third_party/dawn/build/linux/debian_bullseye_amd64-sysroot": [
       "52d61d4446ffebfaa3dda2cd02da4ab4876ff237853f46d273e7f9b666652e1d"
     ]
+  },
+  "src/third_party/instrumented_libs": {
+    "src/third_party/instrumented_libs/binaries": [
+      "9329714322846c2b47dd518ac08e437b8c7d8075c514dc7ec3eb3e3a1e0faeb6",
+      "a749c9e47cb4584bc944c887440b1d1c51501f7d9bb99eea276ebcba0aa6c1ec"
+    ]
   }
 }
